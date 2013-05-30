@@ -1,0 +1,9 @@
+---
+puppet_server: ec2-184-169-207-185.us-west-1.compute.amazonaws.com
+puppet_clients:
+- ec2-184-169-184-56.us-west-1.compute.amazonaws.com
+- ec2-54-215-117-26.us-west-1.compute.amazonaws.com
+- ec2-50-18-102-124.us-west-1.compute.amazonaws.com
+- ec2-50-18-94-88.us-west-1.compute.amazonaws.com
+- ec2-54-215-94-137.us-west-1.compute.amazonaws.com
+- ec2-184-169-240-24.us-west-1.compute.amazonaws.com

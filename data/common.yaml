@@ -1,0 +1,86 @@
+---
+install_mode: local
+root_ssh_key: ~/.ssh/ruby-sample-1363113606
+controller: ec2-184-169-207-185.us-west-1.compute.amazonaws.com
+hadoop_ha: enabled
+hadoop_namenode:
+- ec2-184-169-184-56.us-west-1.compute.amazonaws.com
+- ec2-54-215-117-26.us-west-1.compute.amazonaws.com
+zookeeper_quorum:
+- ec2-184-169-184-56.us-west-1.compute.amazonaws.com
+- ec2-54-215-117-26.us-west-1.compute.amazonaws.com
+- ec2-50-18-102-124.us-west-1.compute.amazonaws.com
+journal_quorum: ec2-184-169-184-56.us-west-1.compute.amazonaws.com:8485,ec2-54-215-117-26.us-west-1.compute.amazonaws.com:8485,ec2-50-18-102-124.us-west-1.compute.amazonaws.com:8485
+mapreduce:
+  type: mr1
+  master_node: ec2-50-18-102-124.us-west-1.compute.amazonaws.com
+hbase_install: disabled
+slave_nodes:
+- ec2-50-18-94-88.us-west-1.compute.amazonaws.com
+- ec2-54-215-94-137.us-west-1.compute.amazonaws.com
+- ec2-184-169-240-24.us-west-1.compute.amazonaws.com
+hadoop_ecosystem:
+- hive
+- sqoop
+- flume
+- pig
+- oozie
+- hue
+security: simple
+monitoring: enabled
+alerting: enabled
+admin_email: admin@cw.com
+hadoop_heap_size: 1000
+hadoop_namenode_opts: -Xmx1000m
+hadoop_jobtracker_opts: -Xmx1000m
+hadoop_secondarynamenode_opts: -Xmx1000m
+hadoop_datanode_opts: -Xmx1000m
+hadoop_tasktracker_opts: -Xmx1000m
+hadoop_balancer_opts: -Xmx1000m
+hadoop_snappy_codec: disabled
+hadoop_config_fs_inmemory_size_mb: 200
+hadoop_config_io_file_buffer_size: '65536'
+hadoop_config_hadoop_tmp_dir: /tmp/hadoop-${user.name}
+hadoop_ha_nameservice_id: ha-nn-uri
+hadoop_data_dirs:
+- /data/1
+- /data/2
+- /data/3
+- /data/4
+hadoop_config_dfs_replication: 3
+hadoop_config_dfs_block_size: 67108864
+hadoop_config_io_bytes_per_checksum: 512
+hadoop_config_fs_trash_interval: 0
+hadoop_config_dfs_permissions_supergroup: hadoop
+hadoop_config_dfs_datanode_max_transfer_threads: 4096
+hadoop_config_dfs_datanode_du_reserved: 0
+hadoop_config_dfs_datanode_balance_bandwidthpersec: 1048576
+hadoop_config_dfs_permissions_enabled: 'true'
+hadoop_config_namenode_handler_count: 10
+hadoop_config_dfs_namenode_safemode_threshold_pct: 0.999f
+hadoop_config_dfs_namenode_replication_min: 1
+hadoop_config_dfs_namenode_safemode_extension: 30000
+hadoop_config_dfs_df_interval: 60000
+hadoop_config_dfs_client_block_write_retries: 3
+hadoop_config_mapred_child_java_opts: 1024
+hadoop_config_io_sort_mb: 100
+hadoop_config_io_sort_factor: 10
+hadoop_config_mapred_map_sort_spill_percent: 0.8
+hadoop_config_mapred_job_tracker_handler_count: 10
+hadoop_config_mapred_map_tasks_speculative_execution: 'true'
+hadoop_config_mapred_reduce_parallel_copies: 5
+hadoop_config_mapred_reduce_tasks_speculative_execution: 'true'
+hadoop_config_mapred_tasktracker_map_tasks_maximum: 2
+hadoop_config_mapred_tasktracker_reduce_tasks_maximum: 2
+hadoop_config_tasktracker_http_threads: 40
+hadoop_config_use_map_compression: 'false'
+hadoop_config_mapred_reduce_slowstart_completed_maps: 0.05
+zookeeper_ensemble: ec2-184-169-184-56.us-west-1.compute.amazonaws.com:2181,ec2-54-215-117-26.us-west-1.compute.amazonaws.com:2181,ec2-50-18-102-124.us-west-1.compute.amazonaws.com:2181
+zookeeper_class_ensemble:
+- ec2-184-169-184-56.us-west-1.compute.amazonaws.com:2888:3888
+- ec2-54-215-117-26.us-west-1.compute.amazonaws.com:2888:3888
+- ec2-50-18-102-124.us-west-1.compute.amazonaws.com:2888:3888
+number_of_nodes: 3
+ganglia_server: ec2-184-169-207-185.us-west-1.compute.amazonaws.com
+nagios_server: ec2-184-169-207-185.us-west-1.compute.amazonaws.com
+nagios_server_ostype: CentOS

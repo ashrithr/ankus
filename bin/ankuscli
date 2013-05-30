@@ -1,0 +1,19 @@
+#!/usr/bin/env ruby
+
+$LOAD_PATH.unshift(File.dirname(__FILE__) + '/../lib') unless $LOAD_PATH.include?(File.dirname(__FILE__) + '/../lib')
+
+begin
+  require 'ankuscli'
+rescue LoadError
+  require 'rubygems'
+  require 'ankuscli'
+end
+
+#Start the app
+begin
+  Ankuscli::CLI.start
+rescue Interrupt
+  puts 'Caught Interrupt, Exiting...'
+rescue ArgumentError
+  puts "Cannot recognize the argument passed, #{$!}"
+end

@@ -1,0 +1,47 @@
+---
+ec2-184-169-207-185.us-west-1.compute.amazonaws.com:
+  java: 
+  nagios::server: 
+  ganglia::server: 
+ec2-184-169-184-56.us-west-1.compute.amazonaws.com:
+  java: 
+  hadoop::namenode: 
+  zookeeper::server:
+    myid: 0
+  hadoop::journalnode: 
+  nagios::nrpe: 
+  ganglia::client: 
+ec2-54-215-117-26.us-west-1.compute.amazonaws.com:
+  java: 
+  hadoop::namenode: 
+  zookeeper::server:
+    myid: 1
+  hadoop::journalnode: 
+  nagios::nrpe: 
+  ganglia::client: 
+ec2-50-18-102-124.us-west-1.compute.amazonaws.com:
+  java: 
+  zookeeper::server:
+    myid: 2
+  hadoop::journalnode: 
+  hadoop::jobtracker: 
+  nagios::nrpe: 
+  ganglia::client: 
+ec2-50-18-94-88.us-west-1.compute.amazonaws.com:
+  java: 
+  hadoop::tasktracker: 
+  hadoop::datanode: 
+  nagios::nrpe: 
+  ganglia::client: 
+ec2-54-215-94-137.us-west-1.compute.amazonaws.com:
+  java: 
+  hadoop::tasktracker: 
+  hadoop::datanode: 
+  nagios::nrpe: 
+  ganglia::client: 
+ec2-184-169-240-24.us-west-1.compute.amazonaws.com:
+  java: 
+  hadoop::tasktracker: 
+  hadoop::datanode: 
+  nagios::nrpe: 
+  ganglia::client: 

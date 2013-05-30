@@ -1,0 +1,36 @@
+#!/usr/bin/env ruby
+
+# ---
+# => Puppet external node classifier for ankuscli
+# ---
+require 'yaml'
+
+NODE          = ARGV[0]                                                      #fqdn of host passed by puppet
+@roles_file   = %q(/etc/puppet/enc/roles.yaml)                               #file which contains nodes to roles mapping
+@default_hash = { :classes => [] }                                           #default hash to print if node does exist
+@enc_hash     = Hash.new                                                     #hash to store the final roles map of node
+
+if NODE.nil?
+  STDERR.puts '[Error]: argument node is required to generate classes hash for a specific node'
+  STDERR.puts "Usage: #{__FILE__} fqdn"
+  exit 1
+end
+
+unless NODE =~ /(^\S+)\.(\S+\.\S+)$/
+  puts @default_hash.to_yaml
+  exit 0
+end
+
+#try to find file at another possible path if ROLES_FILE is empty
+unless File.exists? @roles_file
+  @roles_file = File.expand_path(File.dirname(__FILE__) + '/../data/roles.yaml')
+end
+if File.exists? @roles_file
+  @map = YAML.load_file(@roles_file)
+  @enc_hash['classes'] = @map[NODE]
+  puts @enc_hash.to_yaml
+else
+  #mapping file was not generated run the parser to do so
+  STDERR.puts "[Error]: Cannot find the enc_data file at #{@roles_file}"
+  exit 1
+end

@@ -1,0 +1,82 @@
+---
+# Fine tune your hadoop cluster, hadoop specific properties goes into this file
+# do not add more properties apart from that are already here, these are tightly
+# integrated into puppet
+################
+# Core properties
+################
+#heap sizes for all hadoop daemons in mb
+hadoop_heap_size:               '1000'
+#heap sizes for individual hadoop daemons
+hadoop_namenode_opts:           '-Xmx1000m'
+hadoop_jobtracker_opts:         '-Xmx1000m'
+hadoop_secondarynamenode_opts:  '-Xmx1000m'
+hadoop_datanode_opts:           '-Xmx1000m'
+hadoop_tasktracker_opts:        '-Xmx1000m'
+hadoop_balancer_opts:           '-Xmx1000m'
+#compression
+hadoop_snappy_codec: 'disabled'
+hadoop_config_fs_inmemory_size_mb: 200
+hadoop_config_io_file_buffer_size: '65536'
+hadoop_config_hadoop_tmp_dir: '/tmp/hadoop-${user.name}'
+#hadoop_config_security_authorization:
+hadoop_ha_nameservice_id: 'ha-nn-uri'
+
+################
+# HDFS properties
+################
+hadoop_data_dirs:
+  - /data/1
+  - /data/2
+  - /data/3
+  - /data/4
+hadoop_config_dfs_replication: 3
+hadoop_config_dfs_block_size: 67108864
+hadoop_config_io_bytes_per_checksum: 512
+hadoop_config_fs_trash_interval: 0
+hadoop_config_dfs_permissions_supergroup: 'hadoop'
+hadoop_config_dfs_datanode_max_transfer_threads: 4096
+hadoop_config_dfs_datanode_du_reserved: 0
+hadoop_config_dfs_datanode_balance_bandwidthpersec: 1048576
+hadoop_config_dfs_permissions_enabled: 'true'
+hadoop_config_namenode_handler_count: 10
+hadoop_config_dfs_namenode_safemode_threshold_pct: 0.999f
+hadoop_config_dfs_namenode_replication_min: 1
+hadoop_config_dfs_namenode_safemode_extension: 30000
+hadoop_config_dfs_df_interval: 60000
+hadoop_config_dfs_client_block_write_retries: 3
+
+################
+# MapReduce/Yarn properties
+################
+hadoop_config_mapred_child_java_opts: 1024
+hadoop_config_io_sort_mb: 100
+hadoop_config_io_sort_factor: 10
+hadoop_config_mapred_map_sort_spill_percent: 0.8
+hadoop_config_mapred_job_tracker_handler_count: 10
+hadoop_config_mapred_map_tasks_speculative_execution: 'true'
+hadoop_config_mapred_reduce_parallel_copies: 5
+hadoop_config_mapred_reduce_tasks_speculative_execution: 'true'
+hadoop_config_mapred_tasktracker_map_tasks_maximum: 2
+hadoop_config_mapred_tasktracker_reduce_tasks_maximum: 2
+#hadoop_config_mapred_reduce_tasks:
+hadoop_config_tasktracker_http_threads: 40
+hadoop_config_use_map_compression: 'false'
+hadoop_config_mapred_reduce_slowstart_completed_maps: 0.05
+
+################
+# Ports
+################
+hadoop_namenode_port: 8020
+hadoop_resourcemanager_port: 8032
+hadoop_resourcetracker_port: 8031
+hadoop_resourcescheduler_port: 8030
+hadoop_resourceadmin_port: 8033
+hadoop_resourcewebapp_port: 8088
+hadoop_proxyserver_port: 8089
+hadoop_jobhistory_port: 10020
+hadoop_jobhistory_webapp_port: 19888
+hadoop_proxyserver_port: 8089
+hadoop_jobtracker_port: 8021
+hadoop_tasktracker_port: 50060
+hadoop_datanode_port: 50075
