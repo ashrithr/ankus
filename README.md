@@ -39,6 +39,7 @@ Download and install:
 
 ```
 $ cd ~ && git clone https://github.com/ashrithr/ankus-cli.git
+$ gem install bundle --no-ri --no-rdoc
 #install ruby gem dependencies
 $ cd ankus-cli && bundle install
 ```

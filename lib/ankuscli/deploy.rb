@@ -140,8 +140,10 @@ module Ankuscli
           hiera_hash['nagios_server'] = @puppet_master
           begin #gather info of system
             if parsed_hash['controller'] == 'localhost'
-              status = ShellUtils.run_cmd!("chmod +x #{GETOSINFO_SCRIPT} && #{GETOSINFO_SCRIPT}")
-              unless status.success?
+              @osinfo = `chmod +x #{GETOSINFO_SCRIPT} && #{GETOSINFO_SCRIPT}`.chomp
+              if $?.success?
+                @ostype = @osinfo =~ /centos/ ? "CentOS" : "Ubuntu"
+              else
                 @ostype = 'CentOS'
               end
             else
@@ -202,11 +204,13 @@ module Ankuscli
 
         puts 'Initializing puppet run on controller'.blue
         if controller == 'localhost'
-          status = ShellUtils.run_cmd!(puppet_run_cmd)
-          unless status.success?
-            puts '[Error]:'.red + ' Failed to install puppet master'
-            #TODO handle rollback
-          end
+          ShellUtils.run_cmd!(puppet_run_cmd)
+          # TODO First puppet run on controller will fail! Fix this.
+          #   Error: Could not start Service[nagios]: Execution of '/sbin/service nagios start' returned 1
+          #   Error: /Stage[main]/Nagios::Server/Service[nagios]/ensure: change from stopped to running failed: Could not start Service[nagios]: Execution of '/sbin/service nagios start' returned 1
+          #unless status.success?
+          #  puts '[Error]:'.red + ' Failed to install puppet master'
+          #end
         else
           puppet_single_run(@puppet_master)
         end
@@ -274,7 +278,7 @@ module Ankuscli
         end
         unless exit_status == 0
           puts '[Error]: '.red + "Puppet run failed on #{instance}, aborting!"
-          exit 1
+          #exit 1
           #TODO Rollback lock
         end
       end
