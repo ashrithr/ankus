@@ -57,19 +57,24 @@ module Ankuscli
           )
           unless status.success?
             puts '[Error]:'.red + ' Failed to install puppet master'
+            exit 2
             #TODO handle rollback
           end
         else
           puts "[Debug]: Sending file #{PUPPET_INSTALLER} to #{@puppet_master}" if @debug
           SshUtils.upload!(PUPPET_INSTALLER, remote_puppet_installer_loc, @puppet_master, @ssh_user, @ssh_key)
-          SshUtils.execute_ssh_cmds(
-              [remote_puppet_server_cmd],
+          output = SshUtils.execute_ssh!(
+              remote_puppet_server_cmd,
               @puppet_master,
               @ssh_user,
               @ssh_key,
               22,
               @debug
           )
+          unless output[@puppet_master][2].to_i == 0
+            puts '[Error]:'.red + ' Failed to install puppet master'
+            exit 2
+          end
         end
         #initiate concurrent threads pool - to install puppet clients all agent nodes
         ssh_connections = ThreadPool.new(@parallel_connections)
