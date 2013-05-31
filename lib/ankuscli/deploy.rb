@@ -219,38 +219,46 @@ module Ankuscli
           # init puppet agent on zookeepers
         if hadoop_ha == 'enabled' or hbase_install == 'enabled'
           #parallel puppet run on zks
+          puts 'Initializing zookeepers'
           puppet_parallel_run(@parsed_hash['zookeeper_quoram'])
           if @parsed_hash['journal_quorum']
             #parallel puppet run on jns
+            puts 'Initializing journal nodes'
             puppet_parallel_run(@parsed_hash['journal_quorum'])
           end
           if hadoop_ha == 'enabled'
             #parallel run puppet run on nns
+            puts 'Initializing  namenodes'
             puppet_parallel_run(@parsed_hash['hadoop_namenode'])
           end
           if hbase_install == 'enabled'
             hbase_master = @parsed_hash['hbase_master']
             if hbase_master.length == 1
+              puts 'Initializing hbase master'
               puppet_single_run(hbase_master)
             else
+              puts 'Initializing hbase masters'
               puppet_parallel_run(hbase_master)
             end
           end
         elsif hadoop_ha == 'disabled'
+          puts 'Initializing namenode'
           puppet_single_run(@parsed_hash['hadoop_namenode'].first)
         end
 
         # init puppet agent on mapreduce master
+        puts 'Initializing mapreduce master'
         puppet_single_run(@parsed_hash['mapreduce']['master_node'])
 
         # init puppet agent on slave nodes
+        puts 'Initializing slave nodes'
         puppet_parallel_run(@parsed_hash['slave_nodes'])
 
         # finalize puppet run on controller to refresh nagios
         if controller == 'localhost'
           status = ShellUtils.run_cmd!(puppet_run_cmd)
           unless status.success?
-            puts '[Error]:'.red + ' Failed to install puppet master'
+            puts '[Error]:'.red + ' Failed to finalize puppet run'
             #TODO handle rollback
           end
         else
@@ -271,7 +279,7 @@ module Ankuscli
             22,
             @debug
         )
-        exit_status = output[instance][2]
+        exit_status = output[instance][2].to_i
         if @debug
           puts output[instance][0]
           puts output[instance][1]
@@ -281,6 +289,7 @@ module Ankuscli
           #exit 1
           #TODO Rollback lock
         end
+        puts 'Completed puppet run on' +" #{instance}".blue
       end
 
       # run puppet on instances in parallel using thread pool
@@ -288,7 +297,7 @@ module Ankuscli
         puppet_run_cmd = "puppet agent --server #{@puppet_master} --test --logdest #{REMOTE_LOG_DIR}/puppet_run.log"
         #initiate concurrent threads pool - to install puppet clients all agent nodes
         ssh_connections = ThreadPool.new(@parallel_connections)
-        puts 'Running puppet on clients: ' + "#{instances_array.join(',')}".blue
+        puts 'Running puppet on clients: ' + "#{instances_array.join(',')}".blue if @debug
         output = []
         time = Benchmark.measure do
           instances_array.each do |instance|
@@ -315,7 +324,7 @@ module Ankuscli
             puts o[instance][0]
             puts "Stderr of #{instance}".yellow
             puts o[instance][1]
-            puts "[Error]: Puppet run failed on #{instance}" if o[instance][2] == 0
+            puts "[Error]: Puppet run failed on #{instance}" unless o[instance][2].to_i == 0
           end
         end
       end
