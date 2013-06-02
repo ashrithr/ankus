@@ -1,0 +1,74 @@
+---
+########################################################
+#            AnkusCLI Cloud Configuration
+########################################################
+install_mode: 'cloud'
+
+##Supported cloud platforms - aws, rackspace
+cloud_platform: aws
+##Cloud Service Credentials
+#  # {'cloud_credentials' => { 'aws_access_key' => '', 'aws_secret_key' => '', 'aws_machine_type' => 'm1.large' } }
+cloud_credentials:
+  aws_access_id: ''
+  aws_secret_key: ''
+  aws_machine_type: 'm1.large'
+##rackspace
+#cloud_platform: rackspace
+#cloud_credentials:
+#  rackspace_username:
+#  rackspace_api_key:
+#  rackspace_instance_type:
+##type of os to boot into cloud instances
+cloud_os_type: CentOS
+
+########################################################
+# Hadoop Cluster Configuration
+########################################################
+hadoop_ha: 'enabled'
+zookeeper_quorum_count: 3
+## mapreduce framework config
+  # type(type of mapreduce framework to setup), supported values mr1 (regular mapreduce) or mr2 (yarn)
+  # master_node(if mr1 its jobtracker hostname, if mr2 resourcemanager hostname)
+mapreduce:
+  type: 'mr1'
+
+########################################################
+# HBase configuration
+########################################################
+hbase_install: disabled
+#hbase_master_count: 2
+
+# list of slave nodes on which datanode and tasktracker daemons will be installed. If hbase is enabled
+# region servers are also installed on same instances.
+slave_nodes_count: 5
+
+########################################################
+# Additional tools - hadoop ecosystem tools to install
+########################################################
+hadoop_ecosystem:
+  - hive
+  - sqoop
+  - flume
+  - pig
+  - oozie
+  - hue
+
+########################################################
+# Security Config
+########################################################
+# if enabled sets up kerberos and integrates it with hadoop/hbase and its eco-system
+#   possible_values: simple | kerberos
+security: simple
+# if security is kerberos please fill in the below options
+#hadoop_kerberos_realm: CW.COM
+#hadoop_kerberos_domain: cw.com
+
+########################################################
+# Monitoring & Alerting
+########################################################
+# monitoring if enabled, ganglia will be setup and configured
+monitoring: enabled
+# alerting if enabled, nagios will be setup
+alerting: enabled
+# admin email to send notifications to
+admin_email: 'admin@cw.com'

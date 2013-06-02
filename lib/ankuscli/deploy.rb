@@ -195,7 +195,7 @@ module Ankuscli
       end
 
       def run_puppet
-        puppet_run_cmd = "puppet agent --server #{@puppet_master} --test --logdest #{REMOTE_LOG_DIR}/puppet_run.log"
+        puppet_run_cmd = "puppet agent --server #{@puppet_master} --onetime --verbose --no-daemonize --no-splay --ignorecache --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log"
         output = []
         #send enc_data and enc_script to puppet server
         SshUtils.upload!(ENC_ROLES_FILE, ENC_PATH, @puppet_master, @ssh_user, @ssh_key, 22)
@@ -275,7 +275,7 @@ module Ankuscli
 
       # run puppet on single instance
       def puppet_single_run(instance)
-        puppet_run_cmd = "puppet agent --server #{@puppet_master} --test --logdest #{REMOTE_LOG_DIR}/puppet_run.log"
+        puppet_run_cmd = "puppet agent --server #{@puppet_master} --onetime --verbose --no-daemonize --no-splay --ignorecache --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log"
         output = SshUtils.execute_ssh!(
             puppet_run_cmd,
             instance,
@@ -299,7 +299,7 @@ module Ankuscli
 
       # run puppet on instances in parallel using thread pool
       def puppet_parallel_run(instances_array)
-        puppet_run_cmd = "puppet agent --server #{@puppet_master} --test --logdest #{REMOTE_LOG_DIR}/puppet_run.log"
+        puppet_run_cmd = "puppet agent --server #{@puppet_master} --onetime --verbose --no-daemonize --no-splay --ignorecache --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log"
         #initiate concurrent threads pool - to install puppet clients all agent nodes
         ssh_connections = ThreadPool.new(@parallel_connections)
         puts 'Running puppet on clients: ' + "#{instances_array.join(',')}".blue if @debug
