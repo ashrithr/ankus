@@ -7,15 +7,21 @@ module Ankuscli
   # ShellUtils - wrapper around shell
   class ShellUtils
     class << self
-      # run a command using system and return status($?.success), pid($?.pid)
+      # Run a command using system
+      # @param [String] command => command to execute
+      # @return [Kernel::SystemExit] status($?.success), pid($?.pid)
       def run_cmd!(command)
         system(command)
         $?
       end
 
-      # run a command using system and write the stdout and stderr to a log file specified
+      # Run a command using system and write the stdout and stderr to a log file specified
+      # @param [String] command => command to execute
+      # @param [String] log_file => path of the log file to write to
+      # @param [Char] file_write_mode => mode to use to write to the file (default: append)
+      # @return [Kernel::SystemExit] used $?.success $?.pid
       def run_cmd_with_log!(command, log_file, file_write_mode = 'a')
-        if RUBY_VERSION < "1.9"
+        if RUBY_VERSION < '1.9'
           #capture older stdout
           begin
             old_out = $stdout.dup
@@ -84,6 +90,10 @@ module Ankuscli
     class << self
 
       # Check to see if the port is open on a given host
+      # @param [String] ip => ip_address of the host
+      # @param [String] port => port to check
+      # @param [Integer] seconds => timeout in seconds
+      # @return [Boolean] true|false
       def port_open?(ip, port, seconds=2)
         Timeout::timeout(seconds) do
           begin
@@ -104,6 +114,8 @@ module Ankuscli
     class << self
 
       # Validates if an address is ipv4 or not
+      # @param [String] addr => address to validate
+      # @return [Boolean] true|false
       def valid_ipv4?(addr)
         if /\A(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\Z/ =~ addr
           return $~.captures.all? {|i| i.to_i < 256}
@@ -117,14 +129,17 @@ module Ankuscli
   class YamlUtils
     class << self
 
-      # parses the yaml file and returns a hash
+      # Parses the yaml file and returns a hash
+      # @param [String] input_file => yaml file path to parse
       def parse_yaml(input_file)
         YAML.load_file(input_file)
       rescue ArgumentError, Psych::SyntaxError
         puts "Failed parsing config file: #{$!}"
       end
 
-      # write out hash to a yaml file
+      # Write out hash to a yaml file
+      # @param [Hash] hash => hash to write out to the file
+      # @param [String] output_file => file to write out the hash to
       def write_yaml(hash, output_file)
         FileUtils.touch(output_file) unless File.exists? File.expand_path(output_file)
         File.open(output_file, 'w') { |f| f.write(hash.to_yaml) }
@@ -136,19 +151,42 @@ module Ankuscli
   class SshUtils
     class << self
 
-      # check if password less ssh has been setup by executing simple echo on ssh'ed side
+      # Check if password less ssh has been setup by executing simple echo on ssh'ed side
+      # @param [Array] nodes_arr => array of nodes to check
+      # @param [String] ssh_user => user to perform ssh as
+      # @param [String] ssh_key  => ssh key to use
+      # @param [Integer] port    => ssh port (default: 22)
+      # @return nil
+      # @raises if instance cannot be ssh'ed into
       def sshable?(nodes_arr, ssh_user, ssh_key, port=22)
         nodes_arr.each do |instance|
           `ssh -t -t -o ConnectTimeout=2 -o StrictHostKeyChecking=no -o BatchMode=yes -p #{port} -i #{ssh_key} #{ssh_user}@#{instance} "echo" &>/dev/null`
           unless $?.success?
-            puts '[Error]:'.red + " cannot ssh into instance: #{instance}"
-            exit 1
+            raise "Cannot ssh in to instance: #{instance}"
           end
         end
       end
 
-      # execute single command on remote machine over ssh protocol using net-ssh
-      # output:: array of stdout, stderr, exit_code of command
+      # Wait until a nodes can be sshable, only used for cloud instances
+      # @param [String] node => instance to check and wait
+      # @param [String] ssh_user => user to perform ssh as
+      # @param [String] ssh_key => ssh key to use
+      def wait_for_ssh(node, ssh_user, ssh_key)
+        sshable?([node], ssh_user, ssh_key)
+      rescue
+        puts "Cannot ssh into #{node}, retrying in 10 seconds"
+        sleep 10
+        retry
+      end
+
+      # Execute single command on remote machine over ssh protocol using net-ssh gem
+      # @param [String] command => command to execute on the remote machine
+      # @param [String] host => ipaddress|hostname on which to execute the command on
+      # @param [String] ssh_user => user to ssh as
+      # @param [String] ssh_key => private ssh key to use
+      # @param [Integer] ssh_port => ssh port (default:22)
+      # @param [Boolean] debug => if enabled will print out the output of the command to stdout
+      # @return [Hash] { 'host' => [stdout, stderr, exit_code] }
       def execute_ssh!(command, host, ssh_user, ssh_key, ssh_port=22, debug=false)
         begin
           result = {}
@@ -164,13 +202,14 @@ module Ankuscli
         result
       end
 
-      # execute list of commands on remote machine over ssh protocol using net-ssh
-      # input:: commands [Array]
-      #         host
-      #         ssh_user
-      #         ssh_key
-      #         ssh_port
-      # output:: results: hash of commands and their respective stdout, stderr, exit_code respectively
+      # Execute list of commands on remote machine over ssh protocol using net-ssh
+      # @param [Array] commands => commands to execute on remote machine
+      # @param [String] host => host on which the commands should be executed
+      # @param [String] ssh_user => user to ssh as
+      # @param [String] ssh_key => private ssh key to use
+      # @param [Integer] ssh_port => ssh port (default:22)
+      # @param [Boolean] debug => if enabled will print out the output of the command to stdout
+      # @return [Hash] { 'command' => [stdout, stderr, exit_code], 'command' => [stdout, stderr, exit_code], ... }
       def execute_ssh_cmds(commands, host, ssh_user, ssh_key, ssh_port=22, debug=false)
         begin
           results = {}
@@ -206,10 +245,11 @@ module Ankuscli
         results
       end
 
-      # execute single command on remote server and capture its stdout, stderr, exit_code
-      # input: ssh_object from Net::SSH
-      #        command
-      # return: stdout_data, stderr_data, exit_code
+      # Execute single command on remote server and capture its stdout, stderr, exit_code
+      # @param [Net::SSH] ssh => net-ssh object to process on
+      # @param [String] command => command to execute
+      # @param [Boolean] debug => append's hostname to command output if enabled
+      # @return [Array] => [stdout, stderr, exit_code]
       def ssh_exec!(ssh, command, debug)
         stdout_data = ''
         stderr_data = ''
@@ -248,7 +288,14 @@ module Ankuscli
         [stdout_data, stderr_data, exit_code]
       end
 
-      # scp a file to target system
+      # Upload a file to remote system using ssh protocol
+      # @param [String] source_file => path of the file to upload
+      # @param [String] dest_path => path on the remote machine
+      # @param [String] host => hostname | ip_address of the remote machine
+      # @param [String] ssh_user => user name to ssh as
+      # @param [String] ssh_key => ssh private key to use
+      # @param [Integer] ssh_port => ssh port (default: 22)
+      # @return nil
       def upload!(source_file, dest_path, host, ssh_user, ssh_key, ssh_port=22)
         begin
           Net::SSH.start(host, ssh_user, :port => ssh_port, :keys => ssh_key, :auth_methods => %w(publickey)) do |ssh|

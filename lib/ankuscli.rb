@@ -4,15 +4,17 @@ require 'yaml'
 begin
   require 'thor'
   require 'thor/group'
-  #require 'fog'
+  require 'fog'
+  require 'multi_json'
   require 'colored'
 rescue LoadError
-  puts 'Failed to load gems: fog, highline, thor'
+  puts 'Failed to load gems: fog, highline, thor, multi_json'
   puts <<-EOF
     Install the gems using:
     `gem install fog`
     `gem install thor`
     `gem install colored`
+    `gem install multi_json`
   EOF
   exit 1
 end
