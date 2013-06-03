@@ -7,11 +7,11 @@ install_mode: 'cloud'
 ##Supported cloud platforms - aws, rackspace
 cloud_platform: aws
 ##Cloud Service Credentials
-#  # {'cloud_credentials' => { 'aws_access_key' => '', 'aws_secret_key' => '', 'aws_machine_type' => 'm1.large' } }
 cloud_credentials:
   aws_access_id: ''
   aws_secret_key: ''
   aws_machine_type: 'm1.large'
+  aws_region: 'us-west-1'
 ##rackspace
 #cloud_platform: rackspace
 #cloud_credentials:

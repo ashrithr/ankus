@@ -4,8 +4,8 @@ require 'yaml'
 begin
   require 'thor'
   require 'thor/group'
-  require 'fog'
   require 'multi_json'
+  require 'fog'
   require 'colored'
 rescue LoadError
   puts 'Failed to load gems: fog, highline, thor, multi_json'

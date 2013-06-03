@@ -2,7 +2,7 @@
   Cloud initializer class to create cloud instances in aws, rackspace
   TODO accommodate for google cloud compute
 =end
-module AnkusCli
+module Ankuscli
   class Aws
     # Create a new Ankuscli aws object
     # @param [String] access_id => aws access_id
@@ -235,7 +235,7 @@ module AnkusCli
                            :version            => :v2
                        })
     rescue Excon::Errors::Unauthorized
-      puts 'Invalid Credentials'
+      puts 'Invalid Rackspace Credentials'
       exit 1
     end
 
