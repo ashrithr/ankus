@@ -40,7 +40,7 @@ module Ankuscli
 
     def parse_config
       puts 'parsing config file ...'
-      @parsed_hash = ConfigParser.new(options[:config]).parse_config
+      @parsed_hash = ConfigParser.new(options[:config], options[:debug]).parse_config
       puts 'parsing config file ... ' + '[OK]'.green.bold
     end
 
