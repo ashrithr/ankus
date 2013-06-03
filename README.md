@@ -46,7 +46,7 @@ $ cd ankus-cli && bundle install
 
 ## Usage:
 
-Modify the configuration to match your environment
+Modify the configuration to match your environment (Sample configurations for local|cloud installation are in config dir, copy them and modify)
 
 To check for configuration errors:
 
