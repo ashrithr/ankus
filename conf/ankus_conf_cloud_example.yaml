@@ -8,16 +8,20 @@ install_mode: 'cloud'
 cloud_platform: aws
 ##Cloud Service Credentials
 cloud_credentials:
-  aws_access_id: ''
-  aws_secret_key: ''
+  aws_access_id: 'AKIAJM5AGNITYNP2YOOA'
+  aws_secret_key: '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'
   aws_machine_type: 'm1.large'
   aws_region: 'us-west-1'
+  #aws key to ingest into instance, it will be created if does not exist
+  aws_key: 'ankuscli'
 ##rackspace
 #cloud_platform: rackspace
 #cloud_credentials:
 #  rackspace_username:
 #  rackspace_api_key:
 #  rackspace_instance_type:
+#  #ssh key to ingest into instance
+#  rackspace_ssh_key: '~/.ssh/id_rsa.pub'
 ##type of os to boot into cloud instances
 cloud_os_type: CentOS
 
@@ -41,6 +45,8 @@ hbase_install: disabled
 # list of slave nodes on which datanode and tasktracker daemons will be installed. If hbase is enabled
 # region servers are also installed on same instances.
 slave_nodes_count: 5
+# disk size on slave_nodes in GB, min is 100 & max is 1024. If ignored no additional disks are created
+slave_nodes_storage_capacity: 100
 
 ########################################################
 # Additional tools - hadoop ecosystem tools to install

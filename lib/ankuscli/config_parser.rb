@@ -5,9 +5,8 @@ module Ankuscli
     include Ankuscli
 
     # Creates a configParser object with specified file_path, and a parsed_hash object
-    #
-    # file_path:: path to the ankuscli configuration file
-    #
+    # @param [String] file_path => path to the configuration file to parse
+    # @param [Boolean] debug => if enabled will log info to stdout
     def initialize(file_path, debug=false)
       @config_file = file_path
       @parsed_hash = {}
@@ -15,7 +14,7 @@ module Ankuscli
     end
 
     # Parses the configuration file, validates it and returns a hash
-    # @return [Hash]
+    # @return [Hash] @parsed_hash => parsed configuraion hash
     def parse_config
       @parsed_hash = YamlUtils.parse_yaml(@config_file)
       validator(@parsed_hash)
@@ -28,6 +27,7 @@ module Ankuscli
     private
 
     # Validates the loaded configuration file
+    # @param [Hash] hash_to_validate => hash to validate
     def validator(hash_to_validate)
       unless hash_to_validate
         puts '[Error]: '.red + 'config file is empty!'
@@ -51,6 +51,7 @@ module Ankuscli
     end
 
     # Validations specific to local install_mode
+    # @param [Hash] hash_to_validate => hash to validate
     def local_validator(hash_to_validate)
       puts 'calling local validator' if @debug
       #required:
@@ -75,6 +76,7 @@ module Ankuscli
     end
 
     # Validations specific to cloud install_mode
+    # @param [Hash] hash_to_validate => hash to validate
     def cloud_validator(hash_to_validate)
       puts 'calling cloud validator' if @debug
       # cloud_platform - aws|rackspace
@@ -85,6 +87,7 @@ module Ankuscli
       cloud_platform = hash_to_validate['cloud_platform']
       cloud_credentials = hash_to_validate['cloud_credentials']
       cloud_os_type = hash_to_validate['cloud_os_type']
+
 
       if cloud_platform.nil? or cloud_platform.empty?
         puts '[Error]:'.red + ' cloud_platform is required for cloud install_mode'
@@ -103,20 +106,33 @@ module Ankuscli
       end
 
       if cloud_platform == 'aws'
-        valid_credentials = { 'aws_access_id' => '', 'aws_secret_key' => '', 'aws_machine_type' => '', 'aws_region' => '' }
+        valid_credentials = { 'aws_access_id' => '',
+                              'aws_secret_key' => '',
+                              'aws_machine_type' => '',
+                              'aws_region' => '',
+                              'aws_key' => ''
+        }
         unless cloud_credentials.keys.sort == valid_credentials.keys.sort
           puts '[Error]:'.red + ' cloud_credentials is malformed/invalid, look sample cloud config for example'
           exit 1
         end
+        unless cloud_credentials['aws_sec_groups'].is_a?(Array)
+          puts '[Error]: '.red + 'expecting list(array) representation of groups'
+          exit 1
+        end
         #validate connection
-        puts 'validating aws connection'
+        puts 'validating aws connection' if @debug
         aws = Aws.new(cloud_credentials['aws_access_id'], cloud_credentials['aws_secret_key'], cloud_credentials['aws_region'])
         unless aws.valid_connection?(aws.create_connection)
           puts '[Error]: '.red + 'failed establishing connection to aws, check your credentials'
           exit 2
         end
       elsif cloud_platform == 'rackspace'
-        valid_credentials = { 'rackspace_username' => '', 'rackspace_api_key' => '', 'rackspace_instance_type' => '' }
+        valid_credentials = { 'rackspace_username' => '',
+                              'rackspace_api_key' => '',
+                              'rackspace_instance_type' => '',
+                              'rackspace_ssh_key' => ''
+        }
         unless cloud_credentials.keys.sort == valid_credentials.keys.sort
           puts '[Error]:'.red + ' cloud_credentials is malformed/invalid, look sample cloud config for example'
           exit 1
@@ -140,6 +156,7 @@ module Ankuscli
     end
 
     # Validates params which are common for both local and cloud install_modes
+    # @param [Hash] hash_to_validate => hash to validate
     def common_validator(hash_to_validate)
       puts 'calling common validator' if @debug
       install_mode = hash_to_validate['install_mode']
@@ -171,8 +188,9 @@ module Ankuscli
           exit 1
         end
       else
-        #if cloud, validate slave_nodes_count
+        #if cloud, validate slave_nodes_count and slave_nodes_disk_size
         slave_nodes_count = hash_to_validate['slave_nodes_count']
+        slave_nodes_storage_capacity = hash_to_validate['slave_nodes_storage_capacity']
         if slave_nodes_count.nil?
           puts '[Error]: '.red + 'number of slave nodes is required for cloud deployment (slave_nodes_count)'
           exit 1
@@ -181,6 +199,15 @@ module Ankuscli
           exit 1
         elsif slave_nodes_count == 0
           puts '[Error]: '.red + 'slave_nodes_count cannot be 0'
+          exit 1
+        end
+        if slave_nodes_storage_capacity.nil?
+          puts '[Warning]: '.yellow + 'if slave_nodes_storage_capacity is not specified no volumes will be created and attached'
+        elsif ! slave_nodes_storage_capacity.is_a?(Numeric)
+          puts '[Error]: '.red + 'expecting numeric value for slave_nodes_storage_capacity'
+          exit 1
+        elsif slave_nodes_storage_capacity == 0
+          puts '[Error]: '.red + 'slave_nodes_storage_capacity cannot be zero, if you dont want any volumes to get created comment the line in config'
           exit 1
         end
       end
@@ -205,7 +232,6 @@ module Ankuscli
           end
         end
       else
-        puts 'cloud mapreduce validator'
         if mapreduce.nil? or mapreduce.empty?
           puts '[Error]: '.red + 'mapreduce should be specified'
         end
@@ -313,6 +339,14 @@ module Ankuscli
     end
 
     # Validates hadoop related conf params for local install_mode
+    # @param [String] hadoop_ha => enabled|disabled
+    # @param [Array] hadoop_namenode
+    # @param [String] hadoop_snn
+    # @param [String] mapreduce_type
+    # @param [String] mapreduce_master
+    # @param [Array] zookeeper_quorum
+    # @param [Array] journal_quorum
+    # @param [Array] slave_nodes
     def hadoop_validator(hadoop_ha, hadoop_namenode, hadoop_snn, mapreduce_type, mapreduce_master, zookeeper_quorum, journal_quorum, slave_nodes)
       puts 'calling hadoop validator' if @debug
       if hadoop_ha == 'enabled'
@@ -416,6 +450,8 @@ module Ankuscli
     end
 
     # Validates hbase related conf params for local install_mode
+    # @param [Array] hbase_master
+    # @param [Array] zookeeper_quorum
     def hbase_validator(hbase_master, zookeeper_quorum)
       #hbase_master
       if hbase_master.kind_of?(Array)
