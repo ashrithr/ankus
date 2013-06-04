@@ -8,20 +8,23 @@ module Ankuscli
 
     # Generates server inventory files based on the hash passed from configuration parser
     class Generator
+      # @param [String] nodes_file => path to nodes_file
+      # @param [String] config_file => path to the config file
+      # @param [Hash] parsed_hash => parsed configuration hash
       def initialize(nodes_file, config_file, parsed_hash)
         @nodes_file   = nodes_file
         @config_file  = config_file
         @parsed_hash  = parsed_hash
       end
 
-      # Generate inventory
+      # Generates inventory (a mapping of puppet_server and puppet_client host_names), and writes out to @nodes_file
       def generate
         YamlUtils.write_yaml(create_nodes, @nodes_file)
       end
 
       private
 
-      # create a hash which contains puppet_server and puppet_clients file
+      # Create a hash which contains puppet_server and puppet_clients to hostname mappings
       def create_nodes
         nodes = Array.new
         nodes_hash = Hash.new
@@ -52,20 +55,26 @@ module Ankuscli
       end
     end
 
-    # class to build yaml file(s) per node; used by puppet external node classifier script
+    # Build yaml file of host to puppet roles mapping; used by puppet external node classifier script
     class EncData
+
+      # @param [String] nodes_file => path of the nodes yaml file
+      # @param [String] roles_file => path of the file to be created with mapping
+      # @param [Hash] parsed_hash => parsed configuration file
       def initialize(nodes_file, roles_file, parsed_hash)
         @nodes_file   = nodes_file
         @roles_file   = roles_file
         @parsed_hash  = parsed_hash
       end
 
+      # Write out the mapping created by 'create_enc_roles()' into @roles_file
       def generate
         YamlUtils.write_yaml(create_enc_roles, @roles_file)
       end
 
       private
 
+      # Create hash of nodes to roles mapping using @parsed_hash
       def create_enc_roles
         roles_hash = Hash.new
         #puppet server

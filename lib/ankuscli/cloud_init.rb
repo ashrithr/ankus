@@ -226,7 +226,7 @@ module Ankuscli
       @ubuntu_image_id = 'e4dbdba7-b2a4-4ee5-8e8f-4595b6d694ce' #ubuntu 12.04 LTS @ dfw
     end
 
-    #Creates a new rackspace connection object with provided credentials
+    # Creates a new rackspace connection object with provided credentials
     def create_connection
       Fog::Compute.new({
                            :provider           => 'Rackspace',
@@ -239,7 +239,8 @@ module Ankuscli
       exit 1
     end
 
-    #Validates the connection object
+    # Validates the connection object
+    # @param [Fog::Compute] conn => fog connection object to authenticate
     def validate_connection?(conn)
       conn.authenticate
       true
@@ -331,6 +332,10 @@ module Ankuscli
     end
 
     # Creates and attaches specified number of volumes to the instance provided
+    # @param [Fog::Compute::RackspaceV2::Server] server => rackspace server object to which the instance should be attached to
+    # @param [Integer] volumes => number of volumes to create
+    # @param [Integer] size => size of each volume in GB
+    # @return nil
     # @see there is a limitation on size of the volume being created, it should be between 100-1024GB
     def attach_volumes!(server, volumes, size)
       #create a new blockstorage connection obj
@@ -354,25 +359,5 @@ module Ankuscli
         vol.wait_for { attached? }
       end
     end
-
-    #Connection
-    #conn = Fog::Compute.new({:provider => 'Rackspace', :rackspace_username => 'cloudwick622', :rackspace_api_key => '8657ba8583ac377995d3cf4840be2d81', :version => :v2})
-    # Create Servers with ssh_key injestion
-    #server = conn.servers.create(:name => 'test3.cw.com', :flavor_id => 2, :image_id => 'da1f0392-8c64-468f-a839-a9e56caebf07', :personality => [{'path' => '/root/.ssh/authorized_keys', 'contents' => Base64.encode64(File.read('/Users/ashrith/.ssh/id_rsa.pub'))}])
-    # Wait for the server to get ready
-    #server.wait_for { print '.' ; ready? }
-    #Connection to volumes
-    #cbs = Fog::Rackspace::BlockStorage.new({:rackspace_username => 'cloudwick622', :rackspace_api_key => '8657ba8583ac377995d3cf4840be2d81'})
-    #Create a volume - limitation: size of volume can be between 100GB-1024GB
-    #vol = cbs.volumes.new(:size => 100, :display_name => 'test-server3')
-    #vol.save
-    #Wait for volume to get create
-    #vol.wait_for { ready? }
-    #Attach the volume
-    #server.attach_volume(vol, '/dev/sde')
-    #Wait for volume to get attached
-    #vol.wait_for { attached? }
-    #puts "server_ip: #{server.public_ip_address} server_hostname: #{server.name} ready"
-
   end
 end

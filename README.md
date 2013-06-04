@@ -6,6 +6,9 @@ Command line interface for ankus big-data deployment tool. Handles the installat
  - hadoop ecosystem tools: pig, hive, sqoop, oozie, flume
  - hbase
  - cassandra
+
+ In Progress:
+
  - storm
  - kafka
  - solr
@@ -62,6 +65,12 @@ To enable debugging:
 
 ```
 bundle exec bin/ankuscli deploy --debug
+```
+
+To pass configuration file explicitly:
+
+```
+bundle exec bin/ankuscli parse --config <path_to_config_file>
 ```
 
 For More Options: `bundle exec bin/ankuscli`

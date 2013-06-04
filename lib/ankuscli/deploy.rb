@@ -17,17 +17,25 @@ module Ankuscli
       HIERA_DATA_PATH = %q(/etc/puppet/hieradata)
       REMOTE_LOG_DIR = %q(/var/log/ankus)
 
+      # @param [String] puppet_server => hostname of the puppet server
+      # @param [Array] puppet_clients => host_names of puppet clients
+      # @param [String] ssh_key => ssh key to use to log into the machines
+      # @param [Hash] parsed_hash => parsed configuration file
+      # @param [Integer] ssh_connections => number of concurrent processes (threads) to use for deployments
+      # @param [String] ssh_user => user to log into the machine as
+      # @param [Boolean] debug => if enabled will print out information to stdout
       def initialize(puppet_server, puppet_clients, ssh_key, parsed_hash, ssh_connections=10, ssh_user='root', debug=false)
-        @puppet_master         = puppet_server          # puppet master
-        @nodes                 = puppet_clients         # nodes to install puppet clients on
-        @parallel_connections  = ssh_connections        # allow 10 concurrent processes to initiate ssh connection
-        @ssh_user              = ssh_user               # ssh user to use
-        @ssh_key               = ssh_key                # ssh key to use to log into machines
+        @puppet_master         = puppet_server
+        @nodes                 = puppet_clients
+        @parallel_connections  = ssh_connections
+        @ssh_user              = ssh_user
+        @ssh_key               = ssh_key
         @puppet_installer      = File.basename(PUPPET_INSTALLER)
         @parsed_hash           = parsed_hash
         @debug                 = debug
       end
 
+      # Installs puppet server on @puppet_master and puppet agent daemons on @nodes
       def install_puppet
         #helper variables
         remote_puppet_installer_loc = "/tmp"
@@ -44,6 +52,13 @@ module Ankuscli
         puts 'Checking if instances are ssh\'able ...'
         SshUtils.sshable? @nodes, @ssh_user, @ssh_key
         puts 'Checking if instances are ssh\'able ... ' + '[OK]'.green.bold
+        #get the puppet server hostname this is required for cloud, for aws to get internal_dns_name of host for accurate communication
+        if @parsed_hash['install_mode'] == 'cloud'
+          # result[host][0]
+          result = SshUtils.execute_ssh!('hostname --fqdn', @puppet_master, @ssh_user, @ssh_key)
+          @puppet_server_cloud_fqdn = result[@puppet_master][0].chomp
+          remote_puppet_client_cmd = "chmod +x #{remote_puppet_installer_loc}/#{@puppet_installer} && #{remote_puppet_installer_loc}/#{@puppet_installer} -c -H #{@puppet_server_cloud_fqdn} | tee #{REMOTE_LOG_DIR}/install.log"
+        end
         #perform preq's
         preq(all_nodes, remote_puppet_installer_loc)
         puts 'Installing puppet master on ' + "#{@puppet_master}".blue
@@ -107,10 +122,6 @@ module Ankuscli
             puts stderr
           end
         end
-        # generate hiera data required for puppet modules
-        generate_hiera(@parsed_hash)
-        # generate enc data required for puppet enc bin script
-        generate_enc
 
         #clean up puppet installer script on all nodes
         cleanup(all_nodes)
@@ -118,6 +129,8 @@ module Ankuscli
         print 'Installing puppet on all nodes completed'.blue
       end
 
+      # Generate hiera data required by puppet deployments & writes out to the yaml file
+      # @param [Hash] parsed_hash => hash from which to generate hiera data
       def generate_hiera(parsed_hash)
         hiera_hash = {}
         #generate hiera data to local data folder first
@@ -174,8 +187,8 @@ module Ankuscli
           #security
         if parsed_hash['security'] == 'enabled'
           hiera_hash['kerberos_kdc_server'] = @puppet_master
-          hiera_hash['kerberos_realm'] = parsed_hash['realm_name']
-          hiera_hash['kerberos_domain'] = parsed_hash['domain_name']
+          hiera_hash['kerberos_realm'] = @parsed_hash['realm_name']
+          hiera_hash['kerberos_domain'] = @parsed_hash['domain_name']
         end
           #hadoop_eco_system
         hadoop_ecosystem = parsed_hash['hadoop_ecosystem']
@@ -189,13 +202,21 @@ module Ankuscli
         SshUtils.upload!(HIERA_DATA_FILE, HIERA_DATA_PATH, @puppet_master, @ssh_user, @ssh_key, 22)
       end
 
-      def generate_enc
+      # Generate External Node Classifier data file used by the puppet's ENC script
+      # @param [Hash] parsed_hash => hash from which to generate enc data
+      def generate_enc(parsed_hash)
         puts 'Generating Enc roles to host mapping'.blue
-        Inventory::EncData.new(NODES_FILE, ENC_ROLES_FILE, @parsed_hash).generate
+        Inventory::EncData.new(NODES_FILE, ENC_ROLES_FILE, parsed_hash).generate
       end
 
+      # Kick off puppet run on all instances in order of the configuration
       def run_puppet
         puppet_run_cmd = "puppet agent --server #{@puppet_master} --onetime --verbose --no-daemonize --no-splay --ignorecache --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log"
+        if @parsed_hash['install_mode'] == 'cloud'
+          result = SshUtils.execute_ssh!('hostname --fqdn', @puppet_master, @ssh_user, @ssh_key)
+          @puppet_server_cloud_fqdn = result[@puppet_master][0].chomp
+          puppet_run_cmd = "puppet agent --server #{@puppet_server_cloud_fqdn} --onetime --verbose --no-daemonize --no-splay --ignorecache --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log"
+        end
         output = []
         #send enc_data and enc_script to puppet server
         SshUtils.upload!(ENC_ROLES_FILE, ENC_PATH, @puppet_master, @ssh_user, @ssh_key, 22)
@@ -273,7 +294,8 @@ module Ankuscli
 
       private
 
-      # run puppet on single instance
+      # Runs puppet on single instance
+      # @param [String] instance => node on which puppet should be run
       def puppet_single_run(instance)
         puppet_run_cmd = "puppet agent --server #{@puppet_master} --onetime --verbose --no-daemonize --no-splay --ignorecache --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log"
         output = SshUtils.execute_ssh!(
@@ -297,7 +319,8 @@ module Ankuscli
         puts 'Completed puppet run on' +" #{instance}".blue
       end
 
-      # run puppet on instances in parallel using thread pool
+      # Runs puppet on instances in parallel using thread pool
+      # @param [Array] instances_array => list of instances on which puppet should be run in parallel
       def puppet_parallel_run(instances_array)
         puppet_run_cmd = "puppet agent --server #{@puppet_master} --onetime --verbose --no-daemonize --no-splay --ignorecache --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log"
         #initiate concurrent threads pool - to install puppet clients all agent nodes
@@ -334,18 +357,23 @@ module Ankuscli
         end
       end
 
-      #checks if instances are listening in ssh port by default 22
-      def validate_instances(instances)
+      # Checks if instances are listening in ssh port by default 22
+      # @param [Array] instances => list of instances to check
+      # @param [Integer] port => port on which ssh is listening (default: 22)
+      def validate_instances(instances, port=22)
         instances.each do |instance|
-          unless PortUtils.port_open? instance, 22
+          unless PortUtils.port_open? instance, port
             puts "[Error]: Node #{instance} is not reachable"
             exit 1
           end
         end
       end
 
-      #perform pre-requisite operations before even installing puppet agent
-      def preq(instances, remote_puppet_installer_loc)
+      # Perform pre-requisite operations (creates log directories and copies over the puppet installer script)
+      # before even installing puppet agent
+      # @param [Array] instances => instances list on which preq should be performed
+      # @param [String] remote_puppet_loc => location to where puppet installer script should be copied to
+      def preq(instances, remote_puppet_loc)
         puts 'Preforming preq operations on all nodes'
         ssh_connections = ThreadPool.new(@parallel_connections)
         output = []
@@ -362,13 +390,14 @@ module Ankuscli
                 22, false)
             #send the script over to clients
             puts "sending file to #{instance}"
-            SshUtils.upload!(PUPPET_INSTALLER, remote_puppet_installer_loc, instance, @ssh_user, @ssh_key)
+            SshUtils.upload!(PUPPET_INSTALLER, remote_puppet_loc, instance, @ssh_user, @ssh_key)
           end
         end
         ssh_connections.shutdown
       end
 
-      #perform clean up actions after deployment
+      # Performs clean up actions (remove puppet installer script) after deployment
+      # @param [Array] instances => list of instances on which to perform cleanup
       def cleanup(instances)
         puts 'Preforming Cleanup operations on all nodes'
         ssh_connections = ThreadPool.new(@parallel_connections)
