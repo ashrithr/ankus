@@ -8,8 +8,8 @@ install_mode: 'cloud'
 cloud_platform: aws
 ##Cloud Service Credentials
 cloud_credentials:
-  aws_access_id: 'AKIAJM5AGNITYNP2YOOA'
-  aws_secret_key: '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'
+  aws_access_id: ''
+  aws_secret_key: ''
   aws_machine_type: 'm1.large'
   aws_region: 'us-west-1'
   #aws key to ingest into instance, it will be created if does not exist
