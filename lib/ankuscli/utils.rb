@@ -174,7 +174,7 @@ module Ankuscli
       def wait_for_ssh(node, ssh_user, ssh_key)
         sshable?([node], ssh_user, ssh_key)
       rescue
-        puts "Cannot ssh into #{node}, retrying in 10 seconds"
+        #puts "Cannot ssh into #{node}, retrying in 10 seconds"
         sleep 10
         retry
       end

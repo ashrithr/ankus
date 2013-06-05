@@ -169,7 +169,7 @@ END
 function download_modules () {
   type -P git &> /dev/null || {
     logit "git command not found, installing"
-    ${INSTALL} -y git
+    ${INSTALL} -y install git
   }
   if [ ! -d ${PUPPET_MODULES_PATH} ]; then
     logit "puppet modules directory not found, creating"

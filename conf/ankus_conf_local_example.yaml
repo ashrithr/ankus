@@ -40,10 +40,10 @@ journal_quorum:
   - 'ec2-50-18-102-124.us-west-1.compute.amazonaws.com'
 # mapreduce framework config
   # type(type of mapreduce framework to setup), supported values mr1 (regular mapreduce) or mr2 (yarn)
-  # master_node(if mr1 its jobtracker hostname, if mr2 resourcemanager hostname)
+  # master(if mr1 its jobtracker hostname, if mr2 resourcemanager hostname)
 mapreduce:
   type: 'mr1'
-  master_node: 'ec2-50-18-102-124.us-west-1.compute.amazonaws.com'
+  master: 'ec2-50-18-102-124.us-west-1.compute.amazonaws.com'
 
 ########################################################
 # HBase configuration

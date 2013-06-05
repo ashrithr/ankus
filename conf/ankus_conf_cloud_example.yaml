@@ -12,7 +12,6 @@ cloud_credentials:
   aws_secret_key: ''
   aws_machine_type: 'm1.large'
   aws_region: 'us-west-1'
-  #aws key to ingest into instance, it will be created if does not exist
   aws_key: 'ankuscli'
 ##rackspace
 #cloud_platform: rackspace
@@ -32,7 +31,7 @@ hadoop_ha: 'enabled'
 zookeeper_quorum_count: 3
 ## mapreduce framework config
   # type(type of mapreduce framework to setup), supported values mr1 (regular mapreduce) or mr2 (yarn)
-  # master_node(if mr1 its jobtracker hostname, if mr2 resourcemanager hostname)
+  # master(if mr1 its jobtracker hostname, if mr2 resourcemanager hostname)
 mapreduce:
   type: 'mr1'
 

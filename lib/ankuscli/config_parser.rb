@@ -116,9 +116,11 @@ module Ankuscli
           puts '[Error]:'.red + ' cloud_credentials is malformed/invalid, look sample cloud config for example'
           exit 1
         end
-        unless cloud_credentials['aws_sec_groups'].is_a?(Array)
-          puts '[Error]: '.red + 'expecting list(array) representation of groups'
-          exit 1
+        if cloud_credentials['aws_sec_groups']
+          unless cloud_credentials['aws_sec_groups'].is_a?(Array)
+            puts '[Error]: '.red + 'expecting list(array) representation of groups'
+            exit 1
+          end
         end
         #validate connection
         puts 'validating aws connection' if @debug
@@ -207,8 +209,7 @@ module Ankuscli
           puts '[Error]: '.red + 'expecting numeric value for slave_nodes_storage_capacity'
           exit 1
         elsif slave_nodes_storage_capacity == 0
-          puts '[Error]: '.red + 'slave_nodes_storage_capacity cannot be zero, if you dont want any volumes to get created comment the line in config'
-          exit 1
+          puts '[Warning]: '.yellow + 'slave_nodes_storage_capacity is zero, no volumes will be created and attached to cloud instances'
         end
       end
 
@@ -224,7 +225,7 @@ module Ankuscli
         #if mapreduce option is set then mapreduce_type and mapreduce_master are required
         if mapreduce
           mapreduce_type = hash_to_validate['mapreduce']['type']
-          mapreduce_master = hash_to_validate['mapreduce']['master_node']
+          mapreduce_master = hash_to_validate['mapreduce']['master']
           puts '[Error]:'.red + ' Invalid mapreduce type' unless %w(mr1 mr2).include?(mapreduce_type)
           if mapreduce_master.nil? or mapreduce_master.empty?
             puts '[Error]:'.red + ' mapreduce_master is required'
@@ -310,7 +311,7 @@ module Ankuscli
         journal_quorum = hash_to_validate['journal_quorum']
         hadoop_snn = hash_to_validate['hadoop_secondarynamenode']
         mapreduce_type = hash_to_validate['mapreduce']['type']
-        mapreduce_master = hash_to_validate['mapreduce']['master_node']
+        mapreduce_master = hash_to_validate['mapreduce']['master']
         slave_nodes = hash_to_validate['slave_nodes']
         hadoop_validator(hadoop_ha, hadoop_namenode, hadoop_snn, mapreduce_type, mapreduce_master, zookeeper_quorum, journal_quorum, slave_nodes)
         if hbase_install == 'enabled'
@@ -318,12 +319,12 @@ module Ankuscli
           hbase_validator(hbase_master, zookeeper_quorum)
         end
       else
-        # required: if hadoop_ha enabled - zookeeper_quoram count
+        # required: if hadoop_ha enabled - zookeeper_quorum count
         #           if hbase enabled - hbase_master_count
         if hadoop_ha == 'enabled'
           zookeeper_quorum_count = hash_to_validate['zookeeper_quorum_count']
           if zookeeper_quorum_count.nil? or zookeeper_quorum_count == 0
-            puts '[Error]: '.red + 'zookeeper quoram count is required'
+            puts '[Error]: '.red + 'zookeeper quorum count is required'
             exit 1
           end
         end
@@ -441,7 +442,7 @@ module Ankuscli
       end
       #mr framework
       if mapreduce_type
-        #check for master_node is alive
+        #check for master is alive
         unless Ankuscli::PortUtils.port_open?(mapreduce_master, 22, 2)
           puts '[Error]:'.red + " mapreduce_master:#{mapreduce_master} is not reachable"
           exit 1

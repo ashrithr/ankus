@@ -3,6 +3,8 @@
 =end
 
 module Ankuscli
+  require 'benchmark'
+  require 'thread'
   class Cloud
     # Create a new Cloud class object
     # @param [String] provider => Cloud service provider; aws|rackspace
@@ -10,12 +12,15 @@ module Ankuscli
     # @param [Hash] cloud_credentials => Credentials configurations
     #     if aws: cloud_credentials => { aws_access_id: '', aws_secret_key: '', aws_machine_type: 'm1.large', aws_region: 'us-west-1', aws_key: 'ankuscli' }
     #     if rackspace: cloud_credentials => { rackspace_username: '', rackspace_api_key: '', rackspace_instance_type: '', rackspace_ssh_key: '~/.ssh/id_rsa.pub' }
-    def initialize(provider, parsed_config, cloud_credentials)
+    # @param [Integer] thread_pool_size => number of threads to use to perform instance creation, volume attachements
+    # @param [Boolean] debug => if enabled will print more info to stdout
+    def initialize(provider, parsed_config, cloud_credentials, thread_pool_size = 10, debug = false)
       @provider = provider || parsed_config['cloud_platform']
       @parsed_hash = parsed_config
       @credentials = cloud_credentials
+      @debug = debug
+      @thread_pool_size = thread_pool_size
       raise unless @credentials.is_a?(Hash)
-      @partition_script = DATA.read
     end
 
     # Parse cloud_configuration; create instances and return instance mappings
@@ -24,14 +29,15 @@ module Ankuscli
     #   for rackspace, nodes: { 'tag' => [public_ip_address, fqdn], 'tag' => [public_ip_address, fqdn], ... }
     def create_instances
       num_of_slaves = @parsed_hash['slave_nodes_count']
+      num_of_zks = @parsed_hash['zookeeper_quorum_count']
       cloud_os_type = @parsed_hash['cloud_os_type']
       slave_nodes_disk_size = @parsed_hash['slave_nodes_storage_capacity'] || 0
-      nodes = {}
+      nodes_created = {}
+      nodes_to_create = {}
 
-      num_of_zks = @parsed_hash['zookeeper_quoram_count']
       if @provider == 'aws'
         #calculate number of disks and their size
-        if slave_nodes_disk_size.nil?
+        if slave_nodes_disk_size.nil? or slave_nodes_disk_size.to_i == 0
           #assume user do not want any extra volumes
           @volumes_count = 0
           @volume_size = 0
@@ -41,41 +47,49 @@ module Ankuscli
           @volume_size = slave_nodes_disk_size / @volume_count
         end
         #create controller
-        nodes.merge!(create_on_aws(@credentials, :count => 1, :volumes => 2, :volume_size => 50, :os_type => cloud_os_type, :machine_tag => 'controller'))
+        nodes_to_create['controller'] = { :os_type => cloud_os_type, :volumes => 0, :volume_size => 50 }
+        # if ha is enabled
         if @parsed_hash['hadoop_ha'] == 'enabled'
-          # if ha => 2 namenodes, 1 jobtracker, n zookeepers, n slavenodes
-          #namenodes
-          nodes.merge!(create_on_aws(@credentials, :count => 2, :volumes => 2 ,:volume_size => 50, :os_type => cloud_os_type, :machine_tag => 'namenode'))
-          #jobtracker
-          nodes.merge!(jobtracker = create_on_aws(@credentials, :count => 1, :volumes => 2, :volume_size => 50, :os_type => cloud_os_type, :machine_tag => 'jobtracker'))
-          #zookeepers
-          nodes.merge!(zookeepers = create_on_aws(@credentials, :count => num_of_zks.length, :volumes => 2 ,:volume_size => 50, :os_type => cloud_os_type, :machine_tag => 'zookeeper'))
-          #slaves
-          nodes.merge!(slaves = create_on_aws(@credentials, :count => num_of_zks.length, :volumes => @volume_count ,:volume_size => @volume_size, :os_type => cloud_os_type, :machine_tag => 'slaves'))
+          nodes_to_create['namenode1'] = { :os_type => cloud_os_type, :volumes => 0, :volume_size => 50 }
+          nodes_to_create['namenode2'] = { :os_type => cloud_os_type, :volumes => 0, :volume_size => 50 }
+          nodes_to_create['jobtracker'] = { :os_type => cloud_os_type, :volumes => 0, :volume_size => 50 }
+          num_of_zks.times do |i|
+            nodes_to_create["zookeeper#{i+1}"] = { :os_type => cloud_os_type, :volumes => 0, :volume_size => 50 }
+          end
+          num_of_slaves.times do |i|
+            nodes_to_create["slaves#{i+1}"] = { :os_type => cloud_os_type, :volumes => @volume_count, :volume_size => @volume_size }
+          end
         else
-          # if non-ha => 1 namenode, 1 jobtracker, n slave_nodes
+          # if ha is not enabled
+          nodes_to_create['namenode'] = { :os_type => cloud_os_type, :volumes => 0, :volume_size => 50 }
+          nodes_to_create['jobtracker'] = { :os_type => cloud_os_type, :volumes => 0, :volume_size => 50 } #JT and SNN
+          num_of_slaves.times do |i|
+            nodes_to_create["slaves#{i+1}"] = { :os_type => cloud_os_type, :volumes => @volume_count, :volume_size => @volume_size }
+          end
         end
+        nodes_created = create_on_aws(nodes_to_create, @credentials, @thread_pool_size)
       elsif @provider == 'rackspace'
         #TODO
       end
-      #parse nodes hash
-      nodes
+      #returns parse nodes hash
+      nodes_created
     end
 
     # Modifies the original parsed_config hash to look more like the local install mode
     # @param [Hash] parsed_hash => original parsed hash generated from configuration file
-    # @param [Hash] nodes_hash => nodes hash generated by parse_and_create method in this class
+    # @param [Hash] nodes_hash => nodes hash generated by create_on_aws method in this class
     # @return if rackspace [Hash] parsed_hash => which can be used same as local install_mode
     #         if aws [Hash, Hash] parsed_hash, parsed_internal_ips => which can be used same as local install_mode
     def modify_config_hash(parsed_hash, nodes_hash)
       if @provider == 'aws'
-        parsed_hash_internal_ips = parsed_hash.clone
+        parsed_hash_internal_ips = Marshal.load(Marshal.dump(parsed_hash))
         #things to add back to parsed_hash:
         # root_ssh_key:
         # controller:
         # hadoop_namenode: []
-        # zookeeper_quoram: []
-        # journal_quoram: []
+        # hadoop_secondarynamenode: if hadoop_ha == 'disabled'
+        # zookeeper_quorum: []
+        # journal_quorum: []
         # mapreduce['master']:
         # slave_nodes: []
         # hbase_master: [] if hbase_install == enabled
@@ -83,9 +97,10 @@ module Ankuscli
         parsed_hash['controller'] = nodes_hash['controller'].first
         parsed_hash['hadoop_namenode'] = nodes_hash.map { |k,v| v.first if k =~ /namenode/ }.compact
         parsed_hash['mapreduce']['master'] = nodes_hash['jobtracker'].first
+        parsed_hash['hadoop_secondarynamenode'] = nodes_hash['jobtracker'].first if parsed_hash['hadoop_ha'] == 'disabled'
         parsed_hash['slave_nodes'] = nodes_hash.map { |k,v| v.first if k =~ /slaves/ }.compact
-        parsed_hash['zookeeper_quoram'] = nodes_hash.map { |k,v| v.first if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled' or parsed_hash['hbase_install'] == 'enabled'
-        parsed_hash['journal_quoram'] = nodes_hash.map { |k,v| v.first if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled'
+        parsed_hash['zookeeper_quorum'] = nodes_hash.map { |k,v| v.first if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled' or parsed_hash['hbase_install'] == 'enabled'
+        parsed_hash['journal_quorum'] = nodes_hash.map { |k,v| v.first if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled'
         parsed_hash['hbase_master'] = nodes_hash.map { |k,v| v.first if k =~ /hbasemaster/ }.compact if parsed_hash['hbase_install'] == 'enabled'
 
         #hash with internal ips
@@ -94,10 +109,9 @@ module Ankuscli
         parsed_hash_internal_ips['hadoop_namenode'] = nodes_hash.map { |k,v| v.last if k =~ /namenode/ }.compact
         parsed_hash_internal_ips['mapreduce']['master'] = nodes_hash['jobtracker'].last
         parsed_hash_internal_ips['slave_nodes'] = nodes_hash.map { |k,v| v.last if k =~ /slaves/ }.compact
-        parsed_hash_internal_ips['zookeeper_quoram'] = nodes_hash.map { |k,v| v.last if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled' or parsed_hash['hbase_install'] == 'enabled'
-        parsed_hash_internal_ips['journal_quoram'] = nodes_hash.map { |k,v| v.last if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled'
+        parsed_hash_internal_ips['zookeeper_quorum'] = nodes_hash.map { |k,v| v.last if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled' or parsed_hash['hbase_install'] == 'enabled'
+        parsed_hash_internal_ips['journal_quorum'] = nodes_hash.map { |k,v| v.last if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled'
         parsed_hash_internal_ips['hbase_master'] = nodes_hash.map { |k,v| v.last if k =~ /hbasemaster/ }.compact if parsed_hash['hbase_install'] == 'enabled'
-
         return parsed_hash, parsed_hash_internal_ips
       elsif @provider == 'rackspace'
         #TODO
@@ -105,97 +119,111 @@ module Ankuscli
     end
 
     # Create servers on aws using Ankuscli::Aws
+    # @param [Hash] nodes_to_create => hash of nodes to create with their info as shown below
+    #      { 'node_tag' => { :os_type => cloud_os_type, :volumes => 2, :volume_size => 50 }, ... }
     # @param [Hash] credentials: {  aws_access_id: '', aws_secret_key: '', aws_machine_type: 'm1.large', aws_region: 'us-west-1', aws_key: 'ankuscli'}
-    # @param [Hash] options: { count: 1, volumes: 4, volume_size: 25 }
-    #   @option [Integer] count => number of servers to create
-    #   @option [Integer] volumes => number of volumes for each server
-    #   @option [Integer] volume_size => size of each volume in GB
-    #   @option [String] os_type => type of the os to boot (centos|ubuntu)
-    #   @option [String] machine_tag => name for the instance tag
+    # @param [Integer] thread_pool_size => size of the thread pool
     # @return [Hash] results => { 'instance_tag' => [public_dns_name, private_dns_name], ... }
-    def create_on_aws(credentials, options = {})
+    def create_on_aws(nodes_to_create, credentials, thread_pool_size)
       #defaults
-      instances_count = options[:count] || 1
-      tag = options[:machine_tag] || 'ankuscli-instance'
-      os_type = options[:os_type] || 'CentOS'
-      volume_count = options[:volumes] || 4
-      volume_size = options[:volume_size] || 25   #25GB
+      threads_pool = Ankuscli::ThreadPool.new(thread_pool_size)
       key = credentials['aws_key'] || 'ankuscli'
-      groups = credentials['aws_sec_groups'] || %w(default)
+      groups = credentials['aws_sec_groups'] || %w(ankuscli)
       flavor_id = credentials['aws_machine_type'] || 'm1.large'
-
       aws = Ankuscli::Aws.new(credentials['aws_access_id'], credentials['aws_secret_key'], credentials['aws_region'])
       conn = aws.create_connection
       results = {}
 
       if aws.valid_connection?(conn)
-        puts 'successfully connected to aws'.green
+        puts 'successfully connected to aws'.green if @debug
       else
         puts '[Error]'.red + ' failed connecting to aws'
         exit 1
       end
-      if instances_count == 1
-        server = aws.create_server!(conn,
-                                    tag,
-                                    :key => key,
-                                    :groups => groups,
-                                    :flavor_id => flavor_id,
-                                    :os_type => os_type
-        )
-        puts "[Debug]: Waiting for aws instance: #{server.id} to get created"
-        aws.wait_for_servers(server)
-        if volume_count != 0
-          puts "[Debug]: Attaching volumes on instance: #{server.id}"
-          aws.attach_volumes!(conn, server, volume_count, volume_size)
-          #wait until servers become available
-          Ankuscli::SshUtils.wait_for_ssh(server.dns_name, 'root', File.expand_path('~/.ssh') + "/#{key}")
-          #execute partition script on remote server
-          Ankuscli::SshUtils.execute_ssh!(@partition_script, server.dns_name, 'root', File.expand_path('~/.ssh') + "/#{key}", 22, true) #TODO Change it to false
+      time = Benchmark.measure do
+        #a thread pool for creating servers
+        puts 'Creating servers with tags: ' + "#{nodes_to_create.keys.join(',')}".blue
+        #hash to store server object to tag mapping { tag => server_obj }, used for attaching volumes
+        server_objects = {}
+        nodes_to_create.each do |tag, info|
+          server_objects[tag] = aws.create_server!(conn, tag, :key => key, :groups => groups, :flavor_id => flavor_id, :os_type => info[:os_type])
         end
-        results[tag] = [server.dns_name, server.private_dns_name]
-      elsif instances_count > 1
-        servers = aws.create_servers!(conn,
-                                      instances_count,
-                                      :os_type => os_type,
-                                      :key => key,
-                                      :groups => groups,
-                                      :flavor_id => flavor_id,
-                                      :instance_tag => tag
-        )
-        puts "[Debug]: Waiting for aws instances: #{servers.join(',')} to get created"
-        aws.wait_for_servers(servers)
-        servers.each_with_index do |server, index|
-          results["#{tag}#{index + 1}"] = [server.dns_name, server.private_dns_name]
+        #wait for servers to get created
+        aws.wait_for_servers(server_objects.values)
+        #attach volumes to instances
+        nodes_to_create.each do |tag, info|
+          # fill in return hash
+          results[tag] = [ server_objects[tag].dns_name, server_objects[tag].private_dns_name ]
+          # attach volumes specified to the instance
+          aws.attach_volumes!(conn, server_objects[tag], info[:volumes].to_i, info[:volume_size].to_i)
         end
-        #TODO implement multi threading for partitioning and mounting volumes
-        servers.each do |server|
-          puts "[Debug]: Attaching volumes to instance: #{server.id}"
-          aws.attach_volumes!(conn, server, volume_count, volume_size)
-          Ankuscli::SshUtils.wait_for_ssh(server.dns_name, 'root', File.expand_path('~/.ssh') + "/#{key}")
-          Ankuscli::SshUtils.execute_ssh!(@partition_script, server.dns_name, 'root', File.expand_path('~/.ssh') + "/#{key}", 22, true) #TODO Change it to false
+        puts 'Partitioning/Formatting attached volumes'.blue
+        #parition and format attached disks using thread pool
+        nodes_to_create.each do |tag, info|
+          if info[:volumes] != 0    # only invoke a thread to partition if there are any volumes were created
+            threads_pool.schedule do
+              partition_script = <<-END.gsub(/^ {28}/, '')
+                              DEVICES=`cat /proc/partitions | awk '/xvd*/ {print $4}' | tail -n#{info[:volumes]}`
+                              echo "Formatting and mounting initiated"
+                              count=1
+                              for dev in $DEVICES; do
+                              echo "Formatting and mounting $dev"
+                              fdisk -u /dev/$dev << EOF
+                              n
+                              p
+                              1
+
+
+                              w
+                              EOF
+                              mkfs.ext4 /dev/${dev}1
+                              data_dir=$((count++))
+                              mkdir -p /data/${data_dir}
+                              mount /dev/${dev}1 /data/${data_dir}
+                              done
+              END
+              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].dns_name, 'root', File.expand_path('~/.ssh') + "/#{key}")
+              #print "[Debug]: Performing partitioning of volumes on #{server_objects[tag].id} \n" if @debug
+              Ankuscli::SshUtils.execute_ssh!(partition_script, server_objects[tag].dns_name, 'root', File.expand_path('~/.ssh') + "/#{key}", 22, false)
+            end
+          end
         end
+        threads_pool.shutdown
+        puts '[Debug]: Finished creating and attaching volumes' if @debug
       end
+      puts "[Debug]: Time to create/attach/format volumes on instances: #{time}" if @debug
+      # Test data output from this method
+      #results = {
+      #    'controller' => ['ec2-54-215-78-76.us-west-1.compute.amazonaws.com', 'ip-10-197-0-31.us-west-1.compute.internal'],
+      #    'namenode1' => ['ec2-54-215-91-134.us-west-1.compute.amazonaws.com', 'ip-10-197-53-160.us-west-1.compute.internal'],
+      #    'namenode2' => ['ec2-54-215-70-117.us-west-1.compute.amazonaws.com', 'ip-10-197-47-222.us-west-1.compute.internal'],
+      #    'jobtracker' => ['ec2-54-241-47-231.us-west-1.compute.amazonaws.com', 'ip-10-197-27-15.us-west-1.compute.internal'],
+      #    'zookeeper1' => ['ec2-54-215-121-39.us-west-1.compute.amazonaws.com', 'ip-10-197-5-46.us-west-1.compute.internal'],
+      #    'slaves1' => ['ec2-54-215-73-98.us-west-1.compute.amazonaws.com', 'ip-10-196-21-27.us-west-1.compute.internal'],
+      #    'slaves2' => ['ec2-54-215-73-12.us-west-1.compute.amazonaws.com', 'ip-10-196-42-106.us-west-1.compute.internal'],
+      #    'slaves3' => ['ec2-54-215-71-122.us-west-1.compute.amazonaws.com', 'ip-10-196-19-36.us-west-1.compute.internal']
+      #}
       results
     end
 
     # @return [Hash] results => { 'instance_tag' => [public_ip_address, fqdn], ... }
     def create_on_rackspace(credentials, options = {})
-      instances_count = options[:count] || 1
-      server_tag = options[:tag] || 'ankuscli'
-      server_name = options[:machine_name] || 'test.ankuscli.com'
-      os_type = options[:os_type] || 'CentOS'
-      volume_size = options[:volume_size] || 0
-      api_key = credentials['rackspace_api_key']
-      username = credentials['rackspace_username']
-      machine_type = credentials['rackspace_instance_type']
-      ssh_key_path = credentials['rackspace_ssh_key']
+      #instances_count = options[:count] || 1
+      #server_tag = options[:tag] || 'ankuscli'
+      #server_name = options[:machine_name] || 'test.ankuscli.com'
+      #os_type = options[:os_type] || 'CentOS'
+      #volume_size = options[:volume_size] || 0
+      #api_key = credentials['rackspace_api_key']
+      #username = credentials['rackspace_username']
+      #machine_type = credentials['rackspace_instance_type']
+      #ssh_key_path = credentials['rackspace_ssh_key']
     end
   end
 end
 
 #partition script
 __END__
-DEVICES=`cat /proc/partitions | awk '/xvd*/ {print $4}' | tail -n4`
+DEVICES=`cat /proc/partitions | awk '/xvd*/ {print $4}' | tail -n#{number_of_volumes}`
 echo "Formatting and mounting initiated"
 count=1
 for dev in $DEVICES; do

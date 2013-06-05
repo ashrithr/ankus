@@ -1,24 +1,21 @@
 ---
-install_mode: local
-root_ssh_key: ~/.ssh/ruby-sample-1363113606
-controller: ec2-184-169-207-185.us-west-1.compute.amazonaws.com
+install_mode: cloud
+cloud_platform: aws
+cloud_credentials:
+  aws_access_id: AKIAJM5AGNITYNP2YOOA
+  aws_secret_key: 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
+  aws_machine_type: m1.large
+  aws_region: us-west-1
+  aws_key: ankuscli
+cloud_os_type: CentOS
 hadoop_ha: enabled
-hadoop_namenode:
-- ec2-184-169-184-56.us-west-1.compute.amazonaws.com
-- ec2-54-215-117-26.us-west-1.compute.amazonaws.com
-zookeeper_quorum:
-- ec2-184-169-184-56.us-west-1.compute.amazonaws.com
-- ec2-54-215-117-26.us-west-1.compute.amazonaws.com
-- ec2-50-18-102-124.us-west-1.compute.amazonaws.com
-journal_quorum: ec2-184-169-184-56.us-west-1.compute.amazonaws.com:8485,ec2-54-215-117-26.us-west-1.compute.amazonaws.com:8485,ec2-50-18-102-124.us-west-1.compute.amazonaws.com:8485
+zookeeper_quorum_count: 1
 mapreduce:
   type: mr1
-  master_node: ec2-50-18-102-124.us-west-1.compute.amazonaws.com
+  master: ip-10-170-227-79.us-west-1.compute.internal
 hbase_install: disabled
-slave_nodes:
-- ec2-50-18-94-88.us-west-1.compute.amazonaws.com
-- ec2-54-215-94-137.us-west-1.compute.amazonaws.com
-- ec2-184-169-240-24.us-west-1.compute.amazonaws.com
+slave_nodes_count: 3
+slave_nodes_storage_capacity: 0
 hadoop_ecosystem:
 - hive
 - sqoop
@@ -30,7 +27,19 @@ security: simple
 monitoring: enabled
 alerting: enabled
 admin_email: admin@cw.com
-hadoop_heap_size: 1000
+root_ssh_key: /Users/ashrith/.ssh/ankuscli
+controller: ip-10-174-27-250.us-west-1.compute.internal
+hadoop_namenode:
+- ip-10-171-21-165.us-west-1.compute.internal
+- ip-10-170-191-42.us-west-1.compute.internal
+slave_nodes:
+- ip-10-171-153-109.us-west-1.compute.internal
+- ip-10-170-179-230.us-west-1.compute.internal
+- ip-10-174-19-238.us-west-1.compute.internal
+zookeeper_quorum:
+- ip-10-171-31-103.us-west-1.compute.internal
+journal_quorum: ip-10-171-31-103.us-west-1.compute.internal:8485
+hadoop_heap_size: '1000'
 hadoop_namenode_opts: -Xmx1000m
 hadoop_jobtracker_opts: -Xmx1000m
 hadoop_secondarynamenode_opts: -Xmx1000m
@@ -75,12 +84,28 @@ hadoop_config_mapred_tasktracker_reduce_tasks_maximum: 2
 hadoop_config_tasktracker_http_threads: 40
 hadoop_config_use_map_compression: 'false'
 hadoop_config_mapred_reduce_slowstart_completed_maps: 0.05
-zookeeper_ensemble: ec2-184-169-184-56.us-west-1.compute.amazonaws.com:2181,ec2-54-215-117-26.us-west-1.compute.amazonaws.com:2181,ec2-50-18-102-124.us-west-1.compute.amazonaws.com:2181
+hadoop_namenode_port: 8020
+hadoop_resourcemanager_port: 8032
+hadoop_resourcetracker_port: 8031
+hadoop_resourcescheduler_port: 8030
+hadoop_resourceadmin_port: 8033
+hadoop_resourcewebapp_port: 8088
+hadoop_proxyserver_port: 8089
+hadoop_jobhistory_port: 10020
+hadoop_jobhistory_webapp_port: 19888
+hadoop_jobtracker_port: 8021
+hadoop_tasktracker_port: 50060
+hadoop_datanode_port: 50075
+zookeeper_ensemble: ip-10-171-31-103.us-west-1.compute.internal:2181
 zookeeper_class_ensemble:
-- ec2-184-169-184-56.us-west-1.compute.amazonaws.com:2888:3888
-- ec2-54-215-117-26.us-west-1.compute.amazonaws.com:2888:3888
-- ec2-50-18-102-124.us-west-1.compute.amazonaws.com:2888:3888
+- ip-10-171-31-103.us-west-1.compute.internal:2888:3888
 number_of_nodes: 3
-ganglia_server: ec2-184-169-207-185.us-west-1.compute.amazonaws.com
-nagios_server: ec2-184-169-207-185.us-west-1.compute.amazonaws.com
+ganglia_server: ip-10-174-27-250.us-west-1.compute.internal
+nagios_server: ip-10-174-27-250.us-west-1.compute.internal
 nagios_server_ostype: CentOS
+hive: enabled
+sqoop: enabled
+flume: enabled
+pig: enabled
+oozie: enabled
+hue: enabled
