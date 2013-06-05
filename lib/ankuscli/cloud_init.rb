@@ -168,6 +168,7 @@ module Ankuscli
         volume.server = server
         volume.delete_on_termination = true #TODO Remove me
       end
+      sleep 5   #sleep to give some time for instances to refresh and update partitions info
     end
 
 
