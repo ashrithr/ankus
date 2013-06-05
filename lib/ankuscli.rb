@@ -1,6 +1,7 @@
 require 'socket'
 require 'fileutils'
 require 'yaml'
+require 'pp'
 begin
   require 'thor'
   require 'thor/group'

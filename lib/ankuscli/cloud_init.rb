@@ -68,7 +68,7 @@ module Ankuscli
     def create_server!(conn, instance_type, opts = {})
       options = {
           :key => 'ankuscli',
-          :groups => %w(default),
+          :groups => %w(ankuscli),
           :flavor_id => 'm1.medium',
           :os_type => 'CentOS',
       }.merge(opts)
@@ -151,7 +151,9 @@ module Ankuscli
       base = 'sdh' #sdi-z
       volumes.times do |i|
         base = base.next!
+        puts "Attaching volume: #{base} (size: #{size}) to serer: #{server.dns_name}"
         volume = conn.volumes.create(:size => size, :availability_zone => server.availability_zone, :device => "/dev/#{base}")
+        volume.reload
         volume.wait_for { ready? }
         conn.tags.create(
             :resource_id => volume.id,
@@ -164,6 +166,7 @@ module Ankuscli
             :value => "data-#{i + 1}",
         )
         volume.server = server
+        volume.delete_on_termination = true #TODO Remove me
       end
     end
 
@@ -180,8 +183,8 @@ module Ankuscli
           server.wait_for { ready? }
         end
       else
-        printf 'Waiting for server to get created'
-        servers.wait_for { print'.' ; ready? }
+        printf "Waiting for server to get created #{servers.id}"
+        servers.wait_for { ready? }
         puts
       end
     end

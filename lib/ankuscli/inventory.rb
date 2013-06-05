@@ -35,7 +35,7 @@ module Ankuscli
           nodes.push(*@parsed_hash['zookeeper_quorum'])
         end
         #mapreduce
-        nodes << @parsed_hash['mapreduce']['master_node']
+        nodes << @parsed_hash['mapreduce']['master']
         #hbase
         if @parsed_hash['hbase_install'] == 'enabled'
           nodes.push(*@parsed_hash['hbase_master'])
@@ -61,10 +61,11 @@ module Ankuscli
       # @param [String] nodes_file => path of the nodes yaml file
       # @param [String] roles_file => path of the file to be created with mapping
       # @param [Hash] parsed_hash => parsed configuration file
-      def initialize(nodes_file, roles_file, parsed_hash)
+      def initialize(nodes_file, roles_file, parsed_hash, install_mode = 'local')
         @nodes_file   = nodes_file
         @roles_file   = roles_file
         @parsed_hash  = parsed_hash
+        @install_mode = install_mode
       end
 
       # Write out the mapping created by 'create_enc_roles()' into @roles_file
@@ -78,8 +79,8 @@ module Ankuscli
       def create_enc_roles
         roles_hash = Hash.new
         #puppet server
-        @ps   = YamlUtils.parse_yaml(@nodes_file)['puppet_server']   # puppet server
-        @pcs  = YamlUtils.parse_yaml(@nodes_file)['puppet_clients']  # puppet clients
+        @ps  = YamlUtils.parse_yaml(@nodes_file)['puppet_server']   # puppet server
+        @pcs = YamlUtils.parse_yaml(@nodes_file)['puppet_clients']  # puppet clients
         roles_hash[@ps] = {}
         roles_hash[@ps]['java'] = nil
         roles_hash[@ps]['nagios::server'] = nil if @parsed_hash['alerting'] == 'enabled'
@@ -90,7 +91,7 @@ module Ankuscli
         namenode = @parsed_hash['hadoop_namenode']
         secondary_namenode = @parsed_hash['hadoop_secondarynamenode']
         mapreduce_type = @parsed_hash['mapreduce']['type']
-        mapreduce_master = @parsed_hash['mapreduce']['master_node']
+        mapreduce_master = @parsed_hash['mapreduce']['master']
         slave_nodes = @parsed_hash['slave_nodes']
         hbase_install = @parsed_hash['hbase_install']
         hbase_master = @parsed_hash['hbase_master']

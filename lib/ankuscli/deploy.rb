@@ -11,6 +11,7 @@ module Ankuscli
       ENC_SCRIPT =  File.expand_path(File.dirname(__FILE__) + '/../../bin/ankus_puppet_enc')
       ENC_ROLES_FILE =  File.expand_path(File.dirname(__FILE__) + '/../../data/roles.yaml')
       NODES_FILE = File.expand_path(File.dirname(__FILE__) + '/../../data/nodes.yaml')
+      NODES_FILE_CLOUD = File.expand_path(File.dirname(__FILE__) + '/../../data/nodes_cloud.yaml')
       GETOSINFO_SCRIPT = File.expand_path(File.dirname(__FILE__) + '../../shell/get_osinfo.sh')
       HADOOP_CONF = File.expand_path(File.dirname(__FILE__) + '/../../conf/ankus_hadoop_conf.yaml')
       ENC_PATH = %q(/etc/puppet/enc)
@@ -144,7 +145,7 @@ module Ankuscli
           hiera_hash['zookeeper_ensemble'] = parsed_hash['zookeeper_quorum'].map { |zk| zk += ":2181" }.join(",")
           hiera_hash['zookeeper_class_ensemble'] = parsed_hash['zookeeper_quorum'].map { |zk| zk+=":2888:3888" }
         end
-        #parse journal quoram
+        #parse journal quorum
         if parsed_hash['journal_quorum']
           hiera_hash['journal_quorum'] = parsed_hash['journal_quorum'].map { |jn| jn += ":8485" }.join(",")
         end
@@ -152,10 +153,10 @@ module Ankuscli
         hiera_hash['number_of_nodes'] = parsed_hash['slave_nodes'].length
         #parse nagios & ganglia
         if parsed_hash['monitoring'] == 'enabled'
-          hiera_hash['ganglia_server'] = @puppet_master
+          hiera_hash['ganglia_server'] = parsed_hash['controller']
         end
         if parsed_hash['alerting'] == 'enabled'
-          hiera_hash['nagios_server'] = @puppet_master
+          hiera_hash['nagios_server'] = parsed_hash['controller']
           begin #gather info of system
             if parsed_hash['controller'] == 'localhost'
               @osinfo = `chmod +x #{GETOSINFO_SCRIPT} && #{GETOSINFO_SCRIPT}`.chomp
@@ -204,9 +205,9 @@ module Ankuscli
 
       # Generate External Node Classifier data file used by the puppet's ENC script
       # @param [Hash] parsed_hash => hash from which to generate enc data
-      def generate_enc(parsed_hash)
+      def generate_enc(parsed_hash, nodes_file)
         puts 'Generating Enc roles to host mapping'.blue
-        Inventory::EncData.new(NODES_FILE, ENC_ROLES_FILE, parsed_hash).generate
+        Inventory::EncData.new(nodes_file, ENC_ROLES_FILE, parsed_hash).generate
       end
 
       # Kick off puppet run on all instances in order of the configuration
@@ -224,9 +225,9 @@ module Ankuscli
         #initialize puppet run in order
           #1. puppet server
           #2. master nodes and parallel on worker nodes
-        controller        = @parsed_hash['controller']
-        hadoop_ha         = @parsed_hash['hadoop_ha']
-        hbase_install     = @parsed_hash['hbase_install']
+        controller    = @parsed_hash['controller']
+        hadoop_ha     = @parsed_hash['hadoop_ha']
+        hbase_install = @parsed_hash['hbase_install']
 
         puts 'Initializing puppet run on controller'.blue
         if controller == 'localhost'
@@ -238,7 +239,7 @@ module Ankuscli
           #  puts '[Error]:'.red + ' Failed to install puppet master'
           #end
         else
-          puppet_single_run(@puppet_master)
+          puppet_single_run(@puppet_master, puppet_run_cmd)
         end
 
         # if ha or hbase,
@@ -246,39 +247,39 @@ module Ankuscli
         if hadoop_ha == 'enabled' or hbase_install == 'enabled'
           #parallel puppet run on zks
           puts 'Initializing zookeepers'
-          puppet_parallel_run(@parsed_hash['zookeeper_quoram'])
+          puppet_parallel_run(@parsed_hash['zookeeper_quorum'], puppet_run_cmd)
           if @parsed_hash['journal_quorum']
             #parallel puppet run on jns
             puts 'Initializing journal nodes'
-            puppet_parallel_run(@parsed_hash['journal_quorum'])
+            puppet_parallel_run(@parsed_hash['journal_quorum'], puppet_run_cmd)
           end
           if hadoop_ha == 'enabled'
             #parallel run puppet run on nns
             puts 'Initializing  namenodes'
-            puppet_parallel_run(@parsed_hash['hadoop_namenode'])
+            puppet_parallel_run(@parsed_hash['hadoop_namenode'], puppet_run_cmd)
           end
           if hbase_install == 'enabled'
             hbase_master = @parsed_hash['hbase_master']
             if hbase_master.length == 1
               puts 'Initializing hbase master'
-              puppet_single_run(hbase_master)
+              puppet_single_run(hbase_master, puppet_run_cmd)
             else
               puts 'Initializing hbase masters'
-              puppet_parallel_run(hbase_master)
+              puppet_parallel_run(hbase_master, puppet_run_cmd)
             end
           end
         elsif hadoop_ha == 'disabled'
           puts 'Initializing namenode'
-          puppet_single_run(@parsed_hash['hadoop_namenode'].first)
+          puppet_single_run(@parsed_hash['hadoop_namenode'].first, puppet_run_cmd)
         end
 
         # init puppet agent on mapreduce master
         puts 'Initializing mapreduce master'
-        puppet_single_run(@parsed_hash['mapreduce']['master_node'])
+        puppet_single_run(@parsed_hash['mapreduce']['master'], puppet_run_cmd)
 
         # init puppet agent on slave nodes
         puts 'Initializing slave nodes'
-        puppet_parallel_run(@parsed_hash['slave_nodes'])
+        puppet_parallel_run(@parsed_hash['slave_nodes'], puppet_run_cmd)
 
         # finalize puppet run on controller to refresh nagios
         if controller == 'localhost'
@@ -288,7 +289,7 @@ module Ankuscli
             #TODO handle rollback
           end
         else
-          puppet_single_run(@puppet_master)
+          puppet_single_run(@puppet_master, puppet_run_cmd)
         end
       end
 
@@ -296,8 +297,7 @@ module Ankuscli
 
       # Runs puppet on single instance
       # @param [String] instance => node on which puppet should be run
-      def puppet_single_run(instance)
-        puppet_run_cmd = "puppet agent --server #{@puppet_master} --onetime --verbose --no-daemonize --no-splay --ignorecache --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log"
+      def puppet_single_run(instance, puppet_run_cmd)
         output = SshUtils.execute_ssh!(
             puppet_run_cmd,
             instance,
@@ -321,8 +321,7 @@ module Ankuscli
 
       # Runs puppet on instances in parallel using thread pool
       # @param [Array] instances_array => list of instances on which puppet should be run in parallel
-      def puppet_parallel_run(instances_array)
-        puppet_run_cmd = "puppet agent --server #{@puppet_master} --onetime --verbose --no-daemonize --no-splay --ignorecache --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log"
+      def puppet_parallel_run(instances_array, puppet_run_cmd)
         #initiate concurrent threads pool - to install puppet clients all agent nodes
         ssh_connections = ThreadPool.new(@parallel_connections)
         puts 'Running puppet on clients: ' + "#{instances_array.join(',')}".blue if @debug
