@@ -6,14 +6,14 @@
 # Core properties
 ################
 #heap sizes for all hadoop daemons in mb
-hadoop_heap_size:               '1000'
+hadoop_heap_size:               '512'
 #heap sizes for individual hadoop daemons
-hadoop_namenode_opts:           '-Xmx1000m'
-hadoop_jobtracker_opts:         '-Xmx1000m'
-hadoop_secondarynamenode_opts:  '-Xmx1000m'
-hadoop_datanode_opts:           '-Xmx1000m'
-hadoop_tasktracker_opts:        '-Xmx1000m'
-hadoop_balancer_opts:           '-Xmx1000m'
+hadoop_namenode_opts:           '-Xmx512m'
+hadoop_jobtracker_opts:         '-Xmx512m'
+hadoop_secondarynamenode_opts:  '-Xmx512m'
+hadoop_datanode_opts:           '-Xmx512m'
+hadoop_tasktracker_opts:        '-Xmx512m'
+hadoop_balancer_opts:           '-Xmx512m'
 #compression
 hadoop_snappy_codec: 'disabled'
 hadoop_config_fs_inmemory_size_mb: 200
@@ -49,8 +49,8 @@ hadoop_config_dfs_client_block_write_retries: 3
 ################
 # MapReduce/Yarn properties
 ################
-hadoop_config_mapred_child_java_opts: 1024
-hadoop_config_io_sort_mb: 100
+hadoop_config_mapred_child_java_opts: 256
+hadoop_config_io_sort_mb: 50
 hadoop_config_io_sort_factor: 10
 hadoop_config_mapred_map_sort_spill_percent: 0.8
 hadoop_config_mapred_job_tracker_handler_count: 10

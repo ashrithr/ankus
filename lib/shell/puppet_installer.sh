@@ -158,11 +158,11 @@ PSQLDELIM
   create user puppetdb with password 'puppetdb';
   create database puppetdb with owner puppetdb;
   create user hiveuser with password 'hiveuser';
-  create database hive_metastore with owner 'hiveuser';
+  create database hive_metastore with owner hiveuser;
   create user oozie with password 'oozie';
-  create database oozie with owner 'oozie';
+  create database oozie with owner oozie;
   create user hue with password 'hue';
-  create database hue with owner 'hue';
+  create database hue with owner hue;
 END
 }
 
