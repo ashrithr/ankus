@@ -27,11 +27,14 @@ cloud_os_type: CentOS
 ########################################################
 # Hadoop Cluster Configuration
 ########################################################
+# hadoop high availability configuration:
+#   enabled => hadoop ha is enabled with two namenode(s) but without auto failover using zkfc
+#   auto    => hadoop ha is enabled with two namenode(s) with auto failover of nodes using zkfc
+#   disabled => hadoop ha is not setup and only one namenode will be installed and configured
 hadoop_ha: 'enabled'
 zookeeper_quorum_count: 3
 ## mapreduce framework config
   # type(type of mapreduce framework to setup), supported values mr1 (regular mapreduce) or mr2 (yarn)
-  # master(if mr1 its jobtracker hostname, if mr2 resourcemanager hostname)
 mapreduce:
   type: 'mr1'
 
