@@ -60,10 +60,13 @@ module Ankuscli
     # @param [Fog::Compute::AWS::Real] conn => fog aws connection object
     # @param [String] instance_type => type of the instance being created, used for the creating tags
     # @param [Hash] opts:
-    #   @option [String] os_type    => type of servers to create (CentOS|Ubuntu)
-    #   @option [String] key        => security key to ingest into system
-    #   @option [Array] groups      => array of security groups to use
-    #   @option [String] flavor_id  => size of instance to create
+    #   @option [String] os_type        => type of servers to create (CentOS|Ubuntu)
+    #   @option [String] key            => security key to ingest into system
+    #   @option [Array] groups          => array of security groups to use
+    #   @option [String] flavor_id      => size of instance to create
+    #   @option [Integer] num_of_vols   => number of ebs volumes to create and attach
+    #   @option [Integer] vol_size      => size of the each ebs volumes to create in GB
+    #   @option [Integer] root_vol_size => size of the root ebs volume
     # @return [Fog::Compute::AWS::Server] server object
     def create_server!(conn, instance_type, opts = {})
       options = {
@@ -71,6 +74,9 @@ module Ankuscli
           :groups => %w(ankuscli),
           :flavor_id => 'm1.medium',
           :os_type => 'CentOS',
+          :num_of_vols => 0,
+          :vol_size => 50,
+          :root_vol_size => 100
       }.merge(opts)
 
       unless valid_connection?(conn)
@@ -103,18 +109,45 @@ module Ankuscli
               ip_permission['ipProtocol'] == 'tcp' &&
               ip_permission['toPort'] == 22
         end
+        open_all = sec_group.ip_permissions.detect do |ip_permission|
+          ip_permission['ipRanges'].first && ip_permission['ipRanges'].first['cidrIp'] == '0.0.0.0/0' &&
+              ip_permission['fromPort'] == 0 &&
+              ip_permission['ipProtocol'] == 'tcp' &&
+              ip_permission['toPort'] == 65535
+        end
         unless authorized
           sec_group.authorize_port_range(22..22)
         end
-        #TODO: authorize hadoop, hbase ports
+        #TODO: authorize specific ports for hadoop, hbase
+        unless open_all
+          sec_group.authorize_port_range(0..65535)
+        end
       end
 
       case options[:os_type].downcase
         when 'centos'
-          server = create_server(conn, options[:key], instance_type, options[:groups], options[:flavor_id], @centos_amis[@region])
+          server = create_server(conn,
+                                 options[:key],
+                                 instance_type,
+                                 options[:groups],
+                                 options[:flavor_id],
+                                 @centos_amis[@region],
+                                 :num_of_vols => options[:num_of_vols],
+                                 :vol_size => options[:vol_size],
+                                 :root_ebs_size => options[:root_vol_size]
+          )
           return server
         when 'ubuntu'
-          server = create_server(conn, options[:key], instance_type, options[:groups], options[:flavor_id], @ubuntu_amis[@region])
+          server = create_server(conn,
+                                 options[:key],
+                                 instance_type,
+                                 options[:groups],
+                                 options[:flavor_id],
+                                 @ubuntu_amis[@region],
+                                 :num_of_vols => options[:num_of_vols],
+                                 :vol_size => options[:vol_size],
+                                 :root_ebs_size => options[:root_vol_size]
+          )
           return server
         else
           puts '[Error]: Provided OS not supported with ankuscli'
@@ -148,7 +181,7 @@ module Ankuscli
     # @param [Integer] size => size in GB for each volume
     # @return nil
     def attach_volumes!(conn, server, volumes, size)
-      base = 'sdh' #sdi-z
+      base = 'sde' #sdf-p
       volumes.times do |i|
         base = base.next!
         puts "Attaching volume: #{base} (size: #{size}) to serer: #{server.dns_name}"
@@ -172,21 +205,49 @@ module Ankuscli
     end
 
 
-    # Waits until all the servers got created
+    # Waits until all the servers got created (:state => :running)
     # @param [Array] servers => array of fog server objects (Fog::Compute::AWS::Server)
     # (or)
     # [Fog::Compute::AWS::Server] servers => single server object
     # @return nil
     def wait_for_servers(servers)
       if servers.is_a?(Array)
-        puts 'Waiting until all the servers gets created ...'
+        print 'Waiting until all the servers gets created ...' + "\n"
         servers.each do |server|
           server.wait_for { ready? }
         end
       else
-        printf "Waiting for server to get created #{servers.id}"
+        print "Waiting for server to get created #{servers.id}" + "\n"
         servers.wait_for { ready? }
         puts
+      end
+    end
+
+    # Waits for the complete boot the instance by monitoring instances console_output
+    # @param [Array] servers => array of fog server objects to wait for
+    # @param [Fog::Compute::AWS::Server] servers => single server object to wait for
+    # @param [String] os_type => type of os being booted into the instance(s)
+    def complete_wait(servers, os_type)
+      if servers.is_a?(Array)
+        print 'Waiting for servers to complete boot cycle (which includes mounting the volumes) ...' + "\n"
+        servers.each do |server|
+          if os_type.downcase == 'centos'
+            server.wait_for { console_output.body['output'] =~ /CentOS release 6\.3 \(Final\)/ }
+          elsif os_type.downcase == 'ubuntu'
+            server.wait_for { console_output.body['output'] =~ /^cloud-init boot finished/ }
+          else
+            true
+          end
+        end
+      else
+        print 'Waiting for server to complete boot' + "\n"
+        if os_type.downcase == 'centos'
+          server.wait_for { console_output.body['output'] =~ /CentOS release 6\.3 \(Final\)/ }
+        elsif os_type.downcase == 'ubuntu'
+          server.wait_for { console_output.body['output'] =~ /^cloud-init boot finished/ }
+        else
+          true
+        end
       end
     end
 
@@ -198,14 +259,25 @@ module Ankuscli
     # @param [String] type => type of the system being created, used for creating tags
     # @param [Array] groups => security groups to use
     # @param [String] flavor_id => type of instance to create (t1.micro m1.small m1.medium m1.large m1.xlarge m3.xlarge m3.2xlarge m2.xlarge m2.2xlarge m2.4xlarge c1.medium c1.xlarge hs1.8xlarge)
+    # @param [Hash] ebs_options => options for ebs volumes to create and attach to instances
+    #   @option [Integer] :num_of_vols => number of volumes for the instance
+    #   @option [Integer] :vol_size => volumes size in GB per volume
+    #   @option [Integer] :root_ebs_size => size of the root volume
     # @return [Fog::Compute::AWS::Server] fog server object
-    def create_server(conn, key_name, type, groups, flavor_id, ami_id)
-      server = conn.servers.create(
-          :image_id   => ami_id,
-          :flavor_id  => flavor_id,
-          :key_name   => key_name,
-          :groups     => groups
+    def create_server(conn, key_name, type, groups, flavor_id, ami_id, ebs_options = {})
+      num_of_volumes = ebs_options[:num_of_vols] || 0
+      size_of_volumes = ebs_options[:vol_size] || 50
+      root_volume_size = ebs_options[:root_ebs_size] || 100
+      image = conn.images.get(ami_id)
+      root_ebs_name = image.block_device_mapping.first['deviceName']
+      server = conn.servers.new(
+          :image_id             => ami_id,
+          :flavor_id            => flavor_id,
+          :key_name             => key_name,
+          :groups               => groups,
+          :block_device_mapping => map_devices(num_of_volumes, size_of_volumes, root_volume_size, root_ebs_name)
       )
+      server.save
       server.reload
       conn.tags.create(
           :resource_id  => server.id,
@@ -218,6 +290,30 @@ module Ankuscli
           :value        => type
       )
       server
+    end
+
+    # create a map of block devices from inputs provided
+    # @param [Integer] num_of_vols => number of volumes to build the hash for
+    # @param [Integer] size_per_vol => size of each volume in GB
+    # @param [Integer] root_ebs_size => size of the root device (should be able to run `resize2fs /dev/sda` to re-claim re-sized space)
+    # @param [String] ami_id => ami_id used to boot the instance, required for resizing the root ebs vol
+    # @return [Hash] block_device_mapping => Array of block to device mappings
+    def map_devices(num_of_vols, size_per_vol, root_ebs_size, root_ebs_name = '/dev/sda')
+      block_device_mapping = []
+      block_device_mapping << { 'DeviceName' => root_ebs_name,  'Ebs.VolumeSize' => root_ebs_size, 'Ebs.DeleteOnTermination' => false }
+      if num_of_vols > 0
+        base = 'sdh' #sdi-z
+        num_of_vols.times do
+          base = base.next
+          mapping = {
+              'DeviceName'              => base,
+              'Ebs.VolumeSize'          => size_per_vol,
+              'Ebs.DeleteOnTermination' => false
+          }
+          block_device_mapping << mapping
+        end
+      end
+      block_device_mapping
     end
 
   end
@@ -329,9 +425,9 @@ module Ankuscli
           server.wait_for { ready? }
         end
       else
-        printf 'Waiting for server to get created'
+        print 'Waiting for server to get created' + "\n"
         servers.wait_for { print'.' ; ready? }
-        puts
+        print "\n"
       end
     end
 
