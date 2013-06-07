@@ -217,7 +217,7 @@ module Ankuscli
             Net::SSH.start(host, ssh_user, :port => ssh_port, :keys => ssh_key, :auth_methods => %w(publickey)) do |ssh|
 
               commands.each { |command|
-                puts "\nRunning " + "#{command}".blue + ' on server ' + "#{host}".blue if debug
+                print "\nRunning " + "#{command}".blue + ' on server ' + "#{host}".blue + "\n" if debug
                 results[command] = ssh_exec!(ssh, command, debug)
                 if debug
                   command_output = results[command]
@@ -250,7 +250,7 @@ module Ankuscli
       # @param [String] command => command to execute
       # @param [Boolean] debug => append's hostname to command output if enabled
       # @return [Array] => [stdout, stderr, exit_code]
-      def ssh_exec!(ssh, command, debug)
+      def ssh_exec!(ssh, command, debug=false)
         stdout_data = ''
         stderr_data = ''
         exit_code = nil
@@ -263,7 +263,7 @@ module Ankuscli
 
             channel.on_data do |ch, data|
               if debug
-                puts "[#{ssh.host}]: ".blue + data
+                print "[#{ssh.host}]: ".blue + data + "\n"
                 stdout_data += "[#{ssh.host}]: ".blue + data
               else
                 stdout_data += data
@@ -272,7 +272,7 @@ module Ankuscli
 
             channel.on_extended_data do |ch,type,data|
               if debug
-                puts "[#{ssh.host}]: ".yellow + data
+                print "[#{ssh.host}]: ".yellow + data + "\n"
                 stderr_data += "[#{ssh.host}]: ".yellow + data
               else
                 stderr_data += data

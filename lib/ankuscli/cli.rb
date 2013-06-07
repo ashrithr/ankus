@@ -15,6 +15,8 @@ module Ankuscli
 
     class_option :thread_pool_size, :type => :numeric, :desc => 'size of the thread pool', :default => 10
 
+    class_option :mock, :type => :boolean, :desc => 'this mode will not do anything, but will only show the methods being passed'
+
     desc 'parse', 'parse the config file for errors'
     def parse
       parse_config

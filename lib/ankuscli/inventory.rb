@@ -116,7 +116,7 @@ module Ankuscli
             roles_hash[pc]['hadoop::journalnode'] = nil if journal_nodes.include?(pc)
           else
             #snn
-            roles_hash[pc]['hadoop::secondarynamenode'] if secondary_namenode == pc
+            roles_hash[pc]['hadoop::secondarynamenode'] = nil if secondary_namenode == pc
           end
           #mapreduce
           if mapreduce_type == 'mr1'
