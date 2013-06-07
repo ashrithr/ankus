@@ -11,6 +11,7 @@ end
 
 #Start the app
 begin
+  STDOUT.sync = true
   Ankuscli::CLI.start
 rescue Interrupt
   puts 'Caught Interrupt, Exiting...'
