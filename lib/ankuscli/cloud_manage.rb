@@ -5,6 +5,8 @@
 module Ankuscli
   require 'benchmark'
   require 'thread'
+  require 'erb'
+  require 'tempfile'
   class Cloud
     # Create a new Cloud class object
     # @param [String] provider => Cloud service provider; aws|rackspace
@@ -108,6 +110,7 @@ module Ankuscli
         parsed_hash_internal_ips['controller'] = nodes_hash['controller'].last
         parsed_hash_internal_ips['hadoop_namenode'] = nodes_hash.map { |k,v| v.last if k =~ /namenode/ }.compact
         parsed_hash_internal_ips['mapreduce']['master'] = nodes_hash['jobtracker'].last
+        parsed_hash_internal_ips['hadoop_secondarynamenode'] = nodes_hash['jobtracker'].last if parsed_hash['hadoop_ha'] == 'disabled'
         parsed_hash_internal_ips['slave_nodes'] = nodes_hash.map { |k,v| v.last if k =~ /slaves/ }.compact
         parsed_hash_internal_ips['zookeeper_quorum'] = nodes_hash.map { |k,v| v.last if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled' or parsed_hash['hbase_install'] == 'enabled'
         parsed_hash_internal_ips['journal_quorum'] = nodes_hash.map { |k,v| v.last if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled'
@@ -140,58 +143,58 @@ module Ankuscli
         puts '[Error]'.red + ' failed connecting to aws'
         exit 1
       end
-      time = Benchmark.measure do
-        #a thread pool for creating servers
-        puts 'Creating servers with tags: ' + "#{nodes_to_create.keys.join(',')}".blue
-        #hash to store server object to tag mapping { tag => server_obj }, used for attaching volumes
-        server_objects = {}
-        nodes_to_create.each do |tag, info|
-          server_objects[tag] = aws.create_server!(conn, tag, :key => key, :groups => groups, :flavor_id => flavor_id, :os_type => info[:os_type])
-        end
-        #wait for servers to get created
-        aws.wait_for_servers(server_objects.values)
-        #attach volumes to instances
-        nodes_to_create.each do |tag, info|
-          # fill in return hash
-          results[tag] = [ server_objects[tag].dns_name, server_objects[tag].private_dns_name ]
-          # attach volumes specified to the instance
-          aws.attach_volumes!(conn, server_objects[tag], info[:volumes].to_i, info[:volume_size].to_i)
-        end
-        puts 'Partitioning/Formatting attached volumes'.blue
-        #parition and format attached disks using thread pool
-        nodes_to_create.each do |tag, info|
-          if info[:volumes] != 0    # only invoke a thread to partition if there are any volumes were created
-            threads_pool.schedule do
-              partition_script = <<-END.gsub(/^ {28}/, '')
-                              DEVICES=`cat /proc/partitions | awk '/xvd*/ {print $4}' | tail -n#{info[:volumes]}`
-                              echo "Formatting and mounting initiated"
-                              count=1
-                              for dev in $DEVICES; do
-                              echo "Formatting and mounting $dev"
-                              fdisk -u /dev/$dev << EOF
-                              n
-                              p
-                              1
 
-
-                              w
-                              EOF
-                              mkfs.ext4 /dev/${dev}1
-                              data_dir=$((count++))
-                              mkdir -p /data/${data_dir}
-                              mount /dev/${dev}1 /data/${data_dir}
-                              done
-              END
-              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].dns_name, 'root', File.expand_path('~/.ssh') + "/#{key}")
-              #print "[Debug]: Performing partitioning of volumes on #{server_objects[tag].id} \n" if @debug
-              Ankuscli::SshUtils.execute_ssh!(partition_script, server_objects[tag].dns_name, 'root', File.expand_path('~/.ssh') + "/#{key}", 22, false)
-            end
-          end
-        end
-        threads_pool.shutdown
-        puts '[Debug]: Finished creating and attaching volumes' if @debug
+      #a thread pool for creating servers
+      puts 'Creating servers with tags: ' + "#{nodes_to_create.keys.join(',')}".blue
+      #hash to store server object to tag mapping { tag => server_obj }, used for attaching volumes
+      server_objects = {}
+      nodes_to_create.each do |tag, info|
+        server_objects[tag] = aws.create_server!(conn,
+                                                 tag,
+                                                 :key => key,
+                                                 :groups => groups,
+                                                 :flavor_id => flavor_id,
+                                                 :os_type => info[:os_type],
+                                                 :num_of_vols => info[:volumes],
+                                                 :vol_size => info[:volume_size]
+        )
       end
-      puts "[Debug]: Time to create/attach/format volumes on instances: #{time}" if @debug
+      #wait for servers to get created (:state => running)
+      aws.wait_for_servers(server_objects.values)
+      #wait for the boot to complete
+      aws.complete_wait(server_objects, info[:os_type]) #TODO: this method is taking forever, find another way to make sure volumes are properly mounted
+      #build the return string
+      nodes_to_create.each do |tag, info|
+        # fill in return hash
+        results[tag] = [ server_objects[tag].dns_name, server_objects[tag].private_dns_name ]
+      end
+      puts 'Partitioning/Formatting attached volumes'.blue
+      #parition and format attached disks using thread pool
+      nodes_to_create.each do |tag, info|
+        threads_pool.schedule do
+          #build partition script
+          partition_script = gen_partition_script(info[:volumes])
+          tempfile = Tempfile.new('partition')
+          tempfile.write(partition_script)
+          tempfile.close
+          # wait for the server to be ssh'able
+          Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].dns_name, 'root', File.expand_path('~/.ssh') + "/#{key}")
+          # upload and execute the partition script on the remote machine
+          SshUtils.upload!(tempfile.path, '/tmp', server_objects[tag].dns_name, @ssh_user, @ssh_key)
+          Ankuscli::SshUtils.execute_ssh!(
+              "chmod +x /tmp/#{File.basename(tempfile.path)} && sudo sh -c '/tmp/#{File.basename(tempfile.path)} > /var/log/bootstrap_volumes.log 2>&1'",
+              server_objects[tag].dns_name,
+              @ssh_user,
+              File.expand_path('~/.ssh') + "/#{key}",
+              22,
+              false)
+          tempfile.unlink #delete the tempfile
+        end
+      end
+      threads_pool.shutdown
+
+      puts '[Debug]: Finished creating and attaching volumes' if @debug
+
       # Test data output from this method
       #results = {
       #    'controller' => ['ec2-54-215-78-76.us-west-1.compute.amazonaws.com', 'ip-10-197-0-31.us-west-1.compute.internal'],
@@ -218,26 +221,39 @@ module Ankuscli
       #machine_type = credentials['rackspace_instance_type']
       #ssh_key_path = credentials['rackspace_ssh_key']
     end
+
+    # Builds and returns a shell script for partitioning and resizing volumes
+    # @param [Integer] number_of_volumes => number of volumes to partition & mount, this number is used to grep the
+    #                                       value from /proc/partitions
+    # @return [ERB] build out shell script
+    def gen_partition_script(number_of_volumes)
+      template = <<-END.gsub(/^ {6}/, '')
+      #!/bin/bash
+      echo "Resizing the root partition"
+      resize2fs /dev/`cat /proc/partitions | awk '/xvd*/ {print $4}' | head -n1`
+      NUM_OF_VOLS=<%= number_of_volumes %>
+      if [ $NUM_OF_VOLS -ne 0 ]; then
+      DEVICES=`cat /proc/partitions | awk '/xvd*/ {print $4}' | tail -n<%= number_of_volumes %>`
+      echo "Formatting and mounting initiated"
+      count=1
+      for dev in $DEVICES; do
+      echo "Formatting and mounting $dev"
+      fdisk -u /dev/$dev << EOF
+      n
+      p
+      1
+
+
+      w
+      EOF
+      mkfs.ext4 /dev/${dev}1
+      data_dir=$((count++))
+      mkdir -p /data/${data_dir}
+      mount /dev/${dev}1 /data/${data_dir}
+      done
+      fi
+      END
+      ERB.new(template).result(binding)
+    end
   end
 end
-
-#partition script
-__END__
-DEVICES=`cat /proc/partitions | awk '/xvd*/ {print $4}' | tail -n#{number_of_volumes}`
-echo "Formatting and mounting initiated"
-count=1
-for dev in $DEVICES; do
-echo "Formatting and mounting $dev"
-fdisk -u /dev/$dev << EOF
-n
-p
-1
-
-
-w
-EOF
-mkfs.ext4 /dev/${dev}1
-data_dir=$((count++))
-mkdir -p /data/${data_dir}
-mount /dev/${dev}1 /data/${data_dir}
-done
