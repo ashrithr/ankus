@@ -127,7 +127,7 @@ module Ankuscli
         #clean up puppet installer script on all nodes
         cleanup(all_nodes)
 
-        print 'Installing puppet on all nodes completed'.blue
+        print 'Installing puppet on all nodes completed'.blue + "\n"
       end
 
       # Generate hiera data required by puppet deployments & writes out to the yaml file
