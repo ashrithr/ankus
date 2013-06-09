@@ -3,6 +3,7 @@ module Ankuscli
   require 'net/ssh'
   require 'net/scp'
   require 'thread'
+  require 'timeout'
 
   # ShellUtils - wrapper around shell
   class ShellUtils
@@ -172,11 +173,17 @@ module Ankuscli
       # @param [String] ssh_user => user to perform ssh as
       # @param [String] ssh_key => ssh key to use
       def wait_for_ssh(node, ssh_user, ssh_key)
-        sshable?([node], ssh_user, ssh_key)
-      rescue
-        #puts "Cannot ssh into #{node}, retrying in 10 seconds"
-        sleep 10
-        retry
+        Timeout::timeout(600) do
+          begin
+            sshable?([node], ssh_user, ssh_key)
+          rescue
+            #puts "Cannot ssh into #{node}, retrying in 10 seconds"
+            sleep 10
+            retry
+          end
+        end
+      rescue Timeout::Error
+        raise 'It took more than 10 mins for the servers to complete boot, this generally does not happen.'
       end
 
       # Execute single command on remote machine over ssh protocol using net-ssh gem
@@ -197,6 +204,7 @@ module Ankuscli
           e.remember_host!
           retry
         rescue StandardError => e
+          puts e.to_s if debug
           return e.to_s
         end
         result
@@ -217,7 +225,7 @@ module Ankuscli
             Net::SSH.start(host, ssh_user, :port => ssh_port, :keys => ssh_key, :auth_methods => %w(publickey)) do |ssh|
 
               commands.each { |command|
-                print "\nRunning " + "#{command}".blue + ' on server ' + "#{host}".blue + "\n" if debug
+                puts "\nRunning " + "#{command}".blue + ' on server ' + "#{host}".blue if debug
                 results[command] = ssh_exec!(ssh, command, debug)
                 if debug
                   command_output = results[command]
@@ -255,32 +263,25 @@ module Ankuscli
         stderr_data = ''
         exit_code = nil
 
-        ssh.open_channel do |channel|
-          channel.exec(command) do |chl, success|
-            unless success
-              abort 'FAILED: couldn\'t execute command (ssh.channel.exec)'
-            end
+        ssh.open_channel do |ch|
+          ch.request_pty do |channel, succ| #for running sudo commands, a psuedo-tty is required
+            abort 'FAILED: Could not request a psuedo-tty' unless succ
+            channel.exec(command) do |chl, success|
+              unless success
+                abort 'FAILED: could not execute command (ssh.channel.exec)'
+              end
 
-            channel.on_data do |ch, data|
-              if debug
-                print "[#{ssh.host}]: ".blue + data + "\n"
-                stdout_data += "[#{ssh.host}]: ".blue + data
-              else
+              channel.on_data do |ch, data|
                 stdout_data += data
               end
-            end
 
-            channel.on_extended_data do |ch,type,data|
-              if debug
-                print "[#{ssh.host}]: ".yellow + data + "\n"
-                stderr_data += "[#{ssh.host}]: ".yellow + data
-              else
+              channel.on_extended_data do |ch,type,data|
                 stderr_data += data
               end
-            end
 
-            channel.on_request("exit-status") do |ch,data|
-              exit_code = data.read_long
+              channel.on_request("exit-status") do |ch,data|
+                exit_code = data.read_long
+              end
             end
           end
         end
@@ -296,18 +297,18 @@ module Ankuscli
       # @param [String] ssh_key => ssh private key to use
       # @param [Integer] ssh_port => ssh port (default: 22)
       # @return nil
-      def upload!(source_file, dest_path, host, ssh_user, ssh_key, ssh_port=22)
+      def upload!(source_file, dest_path, host, ssh_user, ssh_key, ssh_port=22, debug = false)
         begin
           Net::SSH.start(host, ssh_user, :port => ssh_port, :keys => ssh_key, :auth_methods => %w(publickey)) do |ssh|
-            ssh.scp.upload!(source_file, dest_path) #do |ch, name, sent, total|
-            #  puts "\r#{name}: #{(sent.to_f * 100 / total.to_f).to_i}%"
-            #end
+            ssh.scp.upload!(source_file, dest_path) do |ch, name, sent, total|
+              puts "\r#{name}: #{(sent.to_f * 100 / total.to_f).to_i}%" if debug
+            end
           end
         rescue Net::SSH::HostKeyMismatch => e
           e.remember_host!
           retry
         rescue StandardError => e
-          e.to_s
+          puts e.to_s
         end
       end
 
