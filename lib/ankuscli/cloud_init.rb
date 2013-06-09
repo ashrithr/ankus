@@ -9,7 +9,7 @@ module Ankuscli
     # @param [String] secret_key => aws secret_key
     # @param [String] region => aws region to connect to
     # @return [AnkusCli::Aws] aws connection object
-    def initialize(access_id, secret_key, region = 'us-west-1')
+    def initialize(access_id, secret_key, region = 'us-west-1', mock = false)
       @aws_access_id  = access_id
       @aws_secret_key = secret_key
       @region         = region
@@ -33,6 +33,7 @@ module Ankuscli
           'ap-northeast-1'  => 'ami-57109956',  #Tokyo
           'sa-east-1'       => 'ami-a4fb5eb9',  #Sao Paulo
       }
+      @mock           = mock  #if enabled will enable Fog.mock!
     end
 
     # Creates a new aws connection object with the provided aws access and secret key
@@ -84,43 +85,45 @@ module Ankuscli
         exit 2
       end
 
-      #validate key, create if does not exist and write it to local system
-      unless conn.key_pairs.get(options[:key])
-        puts "[Debug]: Cannot find the key pair specified, creating the key_pair #{options[:key]}"
-        key_pair = conn.key_pairs.create(:name => options[:key])
-        File.open(File.expand_path("~/.ssh/#{options[:key]}"), 'w') do |f|
-          f.write(key_pair.private_key)
+      unless @mock
+        #validate key, create if does not exist and write it to local system
+        unless conn.key_pairs.get(options[:key])
+          puts "[Debug]: Cannot find the key pair specified, creating the key_pair #{options[:key]}"
+          key_pair = conn.key_pairs.create(:name => options[:key])
+          File.open(File.expand_path("~/.ssh/#{options[:key]}"), 'w') do |f|
+            f.write(key_pair.private_key)
+          end
+          File.chmod(0600, File.expand_path("~/.ssh/#{options[:key]}"))
         end
-        File.chmod(0600, File.expand_path("~/.ssh/#{options[:key]}"))
-      end
 
-      #validate group, create if does not exist and ingest some basic rules
-      options[:groups].each do |group|
-        unless conn.security_groups.get(group)
-          conn.security_groups.create(:name => group, :description => 'group managed by ankuscli')
+        #validate group, create if does not exist and ingest some basic rules
+        options[:groups].each do |group|
+          unless conn.security_groups.get(group)
+            conn.security_groups.create(:name => group, :description => 'group managed by ankuscli')
+          end
         end
-      end
-      options[:groups].each do |group|
-        sec_group = conn.security_groups.get(group)
-        #check and authorize for ssh port
-        authorized = sec_group.ip_permissions.detect do |ip_permission|
-          ip_permission['ipRanges'].first && ip_permission['ipRanges'].first['cidrIp'] == '0.0.0.0/0' &&
-              ip_permission['fromPort'] == 22 &&
-              ip_permission['ipProtocol'] == 'tcp' &&
-              ip_permission['toPort'] == 22
-        end
-        open_all = sec_group.ip_permissions.detect do |ip_permission|
-          ip_permission['ipRanges'].first && ip_permission['ipRanges'].first['cidrIp'] == '0.0.0.0/0' &&
-              ip_permission['fromPort'] == 0 &&
-              ip_permission['ipProtocol'] == 'tcp' &&
-              ip_permission['toPort'] == 65535
-        end
-        unless authorized
-          sec_group.authorize_port_range(22..22)
-        end
-        #TODO: authorize specific ports for hadoop, hbase
-        unless open_all
-          sec_group.authorize_port_range(0..65535)
+        options[:groups].each do |group|
+          sec_group = conn.security_groups.get(group)
+          #check and authorize for ssh port
+          authorized = sec_group.ip_permissions.detect do |ip_permission|
+            ip_permission['ipRanges'].first && ip_permission['ipRanges'].first['cidrIp'] == '0.0.0.0/0' &&
+                ip_permission['fromPort'] == 22 &&
+                ip_permission['ipProtocol'] == 'tcp' &&
+                ip_permission['toPort'] == 22
+          end
+          open_all = sec_group.ip_permissions.detect do |ip_permission|
+            ip_permission['ipRanges'].first && ip_permission['ipRanges'].first['cidrIp'] == '0.0.0.0/0' &&
+                ip_permission['fromPort'] == 0 &&
+                ip_permission['ipProtocol'] == 'tcp' &&
+                ip_permission['toPort'] == 65535
+          end
+          unless authorized
+            sec_group.authorize_port_range(22..22)
+          end
+          #TODO: authorize specific ports for hadoop, hbase
+          unless open_all
+            sec_group.authorize_port_range(0..65535)
+          end
         end
       end
 
@@ -212,12 +215,12 @@ module Ankuscli
     # @return nil
     def wait_for_servers(servers)
       if servers.is_a?(Array)
-        print 'Waiting until all the servers gets created ...' + "\n"
+        puts 'Waiting until all the servers gets created ...'
         servers.each do |server|
           server.wait_for { ready? }
         end
       else
-        print "Waiting for server to get created #{servers.id}" + "\n"
+        puts "Waiting for server to get created #{servers.id}"
         servers.wait_for { ready? }
         puts
       end
@@ -225,12 +228,25 @@ module Ankuscli
 
     # Waits for the complete boot the instance by monitoring instances console_output
     # @param [Array] servers => array of fog server objects to wait for
-    # @param [Fog::Compute::AWS::Server] servers => single server object to wait for
+    # (or) [Fog::Compute::AWS::Server] servers => single server object to wait for
     # @param [String] os_type => type of os being booted into the instance(s)
+    # @
     def complete_wait(servers, os_type)
-      if servers.is_a?(Array)
-        print 'Waiting for servers to complete boot cycle (which includes mounting the volumes) ...' + "\n"
-        servers.each do |server|
+      Timeout::timeout(600) do #Timeout after 10 mins
+        sleep 10; return if @mock # if mock is enabled sleep for some time and return back
+        if servers.is_a?(Array)
+          puts 'Waiting for cloud instances to complete their boot (which includes mounting the volumes) ...'
+          servers.each do |server|
+            if os_type.downcase == 'centos'
+              server.wait_for { console_output.body['output'] =~ /CentOS release 6\.3 \(Final\)/ }
+            elsif os_type.downcase == 'ubuntu'
+              server.wait_for { console_output.body['output'] =~ /^cloud-init boot finished/ }
+            else
+              true
+            end
+          end
+        else
+          puts 'Waiting for server to complete boot'
           if os_type.downcase == 'centos'
             server.wait_for { console_output.body['output'] =~ /CentOS release 6\.3 \(Final\)/ }
           elsif os_type.downcase == 'ubuntu'
@@ -239,16 +255,9 @@ module Ankuscli
             true
           end
         end
-      else
-        print 'Waiting for server to complete boot' + "\n"
-        if os_type.downcase == 'centos'
-          server.wait_for { console_output.body['output'] =~ /CentOS release 6\.3 \(Final\)/ }
-        elsif os_type.downcase == 'ubuntu'
-          server.wait_for { console_output.body['output'] =~ /^cloud-init boot finished/ }
-        else
-          true
-        end
       end
+    rescue Timeout::Error
+      raise "It took more than 10 mins for the servers to complete boot, this generally does not happen."
     end
 
     private
@@ -269,16 +278,28 @@ module Ankuscli
       size_of_volumes = ebs_options[:vol_size] || 50
       root_volume_size = ebs_options[:root_ebs_size] || 100
       image = conn.images.get(ami_id)
-      root_ebs_name = image.block_device_mapping.first['deviceName']
-      server = conn.servers.new(
-          :image_id             => ami_id,
-          :flavor_id            => flavor_id,
-          :key_name             => key_name,
-          :groups               => groups,
-          :block_device_mapping => map_devices(num_of_volumes, size_of_volumes, root_volume_size, root_ebs_name)
-      )
-      server.save
-      server.reload
+      region = @region
+      root_ebs_name = if @mock
+                        '/dev/sda'
+                      else
+                        image.block_device_mapping.first['deviceName']
+                      end
+      if @mock
+        #assign a random public_dns_name and private_dns_name
+        server = conn.servers.create
+        server.dns_name = "ec2-54-#{rand(100)}-#{rand(10)}-#{rand(255)}.#{region}.compute.amazonaws.com" #ec2-54-215-78-76.us-west-1.compute.amazonaws.com
+        server.private_dns_name = "ip-54-#{rand(100)}-#{rand(10)}-#{rand(255)}.#{region}.compute.internal" #ip-10-197-0-31.us-west-1.compute.internal
+      else
+        server = conn.servers.new(
+            :image_id             => ami_id,
+            :flavor_id            => flavor_id,
+            :key_name             => key_name,
+            :groups               => groups,
+            :block_device_mapping => map_devices(num_of_volumes, size_of_volumes, root_volume_size, root_ebs_name)
+        )
+        server.save
+        server.reload
+      end
       conn.tags.create(
           :resource_id  => server.id,
           :key          => 'Name',
@@ -318,12 +339,16 @@ module Ankuscli
 
   end
 
-  class RackSpace
-    def initialize(api_key, user_name)
+  class Rackspace
+
+    # @param [String] api_key => rackspace api_key to use
+    # @param [String] user_name => rackspace username to use
+    def initialize(api_key, user_name, mock = false)
       @rackspace_api_key = api_key
       @rackspace_username = user_name
       @centos_image_id = 'da1f0392-8c64-468f-a839-a9e56caebf07' #CentOS 6.3 @ dfw
       @ubuntu_image_id = 'e4dbdba7-b2a4-4ee5-8e8f-4595b6d694ce' #ubuntu 12.04 LTS @ dfw
+      @mock = mock
     end
 
     # Creates a new rackspace connection object with provided credentials
@@ -335,13 +360,13 @@ module Ankuscli
                            :version            => :v2
                        })
     rescue Excon::Errors::Unauthorized
-      puts 'Invalid Rackspace Credentials'
+      puts '[Error]: '.red + 'Invalid Rackspace Credentials'
       exit 1
     end
 
     # Validates the connection object
     # @param [Fog::Compute] conn => fog connection object to authenticate
-    def validate_connection?(conn)
+    def valid_connection?(conn)
       conn.authenticate
       true
     rescue
@@ -422,12 +447,20 @@ module Ankuscli
       if servers.is_a?(Array)
         puts 'Waiting until all the servers gets created ...'
         servers.each do |server|
-          server.wait_for { ready? }
+          # check every 5 seconds to see if the server is in the active state for 1200 seconds if not exception
+          # will be raised Fog::Errors::TimeoutError
+          server.wait_for(1200, 5) do
+            ready?
+          end
         end
       else
-        print 'Waiting for server to get created' + "\n"
-        servers.wait_for { print'.' ; ready? }
-        print "\n"
+        puts 'Waiting for server to get created'
+        server.wait_for(1200, 5) do
+          print '.'
+          STDOUT.flush
+          ready?
+        end
+        puts
       end
     end
 
