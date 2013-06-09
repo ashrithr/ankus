@@ -140,8 +140,8 @@ module Ankuscli
           exit 1
         end
         #validate connection
-        rackspace = RackSpace.new(cloud_credentials['rackspace_api_key'], cloud_credentials['rackspace_username'])
-        unless rackspace.validate_connection?(rackspace.create_connection)
+        rackspace = Rackspace.new(cloud_credentials['rackspace_api_key'], cloud_credentials['rackspace_username'])
+        unless rackspace.valid_connection?(rackspace.create_connection)
           puts '[Error]:'.red + ' failed establishing connection to rackspace, check your credentials'
         end
       end
