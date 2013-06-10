@@ -8,6 +8,7 @@ module Ankuscli
     DEFAULT_CONFIG = File.expand_path(File.dirname(__FILE__) + '/../../conf/ankus_conf.yaml')
     NODES_FILE = File.expand_path(File.dirname(__FILE__) + '/../../data/nodes.yaml')
     NODES_FILE_CLOUD = File.expand_path(File.dirname(__FILE__) + '/../../data/nodes_cloud.yaml')
+    CLOUD_INSTANCES = File.expand_path(File.dirname(__FILE__) + '/../../data/cloud_instances.yaml')
 
     class_option :config, :type => :string, :desc => 'optionally pass path to config file', :default => DEFAULT_CONFIG
 
@@ -35,12 +36,12 @@ module Ankuscli
     desc 'add_node', 'add a node to existing cluster'
     method_option :type, :desc => 'type of node being added, hadoop will install datanode, tasktracker and regionserver if hbase is enabled'
     def add_node
-
+      puts 'Not yet implemented'.yellow
     end
 
     desc 'refresh', 'reload the config files and update the configurations across the cluster'
     def refresh
-      #TODO
+      puts 'Not yet implemented'.yellow
     end
 
     private
@@ -61,12 +62,13 @@ module Ankuscli
               else
                 80
               end
-      puts 'MOCKING'.center(cols, '-') if @mock
+      puts 'MOCKING'.center(cols, '-') if options[:mock]
       puts 'Starting deployment'
       if @parsed_hash.nil? or @parsed_hash.empty?
         parse_config
       end
-      hosts_file_path = @parsed_hash['cloud_platform'] == 'rackspace' ? Tempfile.new('hosts') : nil
+      hosts_file = @parsed_hash['cloud_platform'] == 'rackspace' ? Tempfile.new('hosts') : nil
+      hosts_file_path = @parsed_hash['cloud_platform'] == 'rackspace' ? hosts_file.path : nil
       if @parsed_hash['install_mode'] == 'cloud'
         #Kick off cloud instances and add them back to configuration hash
         Fog.mock! if options[:mock]
@@ -79,6 +81,7 @@ module Ankuscli
                   options[:mock]
                 )
         nodes_fqdn_map = cloud.create_instances
+        YamlUtils.write_yaml(nodes_fqdn_map, CLOUD_INSTANCES)
         if options[:mock] and options[:debug]
           puts 'NODES HASH'.red
           pp nodes_fqdn_map
@@ -99,8 +102,8 @@ module Ankuscli
 
         # if cloud_provider is rackspace create /etc/hosts
         if @parsed_hash['cloud_platform'] == 'rackspace'
-          hosts_file_path.write(cloud.build_hosts(nodes_fqdn_map))
-          hosts_file_path.close
+          hosts_file.write(cloud.build_hosts(nodes_fqdn_map))
+          hosts_file.close
           if options[:mock] and options[:debug]
             puts 'HOSTS FILE'.red
             puts cloud.build_hosts(nodes_fqdn_map)
@@ -137,10 +140,54 @@ module Ankuscli
       rescue SocketError
         puts '[Error]:'.red + " Problem doing ssh into servers: #{$!}"
       ensure
-        hosts_file_path.unlink if @parsed_hash['cloud_platform'] == 'rackspace'
+        hosts_file.unlink if @parsed_hash['cloud_platform'] == 'rackspace'
       end
       # kick off puppet run based on deployment configuration
       puppet.run_puppet
+      print_cluster_info(@parsed_hash)
+    end
+
+    # Prints the cluster information
+    # @param [Hash] parsed_hash => contains cluster info
+    def print_cluster_info(parsed_hash)
+      (cluster_info ||= '') << 'Ankuscli Cluster info:' << "\n"
+      cluster_info << " # Hadoop High Availability Configuration: #{parsed_hash['hadoop_ha']} \n"
+      cluster_info << " # MapReduce Framework: #{parsed_hash['mapreduce']['type']} \n"
+      cluster_info << " # HBase Cluster: #{parsed_hash['hbase_install']} \n"
+      cluster_info << " # Security: #{parsed_hash['security']} \n"
+      cluster_info << " # Monitoring(with ganglia): #{parsed_hash['monitoring']} \n"
+      cluster_info << " # Altering(with nagios): #{parsed_hash['alerting']} \n"
+
+      cluster_info << "\n"
+      cluster_info << "Nodes in the cluster: \n"
+      cluster_info << " * Controller: #{parsed_hash['controller']}\n"
+      if parsed_hash['hadoop_ha'] == 'enabled'
+        cluster_info << " * Namenode(s): \n"
+        cluster_info << "\t - Active Namenode: #{parsed_hash['hadoop_namenode'].first} \n"
+        cluster_info << "\t - Standby Namenode: #{parsed_hash['hadoop_namenode'].last} \n"
+        cluster_info << " * Journal Quorum: \n"
+        parsed_hash['journal_quorum'].each do |jn|
+          cluster_info << "\t - #{jn}\n"
+        end
+      else
+        cluster_info << " * Namenode: #{parsed_hash['hadoop_namenode'].first}\n"
+        cluster_info << " * Secondary Namenode: #{parsed_hash['hadoop_secondarynamenode']}\n"
+      end
+      if parsed_hash['hbase_install'] == 'enabled'
+        cluster_info << " * Hbase Master: #{parsed_hash['hbase_master'].join(',')} \n"
+      end
+      cluster_info << " * MapReduce Master: #{parsed_hash['mapreduce']['master']} \n"
+      if parsed_hash['hadoop_ha'] == 'enabled' and parsed_hash['hbase_install'] == 'enabled'
+        cluster_info < " * Zookeeper Quorum: \n"
+        parsed_hash['zookeeper_quorum'].each do |zk|
+          cluster_info << "\t - #{zk} \n"
+        end
+      end
+      cluster_info << "\n"
+      cluster_info << "Login Information:\n"
+      cluster_info << " * ssh into nodes using: #{parsed_hash['root_ssh_key']}"
+
+      puts cluster_info
     end
 
   end
