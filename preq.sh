@@ -1,4 +1,4 @@
-#!/usr/bin/env ruby
+#!/usr/bin/env bash
 
 # ---
 # Convenience wrapper to install ankuscli
