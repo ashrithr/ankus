@@ -7,21 +7,11 @@ Command line interface for ankus big-data deployment tool. Handles the installat
  - hbase
  - cassandra
 
- In Progress:
-
- - storm
- - kafka
- - solr
- - mongodb
- - lucene
- - elastic search
-
 Ankuscli leverages open source tools such as:
 
  - puppet for deployment and configuration management
  - ganglia for monitoring
  - nagios fot alerting
- - logstash to manage/aggregate logs
 
 ## Installation
 
@@ -37,6 +27,17 @@ Dependencies:
    ```
     apt-get install -y ruby1.8-dev ruby1.8 ri1.8 rdoc1.8 irb1.8 libreadline-ruby1.8 libruby1.8 libopenssl-ruby libxslt-dev libxml2-dev gcc make
    ```
+ 
+ - Mac OSX:
+ 
+ 	Requiremetns:
+	- XCode Command Line Tools (or) [osx-gcc](https://github.com/kennethreitz/osx-gcc-installer/) 
+	- Homebrew
+	
+	```
+	brew install libxml2 libxslt ruby
+	brew link libxml2 libxslt
+	```
 
 Download and install:
 
