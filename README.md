@@ -11,7 +11,7 @@ Ankuscli leverages open source tools such as:
 
  - puppet for deployment and configuration management
  - ganglia for monitoring
- - nagios fot alerting
+ - nagios for alerting
 
 ## Installation
 
