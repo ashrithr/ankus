@@ -161,7 +161,7 @@ module Ankuscli
       # @raises if instance cannot be ssh'ed into
       def sshable?(nodes_arr, ssh_user, ssh_key, port=22)
         nodes_arr.each do |instance|
-          `ssh -t -t -o ConnectTimeout=2 -o StrictHostKeyChecking=no -o BatchMode=yes -p #{port} -i #{ssh_key} #{ssh_user}@#{instance} "echo" &>/dev/null`
+          `ssh -t -t -o ConnectTimeout=2 -o StrictHostKeyChecking=no -o BatchMode=yes -o UserKnownHostsFile=/dev/null -p #{port} -i #{ssh_key} #{ssh_user}@#{instance} "echo" &>/dev/null`
           unless $?.success?
             raise "Cannot ssh in to instance: #{instance}"
           end
