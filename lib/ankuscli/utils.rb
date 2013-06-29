@@ -256,7 +256,7 @@ module Ankuscli
       # Execute single command on remote server and capture its stdout, stderr, exit_code
       # @param [Net::SSH] ssh => net-ssh object to process on
       # @param [String] command => command to execute
-      # @param [Boolean] debug => append's hostname to command output if enabled
+      # @param [Boolean] debug => append hostname to command output if enabled
       # @return [Array] => [stdout, stderr, exit_code]
       def ssh_exec!(ssh, command, debug=false)
         stdout_data = ''

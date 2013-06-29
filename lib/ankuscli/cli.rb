@@ -16,7 +16,7 @@ module Ankuscli
 
     class_option :thread_pool_size, :type => :numeric, :desc => 'size of the thread pool', :default => 10
 
-    class_option :mock, :type => :boolean, :desc => 'mock the creating of instances instead of creating instances (debug mode)', :default => false
+    class_option :mock, :type => :boolean, :desc => 'mock the creating of instances in cloud (debug mode)', :default => false
 
     desc 'parse', 'parse the config file for errors'
     def parse
@@ -178,7 +178,7 @@ module Ankuscli
       end
       cluster_info << " * MapReduce Master: #{parsed_hash['mapreduce']['master']} \n"
       if parsed_hash['hadoop_ha'] == 'enabled' and parsed_hash['hbase_install'] == 'enabled'
-        cluster_info < " * Zookeeper Quorum: \n"
+        cluster_info << " * Zookeeper Quorum: \n"
         parsed_hash['zookeeper_quorum'].each do |zk|
           cluster_info << "\t - #{zk} \n"
         end
@@ -187,7 +187,7 @@ module Ankuscli
       cluster_info << "Login Information:\n"
       cluster_info << " * ssh into nodes using: #{parsed_hash['root_ssh_key']}"
 
-      puts cluster_info
+      puts "\r#{cluster_info}".squeeze(' ')
     end
 
   end

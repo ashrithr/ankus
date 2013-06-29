@@ -81,7 +81,7 @@ module Ankuscli
       }.merge(opts)
 
       unless valid_connection?(conn)
-        puts '[Error]: Unable to connect to AWS, check your credentials'
+        puts '[Error]: Unable to authenticate with AWS, check your credentials'
         exit 2
       end
 
@@ -194,12 +194,12 @@ module Ankuscli
         conn.tags.create(
             :resource_id => volume.id,
             :key => 'Name',
-            :value => 'ankuscli',
+            :value => 'ankuscli'
         )
         conn.tags.create(
             :resource_id => volume.id,
             :key => 'Internal',
-            :value => "data-#{i + 1}",
+            :value => "data-#{i + 1}"
         )
         volume.server = server
         volume.delete_on_termination = true #TODO Remove me

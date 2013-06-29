@@ -86,6 +86,7 @@ module Ankuscli
         roles_hash[@ps]['nagios::server'] = nil if @parsed_hash['alerting'] == 'enabled'
         roles_hash[@ps]['ganglia::server'] = nil if @parsed_hash['monitoring'] == 'enabled'
         roles_hash[@ps]['kerberos::server'] = nil if @parsed_hash['security'] == 'enabled'
+        roles_hash[@ps]['logstash'] = { 'role' => 'indexer' } if @parsed_hash['log_aggregation'] == 'enabled'
 
         #puppet clients
         namenode = @parsed_hash['hadoop_namenode']
