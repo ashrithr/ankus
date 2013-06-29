@@ -13,6 +13,7 @@ DOMAIN_NAME=`echo ${PUPPET_SERVER} | cut -d "." -f 2-`
 IP=`ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | grep 'Bcast' | awk '{print $1}'`
 GIT_REPO="https://github.com/ashrithr/ankus-cli-puppet.git"
 PUPPET_MODULES_PATH="/etc/puppet/modules"
+PUPPET_MODULES_DOWNLOAD="https://github.com/ashrithr/ankus-cli-puppet/archive/v0.2.tar.gz"
 
 # => OS specific
 OS=''
@@ -71,6 +72,39 @@ function printerr () {
 
 function logit () {
   echo -e ${CLR}"[${USER}][`date`] - ${1}"${CLR_END}
+}
+
+# Retries a command a configurable number of times with backoff.
+#
+# The retry count is given by ATTEMPTS (default 5), the initial backoff
+# timeout is given by TIMEOUT in seconds (default 1.)
+#
+# Successive backoff's double the timeout.
+function with_backoff () {
+  local max_attempts=${ATTEMPTS-5}
+  local timeout=${TIMEOUT-1}
+  local attempt=0
+  local exitCode=0
+  while [[ ${attempt} < ${max_attempts} ]]
+  do
+    #execute the command
+    "$@"
+    exitCode=$?
+
+    if [[ ${exitCode} == 0 ]]
+    then
+      break
+    fi
+    echo "Failure! Retrying in $timeout.." 1>&2
+    sleep ${timeout}
+    attempt=$(( attempt + 1 ))
+    timeout=$(( timeout * 2 ))
+  done
+  if [[ $exitCode != 0 ]]
+  then
+    echo "You've failed me for the last time! ($@)" 1>&2
+  fi
+  return ${exitCode}
 }
 
 function install_epel_repo () {
@@ -175,9 +209,15 @@ function download_modules () {
     logit "puppet modules directory not found, creating"
     mkdir -p ${PUPPET_MODULES_PATH}
   fi
-  cd /etc/puppet && git clone ${GIT_REPO} modules
+  cd /etc/puppet
+  with_backoff wget --no-check-certificate -O modules.tar.gz ${PUPPET_MODULES_DOWNLOAD}
   if [ $? -eq 0 ]; then
     logit "sucessfully downloaded puppet modules from git"
+    logit "extracting modules"
+    tar xzf modules.tar.gz
+    if [ $? -eq 0 ]; then
+      rm -f modules.tar.gz
+    fi
   else
     printerr "Failed to download puppet modules from git, aborting"
     exit 2
