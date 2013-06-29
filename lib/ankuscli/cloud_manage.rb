@@ -40,7 +40,7 @@ module Ankuscli
         #calculate number of disks and their size
         if slave_nodes_disk_size.nil? or slave_nodes_disk_size.to_i == 0
           #assume user do not want any extra volumes
-          @volumes_count = 0
+          @volume_count = 0
           @volume_size = 0
         else
           # user wants extra volumes
@@ -48,22 +48,22 @@ module Ankuscli
           @volume_size = slave_nodes_disk_size / @volume_count
         end
         #create controller
-        nodes_to_create['controller'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 50 }
+        nodes_to_create['controller'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
         # if ha is enabled
         if @parsed_hash['hadoop_ha'] == 'enabled'
-          nodes_to_create['namenode1'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 50 }
-          nodes_to_create['namenode2'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 50 }
-          nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 50 }
+          nodes_to_create['namenode1'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
+          nodes_to_create['namenode2'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
+          nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
           num_of_zks.times do |i|
-            nodes_to_create["zookeeper#{i+1}"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 50 }
+            nodes_to_create["zookeeper#{i+1}"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
           end
           num_of_slaves.times do |i|
             nodes_to_create["slaves#{i+1}"] = { :os_type => @cloud_os, :volumes => @volume_count, :volume_size => @volume_size }
           end
         else
           # if ha is not enabled
-          nodes_to_create['namenode'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 50 }
-          nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 50 } #JT and SNN
+          nodes_to_create['namenode'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
+          nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 } #JT and SNN
           num_of_slaves.times do |i|
             nodes_to_create["slaves#{i+1}"] = { :os_type => @cloud_os, :volumes => @volume_count, :volume_size => @volume_size }
           end
@@ -74,7 +74,7 @@ module Ankuscli
         #calculate number of disks and their size
         if slave_nodes_disk_size.nil? or slave_nodes_disk_size.to_i == 0
           #assume user do not want any extra volumes
-          @volumes_count = 0
+          @volume_count = 0
           @volume_size = 0
         else
           # attach extra volumes
@@ -87,22 +87,22 @@ module Ankuscli
           end
         end
         #create controller
-        nodes_to_create['controller.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 50 }
+        nodes_to_create['controller.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
         # if ha is enabled
         if @parsed_hash['hadoop_ha'] == 'enabled'
-          nodes_to_create['namenode1.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 50 }
-          nodes_to_create['namenode2.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 50 }
-          nodes_to_create['jobtracker.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 50 }
+          nodes_to_create['namenode1.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
+          nodes_to_create['namenode2.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
+          nodes_to_create['jobtracker.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
           num_of_zks.times do |i|
-            nodes_to_create["zookeeper#{i+1}.ankus.com"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 50 }
+            nodes_to_create["zookeeper#{i+1}.ankus.com"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
           end
           num_of_slaves.times do |i|
             nodes_to_create["slaves#{i+1}.ankus.com"] = { :os_type => @cloud_os, :volumes => @volume_count, :volume_size => @volume_size }
           end
         else
           # if ha is not enabled
-          nodes_to_create['namenode.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 50 }
-          nodes_to_create['jobtracker.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 50 } #JT and SNN
+          nodes_to_create['namenode.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
+          nodes_to_create['jobtracker.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 } #JT and SNN
           num_of_slaves.times do |i|
             nodes_to_create["slaves#{i+1}.ankus.com"] = { :os_type => @cloud_os, :volumes => @volume_count, :volume_size => @volume_size }
           end
@@ -188,7 +188,7 @@ module Ankuscli
       results = {}
 
       if aws.valid_connection?(conn)
-        puts 'successfully connected to aws'.green if @debug
+        puts 'successfully authenticated with aws'.green if @debug
       else
         puts '[Error]'.red + ' failed connecting to aws'
         exit 1
@@ -222,37 +222,39 @@ module Ankuscli
         #parition and format attached disks using thread pool
         nodes_to_create.each do |tag, info|
           threads_pool.schedule do
-            #build partition script
-            partition_script = gen_partition_script(info[:volumes], true)
-            tempfile = Tempfile.new('partition')
-            tempfile.write(partition_script)
-            tempfile.close
-            # wait for the server to be ssh'able
-            Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].dns_name, 'root', File.expand_path('~/.ssh') + "/#{key}")
-            # upload and execute the partition script on the remote machine
-            SshUtils.upload!(
-                tempfile.path,
-                '/tmp',
-                server_objects[tag].dns_name,
-                'root',
-                File.expand_path('~/.ssh') + "/#{key}",
-                22,
-                @debug
-            )
-            output = Ankuscli::SshUtils.execute_ssh!(
-                "chmod +x /tmp/#{File.basename(tempfile.path)} && sudo sh -c '/tmp/#{File.basename(tempfile.path)} | tee /var/log/bootstrap_volumes.log'",
-                server_objects[tag].dns_name,
-                'root',
-                File.expand_path('~/.ssh') + "/#{key}",
-                22,
-                @debug)
-            tempfile.unlink #delete the tempfile
-            if @debug
-              puts "Stdout on #{server_objects[tag].dns_name}"
-              puts output[server_objects[tag].dns_name][0]
-              puts "Stdout on #{server_objects[tag].dns_name}"
-              puts output[server_objects[tag].dns_name][1]
-              puts "Exit code from #{server_objects[tag].dns_name}: #{output[server_objects[tag].dns_name][2]}"
+            if info[:volumes] > 0
+              #build partition script
+              partition_script = gen_partition_script(info[:volumes], true)
+              tempfile = Tempfile.new('partition')
+              tempfile.write(partition_script)
+              tempfile.close
+              # wait for the server to be ssh'able
+              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].dns_name, 'root', File.expand_path('~/.ssh') + "/#{key}")
+              # upload and execute the partition script on the remote machine
+              SshUtils.upload!(
+                  tempfile.path,
+                  '/tmp',
+                  server_objects[tag].dns_name,
+                  'root',
+                  File.expand_path('~/.ssh') + "/#{key}",
+                  22,
+                  @debug
+              )
+              output = Ankuscli::SshUtils.execute_ssh!(
+                  "chmod +x /tmp/#{File.basename(tempfile.path)} && sudo sh -c '/tmp/#{File.basename(tempfile.path)} | tee /var/log/bootstrap_volumes.log'",
+                  server_objects[tag].dns_name,
+                  'root',
+                  File.expand_path('~/.ssh') + "/#{key}",
+                  22,
+                  @debug)
+              tempfile.unlink #delete the tempfile
+              if @debug
+                puts "\rStdout on #{server_objects[tag].dns_name}"
+                puts "\r#{output[server_objects[tag].dns_name][0]}"
+                puts "\rStderr on #{server_objects[tag].dns_name}"
+                puts "\r#{output[server_objects[tag].dns_name][1]}"
+                puts "\rExit code from #{server_objects[tag].dns_name}: #{output[server_objects[tag].dns_name][2]}"
+              end
             end
           end
         end
@@ -262,9 +264,9 @@ module Ankuscli
       else
         # pretend doing some work while mocking
         puts 'Partitioning/Formatting attached volumes'.blue
-        nodes_to_create.each do
+        nodes_to_create.each do |_, info|
           threads_pool.schedule do
-            sleep 5
+            sleep 5 if info[:volumes] > 0
           end
         end
         threads_pool.shutdown
@@ -356,9 +358,9 @@ module Ankuscli
         #MOCKING
         # pretend doing some work while mocking
         puts 'Partitioning/Formatting attached volumes'.blue
-        nodes_to_create.each do
+        nodes_to_create.each do |_, info|
           threads_pool.schedule do
-            sleep 5
+            sleep 5 if info[:volumes] > 0
           end
         end
         threads_pool.shutdown

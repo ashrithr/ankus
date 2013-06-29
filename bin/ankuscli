@@ -9,12 +9,18 @@ rescue LoadError
   require 'ankuscli'
 end
 
+# Store the state of the terminal
+stty_save = `stty -g`.chomp
+
 #Start the app
 begin
   STDOUT.sync = true
   Ankuscli::CLI.start
+  system('stty', stty_save) # Restore
 rescue Interrupt
+  system('stty', stty_save) # Restore
   puts 'Caught Interrupt, Exiting...'
 rescue ArgumentError
+  system('stty', stty_save) # Restore
   puts "Cannot recognize the argument passed, #{$!}"
 end

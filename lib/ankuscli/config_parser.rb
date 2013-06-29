@@ -170,6 +170,7 @@ module Ankuscli
       security = hash_to_validate['security']
       monitoring = hash_to_validate['monitoring']
       alerting = hash_to_validate['alerting']
+      log_aggregation = hash_to_validate['log_aggregation']
 
       if hadoop_ha.nil? or hadoop_ha.empty?
         puts '[Error]:'.red + ' hadoop_ha is required parameter and it should be either enabled|disabled'
@@ -294,6 +295,13 @@ module Ankuscli
           puts '[Error]:'.red + ' admin_email is required parameter, valid values: enabled|disabled'
           exit 1
         end
+      end
+
+      #log_aggregation
+      if log_aggregation.nil? or log_aggregation.empty?
+        puts '[Error]:'.red + ' log_aggregation is required parameter, valid values: enabled|disabled'
+      elsif ! %w(enabled disabled).include?(log_aggregation)
+        puts '[Error]:'.red + ' invalid value for log_aggregation, valid values: enabled|disabled'
       end
 
       #hbase_install
@@ -479,7 +487,7 @@ module Ankuscli
   #class to parse ankus_hadoop_config.yaml
   class HadoopConfigParser
     def initialize(hadoop_conf)
-
+      #TODO - validate conf/ankus_hadoop_conf.yaml
     end
   end
 end

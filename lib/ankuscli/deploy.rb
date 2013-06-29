@@ -68,8 +68,8 @@ module Ankuscli
           else
             preq(all_nodes, remote_puppet_installer_loc)
           end
-          puts 'Installing puppet master on ' + "#{@puppet_master}".blue
-          puts "[Debug]: Found puppet installer script at #{PUPPET_INSTALLER}" if @debug
+          puts "\rInstalling puppet master on " + "#{@puppet_master}".blue
+          puts "\r[Debug]: Found puppet installer script at #{PUPPET_INSTALLER}" if @debug
           #if controller is on same machine, install puppet master locally else send the script to controller and install
           #puppet
           if @parsed_hash['controller'] == 'localhost'
@@ -83,7 +83,7 @@ module Ankuscli
               #TODO handle rollback
             end
           else
-            puts "[Debug]: Sending file #{PUPPET_INSTALLER} to #{@puppet_master}" if @debug
+            puts "\r[Debug]: Sending file #{PUPPET_INSTALLER} to #{@puppet_master}" if @debug
             SshUtils.upload!(PUPPET_INSTALLER, remote_puppet_installer_loc, @puppet_master, @ssh_user, @ssh_key)
             output = SshUtils.execute_ssh!(
                 remote_puppet_server_cmd,
@@ -99,15 +99,15 @@ module Ankuscli
             end
             #print output
             if @debug
-              puts "stdout on #{@puppet_master}"
-              puts output[@puppet_master][0]
-              puts "stderr on #{@puppet_master}"
-              puts output[@puppet_master][1]
+              puts "\rstdout on #{@puppet_master}"
+              puts "\r#{output[@puppet_master][0]}"
+              puts "\rstderr on #{@puppet_master}"
+              puts "\r#{output[@puppet_master][1]}"
             end
           end
           #initiate concurrent threads pool - to install puppet clients all agent nodes
           ssh_connections = ThreadPool.new(@parallel_connections)
-          puts 'Installing puppet agents on clients: ' + "#{@nodes.join(',')}".blue
+          puts "\rInstalling puppet agents on clients: " + "#{@nodes.join(',')}".blue
           output = []
           time = Benchmark.measure do
             @nodes.each do |instance|
@@ -124,16 +124,16 @@ module Ankuscli
             end
             ssh_connections.shutdown
           end
-          puts 'Finished installing puppet clients'.blue
-          puts "[Debug]: Time to install puppet clients: #{time}" if @debug
+          puts "\rFinished installing puppet clients".blue
+          puts "\r[Debug]: Time to install puppet clients: #{time}" if @debug
           #print output of puppet client installers on console
           if @debug
             output.each do |o|
               stdout = o[remote_puppet_client_cmd][0]
               stderr = o[remote_puppet_client_cmd][1]
               exit_status = o[remote_puppet_client_cmd][2]
-              puts stdout
-              puts stderr
+              puts "\r#{stdout}"
+              puts "\r#{stderr}"
             end
           end
           #clean up puppet installer script on all nodes
@@ -144,7 +144,7 @@ module Ankuscli
           puts 'Checking if instances are ssh\'able ...' + '[OK]'.green.bold
         end
 
-        puts 'Installing puppet on all nodes completed'.blue
+        puts "\rInstalling puppet on all nodes completed".blue
       end
 
       # Generate hiera data required by puppet deployments & writes out to the yaml file
@@ -152,7 +152,7 @@ module Ankuscli
       def generate_hiera(parsed_hash)
         hiera_hash = {}
         #generate hiera data to local data folder first
-        puts 'Generating hiera data required for puppet'.blue
+        puts "\rGenerating hiera data required for puppet".blue
         #aggregate hadoop, hbase, all other related configurations in here into a common hash before writing out
         hiera_hash.merge!(parsed_hash)
         hiera_hash.merge!(YamlUtils.parse_yaml(HADOOP_CONF))
@@ -228,7 +228,7 @@ module Ankuscli
       # Generate External Node Classifier data file used by the puppet's ENC script
       # @param [Hash] parsed_hash => hash from which to generate enc data
       def generate_enc(parsed_hash, nodes_file)
-        puts 'Generating Enc roles to host mapping'.blue
+        puts "\rGenerating Enc roles to host mapping".blue
         Inventory::EncData.new(nodes_file, ENC_ROLES_FILE, parsed_hash).generate
       end
 
@@ -252,7 +252,7 @@ module Ankuscli
           hadoop_ha     = @parsed_hash['hadoop_ha']
           hbase_install = @parsed_hash['hbase_install']
 
-          puts 'Initializing puppet run on controller'.blue
+          puts "\rInitializing puppet run on controller".blue
           if controller == 'localhost'
             ShellUtils.run_cmd!(puppet_run_cmd)
             # TODO First puppet run on controller will fail! Fix this.
@@ -269,39 +269,39 @@ module Ankuscli
             # init puppet agent on zookeepers
           if hadoop_ha == 'enabled' or hbase_install == 'enabled'
             #parallel puppet run on zks
-            puts 'Initializing zookeepers'
+            puts "\rInitializing zookeepers"
             puppet_parallel_run(@parsed_hash['zookeeper_quorum'], puppet_run_cmd)
             if @parsed_hash['journal_quorum']
               #parallel puppet run on jns
-              puts 'Initializing journal nodes'
+              puts "\rInitializing journal nodes"
               puppet_parallel_run(@parsed_hash['journal_quorum'], puppet_run_cmd)
             end
             if hadoop_ha == 'enabled'
               #parallel run puppet run on nns
-              puts 'Initializing  namenodes'
+              puts "\rInitializing  namenodes"
               puppet_parallel_run(@parsed_hash['hadoop_namenode'], puppet_run_cmd)
             end
             if hbase_install == 'enabled'
               hbase_master = @parsed_hash['hbase_master']
               if hbase_master.length == 1
-                puts 'Initializing hbase master'
+                puts "\rInitializing hbase master"
                 puppet_single_run(hbase_master, puppet_run_cmd)
               else
-                puts 'Initializing hbase masters'
+                puts "\rInitializing hbase masters"
                 puppet_parallel_run(hbase_master, puppet_run_cmd)
               end
             end
           elsif hadoop_ha == 'disabled'
-            puts 'Initializing namenode'
+            puts "\rInitializing namenode"
             puppet_single_run(@parsed_hash['hadoop_namenode'].first, puppet_run_cmd)
           end
 
           # init puppet agent on mapreduce master
-          puts 'Initializing mapreduce master'
+          puts "\rInitializing mapreduce master"
           puppet_single_run(@parsed_hash['mapreduce']['master'], puppet_run_cmd)
 
           # init puppet agent on slave nodes
-          puts 'Initializing slave nodes'
+          puts "\rInitializing slave nodes"
           puppet_parallel_run(@parsed_hash['slave_nodes'], puppet_run_cmd)
 
           # finalize puppet run on controller to refresh nagios
@@ -315,7 +315,7 @@ module Ankuscli
             puppet_single_run(@puppet_master, puppet_run_cmd)
           end
         else
-          puts 'Puppet run completed'.blue
+          puts "\rPuppet run completed".blue
         end
       end
 
@@ -334,17 +334,17 @@ module Ankuscli
         )
         exit_status = output[instance][2].to_i
         if @debug
-          puts "stdout on #{instance}: "
-          puts output[instance][0]
-          puts "stderr on #{instance}: "
-          puts output[instance][1]
+          puts "\rstdout on #{instance}: "
+          puts "\r#{output[instance][0]}"
+          puts "\rstderr on #{instance}: "
+          puts "\r#{output[instance][1]}"
         end
         unless exit_status == 0
           puts '[Error]: '.red + "Puppet run failed on #{instance}, aborting!"
           #exit 1
           #TODO Rollback lock
         end
-        puts 'Completed puppet run on' +" #{instance}".blue
+        puts "\rCompleted puppet run on" +" #{instance}".blue
       end
 
       # Runs puppet on instances in parallel using thread pool
@@ -352,7 +352,7 @@ module Ankuscli
       def puppet_parallel_run(instances_array, puppet_run_cmd)
         #initiate concurrent threads pool - to install puppet clients all agent nodes
         ssh_connections = ThreadPool.new(@parallel_connections)
-        puts 'Running puppet on clients: ' + "#{instances_array.join(',')}".blue if @debug
+        puts "\rRunning puppet on clients: " + "#{instances_array.join(',')}".blue if @debug
         output = []
         time = Benchmark.measure do
           instances_array.each do |instance|
@@ -369,17 +369,17 @@ module Ankuscli
           end
           ssh_connections.shutdown
         end
-        puts "[Debug]: Finished puppet run on #{instances_array.join(',')}" if @debug
-        puts "[Debug]: Time to install puppet clients: #{time}" if @debug
+        puts "\r[Debug]: Finished puppet run on #{instances_array.join(',')}" if @debug
+        puts "\r[Debug]: Time to install puppet clients: #{time}" if @debug
         #check if puppet run failed
         if @debug
           output.each do |o|
             instance = o.keys[0]
-            puts "Stdout on #{instance}"
-            puts o[instance][0]
-            puts "Stderr on #{instance}"
-            puts o[instance][1]
-            puts "[Error]: Puppet run failed on #{instance}" unless o[instance][2].to_i == 0
+            puts "\rStdout on #{instance}"
+            puts "\r#{o[instance][0]}"
+            puts "\rStderr on #{instance}"
+            puts "\r#{o[instance][1]}"
+            puts "\r[Error]: Puppet run failed on #{instance}" unless o[instance][2].to_i == 0
           end
         end
       end
@@ -390,7 +390,7 @@ module Ankuscli
       def validate_instances(instances, port=22)
         instances.each do |instance|
           unless PortUtils.port_open? instance, port
-            puts "[Error]: Node #{instance} is not reachable"
+            puts "\r[Error]: Node #{instance} is not reachable"
             exit 1
           end
         end
@@ -401,7 +401,7 @@ module Ankuscli
       # @param [Array] instances => instances list on which preq should be performed
       # @param [String] remote_puppet_loc => location to where puppet installer script should be copied to
       def preq(instances, remote_puppet_loc, hosts_file = nil)
-        puts 'Preforming preq operations on all nodes'
+        puts "\rPreforming preq operations on all nodes"
         ssh_connections = ThreadPool.new(@parallel_connections)
         output = []
         cmds =  ["mkdir -p #{REMOTE_LOG_DIR}",
@@ -418,10 +418,10 @@ module Ankuscli
                 @ssh_key,
                 22, false)
             #send the script over to clients
-            puts "sending file to #{instance}"
+            puts "\rsending file to #{instance}"
             SshUtils.upload!(PUPPET_INSTALLER, remote_puppet_loc, instance, @ssh_user, @ssh_key)
             if hosts_file
-              puts "sending hosts file to #{instance}"
+              puts "\rsending hosts file to #{instance}"
               SshUtils.upload!(hosts_file, '/etc/hosts', instance, @ssh_user, @ssh_key)
             end
           end
@@ -432,7 +432,7 @@ module Ankuscli
       # Performs clean up actions (remove puppet installer script) after deployment
       # @param [Array] instances => list of instances on which to perform cleanup
       def cleanup(instances)
-        puts 'Preforming Cleanup operations on all nodes'
+        puts "\rPreforming Cleanup operations on all nodes"
         ssh_connections = ThreadPool.new(@parallel_connections)
         output = []
         instances.each do |instance|
