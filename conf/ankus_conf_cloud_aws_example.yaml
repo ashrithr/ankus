@@ -1,0 +1,99 @@
+---
+########################################################
+#            AnkusCLI Cloud Configuration
+########################################################
+install_mode: 'cloud'
+
+cloud_platform: aws
+########################################################
+# Cloud Service Credentials
+#  aws_access_id => access id of aws user account
+#  aws_secret_key => secret key of aws user account
+#  aws_machine_type => type of instance to boot (http://aws.amazon.com/ec2/instance-types/)
+#  aws_region => aws region in which to deploy the cluster
+#  aws_key => ssh_key to inject to aws instances
+########################################################
+cloud_credentials:
+  aws_access_id: ''
+  aws_secret_key: ''
+  aws_machine_type: 'm1.large'
+  aws_region: 'us-west-1'
+  aws_key: 'ankuscli'
+##type of os to boot into cloud instances (supported: CentOS|Ubuntu)
+cloud_os_type: CentOS
+
+########################################################
+# Hadoop Cluster Configuration
+# hadoop high availability configuration:
+#   enabled => hadoop ha is enabled with two namenode(s) but without auto failover using zkfc
+#   auto    => hadoop ha is enabled with two namenode(s) with auto failover of nodes using zkfc
+#   disabled => hadoop ha is not setup and only one namenode will be installed and configured
+# zookeeper_quoram_count => number of zookeeper instances to deploy
+########################################################
+hadoop_ha: 'enabled'
+zookeeper_quorum_count: 3
+
+########################################################
+# MapReduce Configuration
+#   type => type of mapreduce framework to setup,
+#           supported values mr1 (regular mapreduce) or mr2 (yarn)
+########################################################
+mapreduce:
+  type: 'mr1'
+
+########################################################
+# HBase configuration
+# hbase_install => Specify whether to deploy hbase or not
+#  if enabled will install hbase
+#  if disabled hbase will not be deployed
+# hbase_master_count => if hbase_install is enabled, specify number of hbase masters to deploy
+########################################################
+hbase_install: disabled
+#hbase_master_count: 2
+
+########################################################
+# Worker Nodes Configuration
+#  list of slave nodes on which datanode and tasktracker daemons will be installed. If hbase is enabled
+#  region servers are also installed on same instances.
+#  slave_nodes_count => number of worker nodes to deploy
+#  slave_nodes_storage_capacity => disk size on slave_nodes in GB, min is 100 & max is 1024.
+#                                  If ignored no additional disks are created
+########################################################
+slave_nodes_count: 5
+slave_nodes_storage_capacity: 100
+
+########################################################
+# Additional tools - hadoop ecosystem tools to install
+########################################################
+hadoop_ecosystem:
+  - hive
+  - sqoop
+  - pig
+  - oozie
+  - hue
+
+########################################################
+# Security Config
+# security => if configured sets up kerberos and integrates it with hadoop/hbase and its eco-system
+#   possible_values: simple => will not install kerberos
+#                    kerberos => will install kerberos
+# hadoop_kerberos_realm => if kerberos is enabled, enter a kerberos realm name
+# hadoop_kerberos_domain => if kerberos is enabled, enter a kerberos domain name
+#   (http://web.mit.edu/kerberos/krb5-1.5/krb5-1.5/doc/krb5-admin/domain_realm.html)
+########################################################
+security: simple
+# if security is kerberos please fill in the below options
+#hadoop_kerberos_realm: CW.COM
+#hadoop_kerberos_domain: cw.com
+
+########################################################
+# Management Configuration
+# monitoring (enabled|disabled) => if enabled, ganglia will be setup and configured
+# alerting (enabled|disabled) => if enabled, nagios will be setup and configured to monitor
+# admin_email => required (if alerting is enabled), email address to send alters (notifications)
+# log_aggregation (enabled|disabled) => if enabled, logstash will be installed to aggregate logs from all the servers
+########################################################
+monitoring: enabled
+alerting: enabled
+admin_email: 'admin@cw.com'
+log_aggregation: enabled
