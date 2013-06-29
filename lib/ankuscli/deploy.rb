@@ -182,7 +182,7 @@ module Ankuscli
               if parsed_hash['controller'] == 'localhost'
                 @osinfo = `chmod +x #{GETOSINFO_SCRIPT} && #{GETOSINFO_SCRIPT}`.chomp
                 if $?.success?
-                  @ostype = @osinfo =~ /centos/ ? "CentOS" : "Ubuntu"
+                  @ostype = @osinfo =~ /centos/ ? 'CentOS' : 'Ubuntu'
                 else
                   @ostype = 'CentOS'
                 end
@@ -207,7 +207,11 @@ module Ankuscli
             hiera_hash['nagios_server_ostype'] = @ostype
           end
         end
-          #security
+        #log_aggregation
+        if parsed_hash['log_aggregation'] == 'enabled'
+          hiera_hash['logstash_server'] == parsed_hash['controller']
+        end
+        #security
         if parsed_hash['security'] == 'enabled'
           hiera_hash['kerberos_kdc_server'] = @puppet_master
           hiera_hash['kerberos_realm'] = @parsed_hash['realm_name']
