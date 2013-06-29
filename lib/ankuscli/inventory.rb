@@ -151,6 +151,15 @@ module Ankuscli
           roles_hash[pc]['nagios::nrpe'] = nil if @parsed_hash['alerting'] == 'enabled'
           roles_hash[pc]['ganglia::client'] = nil if @parsed_hash['monitoring'] == 'enabled'
           roles_hash[pc]['kerberos::client'] = nil if @parsed_hash['security'] == 'enabled'
+          #log aggregation
+          if @parsed_hash['log_aggregation'] == 'enabled'
+            roles_hash[pc]['logstash::lumberjack'] = {
+              'logstash_host' => @ps,
+              'logstash_port' => 5672,
+              'daemon_name' => 'lumberjack_general',
+              'field' => "general_#{pc}"
+            }
+          end
         end
         roles_hash
       end
