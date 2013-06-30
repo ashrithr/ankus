@@ -172,6 +172,10 @@ module Ankuscli
         if parsed_hash['monitoring'] == 'enabled'
           hiera_hash['ganglia_server'] = parsed_hash['controller']
         end
+        #log_aggregation
+        if parsed_hash['log_aggregation'] == 'enabled'
+          hiera_hash['logstash_server'] = parsed_hash['controller']
+        end
         #nagios server os_type is required
         if parsed_hash['install_mode'] == 'cloud'
           hiera_hash['nagios_server_ostype'] = parsed_hash['cloud_os_type'].downcase =~ /centos/ ? 'CentOS' : 'Ubuntu'
@@ -206,10 +210,6 @@ module Ankuscli
             end
             hiera_hash['nagios_server_ostype'] = @ostype
           end
-        end
-        #log_aggregation
-        if parsed_hash['log_aggregation'] == 'enabled'
-          hiera_hash['logstash_server'] == parsed_hash['controller']
         end
         #security
         if parsed_hash['security'] == 'enabled'
