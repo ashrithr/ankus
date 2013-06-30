@@ -13,7 +13,7 @@ DOMAIN_NAME=`echo ${PUPPET_SERVER} | cut -d "." -f 2-`
 IP=`ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | grep 'Bcast' | awk '{print $1}'`
 GIT_REPO="https://github.com/ashrithr/ankus-cli-puppet.git"
 PUPPET_MODULES_PATH="/etc/puppet/modules"
-PUPPET_MODULES_DOWNLOAD="https://github.com/ashrithr/ankus-cli-puppet/archive/v0.3.tar.gz"
+PUPPET_MODULES_DOWNLOAD="https://github.com/ashrithr/ankus-cli-puppet/archive/v0.4.tar.gz"
 
 # => OS specific
 OS=''
@@ -205,6 +205,10 @@ function download_modules () {
     logit "git command not found, installing"
     ${INSTALL} -y install git
   }
+  type -P wget &> /dev/null || {
+    logit "wget command not found, installing"
+    ${INSTALL} -y install wget
+  }
   if [ ! -d ${PUPPET_MODULES_PATH} ]; then
     logit "puppet modules directory not found, creating"
     mkdir -p ${PUPPET_MODULES_PATH}
@@ -216,7 +220,9 @@ function download_modules () {
     logit "extracting modules"
     tar xzf modules.tar.gz
     if [ $? -eq 0 ]; then
+      mv ankus-cli-puppet*/* ${PUPPET_MODULES_PATH}
       rm -f modules.tar.gz
+      rm ankus-cli-puppet*
     fi
   else
     printerr "Failed to download puppet modules from git, aborting"
@@ -408,13 +414,13 @@ mkdir -p /etc/puppet/hieradata
 #######################
 printclr "Installing dependecies for passenger"
 if [[ $OS =~ centos || $OS =~ redhat ]]; then
-  yum -y install httpd httpd-devel ruby-devel rubygems mod_ssl.x86_64 curl-devel openssl-devel gcc-c++ zlib-devel make git
+  yum -y install httpd httpd-devel ruby-devel rubygems mod_ssl.x86_64 curl-devel openssl-devel gcc-c++ zlib-devel make
   rm -rf /etc/httpd/conf.d/ssl.conf
   rm -rf /etc/httpd/conf.d/welcome.conf
   chkconfig httpd on
 elif [[ ${OS} =~ ubuntu ]]; then
   apt-get -y install apache2 ruby1.8-dev rubygems libcurl4-openssl-dev libssl-dev zlib1g-dev apache2-prefork-dev \
-    libapr1-dev libaprutil1-dev git
+    libapr1-dev libaprutil1-dev
   a2enmod ssl
   a2enmod headers
   update-rc.d -f puppetmaster remove  #making sure puppetmaster does not start using init scripts
