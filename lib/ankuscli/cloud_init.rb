@@ -257,7 +257,28 @@ module Ankuscli
         end
       end
     rescue Timeout::Error
-      raise "It took more than 10 mins for the servers to complete boot, this generally does not happen."
+      raise 'It took more than 10 mins for the servers to complete boot, this generally does not happen.'
+    end
+
+    def delete_server_with_id(conn, instance_id)
+      response = conn.servers.get(instance_id)
+      abort "InstanceId Not found :#{instance_id}" unless response
+      if response.state == 'terminated'
+        puts 'Instance is already in terminated state'
+      else
+        response.destroy
+        puts "Terminated Instance: #{instance_id}"
+      end
+    end
+
+    def delete_server_with_dns_name(conn, dns_name)
+      server = conn.servers.all('dns-name' => dns_name).first
+      if server
+        puts "Terminating instance with dns_name: #{dns_name}"
+        server.destroy
+      else
+        abort "No server found with dns_name: #{dns_name}"
+      end
     end
 
     private
@@ -394,6 +415,8 @@ module Ankuscli
                   }
               ]
           )
+          # reloading will assign random public and private ip addresses if mocking
+          server.reload if @mock
           return server
         when 'ubuntu'
           server = conn.servers.create(
@@ -407,6 +430,7 @@ module Ankuscli
                   }
               ]
           )
+          server.reload if @mock
           return server
         else
           puts '[Error]: OS not supported'
@@ -490,6 +514,18 @@ module Ankuscli
         server.attach_volume(vol, "/dev/#{base}")
         #wait until the attaching process is complete
         vol.wait_for { attached? }
+      end
+    end
+
+    # Delete a server based on it's fully qualified domain name (or) name given while booting instance
+    # @param [Fog::Compute::RackspaceV2::Real] conn => connection object to rackspace
+    # @param [String] fqdn => name of the server to delete
+    def delete_server_with_name(conn, fqdn)
+      conn.servers.all.each do |server|
+        if server.name == fqdn
+          puts "Deleting instance with fqdn: #{fqdn}"
+          server.destroy
+        end
       end
     end
   end

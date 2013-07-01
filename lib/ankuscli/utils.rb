@@ -4,11 +4,40 @@ module Ankuscli
   require 'net/scp'
   require 'thread'
   require 'timeout'
+  require 'pathname'
 
   # ShellUtils - wrapper around shell
   class ShellUtils
     class << self
-      # Run a command using system
+
+      # Drop in replacement for Kernel.exec which addresses a specific issue
+      # in some operating systems which causes `exec` to fail if there is more
+      # than one system thread. In that case, `safe_exec` automatically falls
+      # back to forking.
+      # @param [String] command  => command to execute
+      # @param [Array] args => additional arguments to the command
+      def safe_exec(command, *args)
+        rescue_from = []
+        rescue_from << Errno::EOPNOTSUPP if defined?(Errno::EOPNOTSUPP)
+        rescue_from << Errno::E045 if defined?(Errno::E045)
+        rescue_from << SystemCallError
+        fork_instead = false
+        begin
+          pid = nil
+          pid = fork if fork_instead
+          Kernel.exec(command, *args) if pid.nil?
+          Process.wait(pid) if pid
+        rescue *rescue_from
+          # We retried already, raise the issue and be done
+          raise if fork_instead
+
+          # The error manifested itself, retry with a fork.
+          fork_instead = true
+          retry
+        end
+      end
+
+      # Run a command using Kernel.system
       # @param [String] command => command to execute
       # @return [Kernel::SystemExit] status($?.success), pid($?.pid)
       def run_cmd!(command)
@@ -287,6 +316,67 @@ module Ankuscli
         end
         ssh.loop
         [stdout_data, stderr_data, exit_code]
+      end
+
+      # This returns the file permissions as a string from an octal number.
+      # @param [Fixnum] octal
+      # @return [String] => string format of file permissions like 600, 755, ..
+      def from_octal(octal)
+        perms = sprintf('%o', octal)
+        perms.reverse[0..2].reverse
+      end
+
+      # Checks that the permissions for a private key are valid, and fixes
+      # them if possible. SSH requires that permissions on the private key
+      # are 0600 on POSIX based systems.
+      # @param [String] key_path => path of the ssh private key
+      def check_key_permissions(key_path)
+        path_name = Pathname.new(File.expand_path(key_path))
+        stat = path_name.stat
+
+        unless stat.owned?
+          # The SSH key must be owned by ourselves
+          raise "File not owned by user, #{key_path}"
+        end
+
+        if from_octal(stat.mode) != '600'
+          puts 'Attempting to correct key permissions to 0600'
+          path_name.chmod(0600)
+
+          # Re-stat the file to get the new mode, and verify it worked
+          stat = key_path.stat
+          if from_octal(stat.mode) != '600'
+            raise "failed to change the permissions on #{key_path}"
+          end
+        end
+      rescue Errno::EPERM
+        raise 'bad permissions'
+      end
+
+      # Establish a ssh pipeline into an instance, halts the running of this process
+      # and replaces it with full-fledged SSH shell into remote machine
+      # @param [String] host => hostname to ssh into
+      # @param [String] username => username to perform ssh as
+      # @param [String] private_key_path => path to the ssh key
+      # @param [Fixnum] port => port on which ssh is listening
+      # @param [Hash] opts => additional params
+      def ssh_into_instance(host, username, private_key_path, port, opts={})
+        # check the permission on private_key_path and try to fix it
+        check_key_permissions private_key_path
+        # ssh command line options
+        command_options = [
+            '-p', port.to_s,
+            '-o', 'LogLevel=FATAL',
+            '-o', 'StrictHostKeyChecking=no',
+            '-o', 'UserKnownHostsFile=/dev/null',
+            '-i', File.expand_path(private_key_path).to_s]
+        command_options += %w(-o ForwardAgent=yes) if opts[:forward_agent]
+        command_options.concat(opts[:extra_args]) if opts[:extra_args]
+        # Build up the host string for connecting
+        host_string = host
+        host_string = "#{username}@#{host_string}"
+        command_options.unshift(host_string)
+        ShellUtils.safe_exec('ssh', *command_options)
       end
 
       # Upload a file to remote system using ssh protocol
