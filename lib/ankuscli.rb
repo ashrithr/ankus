@@ -11,6 +11,7 @@ begin
   require 'multi_json'
   require 'fog'
   require 'colored'
+  require 'highline/import'
 rescue LoadError
   puts 'Failed to load gems: fog, highline, thor, multi_json'
   puts <<-EOF
@@ -19,6 +20,7 @@ rescue LoadError
     `gem install thor`
     `gem install colored`
     `gem install multi_json`
+    `gem install highline`
   EOF
   exit 1
 end
