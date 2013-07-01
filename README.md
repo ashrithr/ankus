@@ -12,6 +12,7 @@ Ankuscli leverages open source tools such as:
  - puppet for deployment and configuration management
  - ganglia for monitoring
  - nagios for alerting
+ - logstash for log aggregation
 
 ## Installation
 
@@ -25,7 +26,8 @@ Dependencies:
  - Ubuntu:
 
    ```
-    apt-get install -y ruby1.8-dev ruby1.8 ri1.8 rdoc1.8 irb1.8 libreadline-ruby1.8 libruby1.8 libopenssl-ruby libxslt-dev libxml2-dev gcc make
+    apt-get install -y ruby1.8-dev ruby1.8 ri1.8 rdoc1.8 irb1.8 libreadline-ruby1.8 libruby1.8 \
+    libopenssl-ruby libxslt-dev libxml2-dev gcc make
    ```
  
  - Mac OSX:
@@ -62,10 +64,26 @@ Finally deploy using:
 ```
 bundle exec bin/ankuscli deploy
 ```
-To enable debugging:
+To enable debugging while deploying a cluster:
 
 ```
 bundle exec bin/ankuscli deploy --debug
+```
+To show the cluster information:
+
+```
+bundle exec bin/ankuscli info
+```
+To SSH into the cloud instance (in cloud deployments):
+
+```
+bundle exec bin/ankuscli ssh <role>
+ex: bundle exec bin/ankuscli ssh controller
+```
+To destroy the Cloud instances created by ankus:
+
+```
+bundle exec bin/ankuscli destroy
 ```
 
 To pass configuration file explicitly:
