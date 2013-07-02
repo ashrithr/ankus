@@ -18,3 +18,4 @@ tmp
 .idea
 conf/ankus_conf.yaml
 conf/ankus_conf_backup.yaml
+.data
