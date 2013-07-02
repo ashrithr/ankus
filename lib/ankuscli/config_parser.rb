@@ -18,6 +18,7 @@ module Ankuscli
     def parse_config
       @parsed_hash = YamlUtils.parse_yaml(@config_file)
       validator(@parsed_hash)
+      create_req_files
       @parsed_hash
     rescue
       puts $! if @debug
@@ -42,12 +43,22 @@ module Ankuscli
         puts '[Error]:'.red + ' install_mode cannot be null'
         exit 1
       else
-        puts <<-EOF
+        puts <<-EOF.undent
           [Error]: Not supported install mode
           Supported modes: local | cloud
           ex: install_mode: local
         EOF
       end
+    end
+
+    # Creates set of files and directories required by ankuscli
+    def create_req_files
+      Dir.mkdir DATA_DIR                unless File.exists? DATA_DIR
+      FileUtils.touch NODES_FILE        unless File.exists? NODES_FILE
+      FileUtils.touch NODES_FILE_CLOUD  unless File.exists? NODES_FILE_CLOUD
+      FileUtils.touch CLOUD_INSTANCES   unless File.exists? CLOUD_INSTANCES
+      FileUtils.touch ENC_ROLES_FILE    unless File.exists? ENC_ROLES_FILE
+      FileUtils.touch HIERA_DATA_FILE   unless File.exists? HIERA_DATA_FILE
     end
 
     # Validations specific to local install_mode
