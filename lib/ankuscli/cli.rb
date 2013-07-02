@@ -1,15 +1,9 @@
 module Ankuscli
   # Command line interface for ankuscli
   class CLI < Thor
+    require_relative 'helper'
 
     include Ankuscli
-
-    #Constants
-    DEFAULT_CONFIG = File.expand_path(File.dirname(__FILE__) + '/../../conf/ankus_conf.yaml')
-    NODES_FILE = File.expand_path(File.dirname(__FILE__) + '/../../data/nodes.yaml')
-    NODES_FILE_CLOUD = File.expand_path(File.dirname(__FILE__) + '/../../data/nodes_cloud.yaml')
-    CLOUD_INSTANCES = File.expand_path(File.dirname(__FILE__) + '/../../data/cloud_instances.yaml')
-    ENC_ROLES_FILE =  File.expand_path(File.dirname(__FILE__) + '/../../data/roles.yaml')
 
     class_option :config,
                  :type => :string,

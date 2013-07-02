@@ -1,22 +1,11 @@
 module Ankuscli
   module Deploy
     require 'benchmark'
+    require_relative 'helper'
     include Ankuscli
 
     # Class to manage puppet deployments
     class Puppet
-
-      PUPPET_INSTALLER = File.expand_path(File.dirname(__FILE__) + '/../shell/puppet_installer.sh')
-      HIERA_DATA_FILE = File.expand_path(File.dirname(__FILE__) + '/../../data/common.yaml')
-      ENC_SCRIPT =  File.expand_path(File.dirname(__FILE__) + '/../../bin/ankus_puppet_enc')
-      ENC_ROLES_FILE =  File.expand_path(File.dirname(__FILE__) + '/../../data/roles.yaml')
-      NODES_FILE = File.expand_path(File.dirname(__FILE__) + '/../../data/nodes.yaml')
-      NODES_FILE_CLOUD = File.expand_path(File.dirname(__FILE__) + '/../../data/nodes_cloud.yaml')
-      GETOSINFO_SCRIPT = File.expand_path(File.dirname(__FILE__) + '../../shell/get_osinfo.sh')
-      HADOOP_CONF = File.expand_path(File.dirname(__FILE__) + '/../../conf/ankus_hadoop_conf.yaml')
-      ENC_PATH = %q(/etc/puppet/enc)
-      HIERA_DATA_PATH = %q(/etc/puppet/hieradata)
-      REMOTE_LOG_DIR = %q(/var/log/ankus)
 
       # @param [String] puppet_server => hostname of the puppet server
       # @param [Array] puppet_clients => host_names of puppet clients
