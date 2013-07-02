@@ -44,24 +44,13 @@ module Ankuscli
     def create_instances
       num_of_slaves = @parsed_hash['slave_nodes_count']
       num_of_zks = @parsed_hash['zookeeper_quorum_count']
-      slave_nodes_disk_size = @parsed_hash['slave_nodes_storage_capacity'] || 0
       nodes_created = {}
       nodes_to_create = {}
+      volume_count, volume_size = calculate_disks
 
       if @provider == 'aws'
-        #calculate number of disks and their size
-        if slave_nodes_disk_size.nil? or slave_nodes_disk_size.to_i == 0
-          #assume user do not want any extra volumes
-          @volume_count = 0
-          @volume_size = 0
-        else
-          # user wants extra volumes
-          @volume_count = 4
-          @volume_size = slave_nodes_disk_size / @volume_count
-        end
-        #create controller
+        #create nodes to create on aws
         nodes_to_create['controller'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
-        # if ha is enabled
         if @parsed_hash['hadoop_ha'] == 'enabled'
           nodes_to_create['namenode1'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
           nodes_to_create['namenode2'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
@@ -70,37 +59,19 @@ module Ankuscli
             nodes_to_create["zookeeper#{i+1}"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
           end
           num_of_slaves.times do |i|
-            nodes_to_create["slaves#{i+1}"] = { :os_type => @cloud_os, :volumes => @volume_count, :volume_size => @volume_size }
+            nodes_to_create["slaves#{i+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
           end
         else
-          # if ha is not enabled
           nodes_to_create['namenode'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
           nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 } #JT and SNN
           num_of_slaves.times do |i|
-            nodes_to_create["slaves#{i+1}"] = { :os_type => @cloud_os, :volumes => @volume_count, :volume_size => @volume_size }
+            nodes_to_create["slaves#{i+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
           end
         end
         nodes_created = create_on_aws(nodes_to_create, @credentials, @thread_pool_size)
 
       elsif @provider == 'rackspace'
-        #calculate number of disks and their size
-        if slave_nodes_disk_size.nil? or slave_nodes_disk_size.to_i == 0
-          #assume user do not want any extra volumes
-          @volume_count = 0
-          @volume_size = 0
-        else
-          # attach extra volumes
-          if slave_nodes_disk_size.to_i > 400
-            @volume_count = 4
-            @volume_size = slave_nodes_disk_size / @volume_count
-          else
-            @volume_size = 100
-            @volume_count = slave_nodes_disk_size.to_i / 100
-          end
-        end
-        #create controller
         nodes_to_create['controller.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
-        # if ha is enabled
         if @parsed_hash['hadoop_ha'] == 'enabled'
           nodes_to_create['namenode1.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
           nodes_to_create['namenode2.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
@@ -109,14 +80,13 @@ module Ankuscli
             nodes_to_create["zookeeper#{i+1}.ankus.com"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
           end
           num_of_slaves.times do |i|
-            nodes_to_create["slaves#{i+1}.ankus.com"] = { :os_type => @cloud_os, :volumes => @volume_count, :volume_size => @volume_size }
+            nodes_to_create["slaves#{i+1}.ankus.com"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
           end
         else
-          # if ha is not enabled
           nodes_to_create['namenode.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
           nodes_to_create['jobtracker.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 } #JT and SNN
           num_of_slaves.times do |i|
-            nodes_to_create["slaves#{i+1}.ankus.com"] = { :os_type => @cloud_os, :volumes => @volume_count, :volume_size => @volume_size }
+            nodes_to_create["slaves#{i+1}.ankus.com"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
           end
         end
         nodes_created = create_on_rackspace(nodes_to_create, @credentials, @thread_pool_size)
@@ -125,8 +95,28 @@ module Ankuscli
       nodes_created
     end
 
+    # Create a single instance and return instance mappings
+    # @param [Array] tags => name of the server(s), if aws used as tag | if rackspace used as fqdn
+    # @return [Hash] nodes:
+    #   for aws cloud, nodes: { 'tag' => [public_dns_name, private_dns_name], 'tag' => [public_dns_name, private_dns_name] }
+    #   for rackspace, nodes: { 'tag(fqdn)' => [public_ip_address, private_ip_address] }
+    def create_instances_on_count(tags)
+      node_created = {}
+      nodes_to_create = {}
+      volume_count, volume_size = calculate_disks
+      tags.each do |tag|
+        nodes_to_create[tag] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
+      end
+      if @provider == 'aws'
+        node_created = create_on_aws nodes_to_create, @credentials, @thread_pool_size
+      elsif @provider == 'rackspace'
+        node_created = create_on_rackspace nodes_to_create, @credentials, @thread_pool_size
+      end
+      node_created
+    end
+
     # Delete cloud instances created by ankuscli
-    # @param [Hash] nodes_hash => hash containing info about instances (as returned by Cloud::create_instances)
+    # @param [Hash] nodes_hash => hash containing info about instances (as returned by Cloud#create_instances)
     def delete_instances(nodes_hash)
       if @parsed_hash['cloud_platform'] == 'aws'
         aws = create_aws_connection
@@ -146,7 +136,7 @@ module Ankuscli
 
     # Modifies the original parsed_config hash to look more like the local install mode
     # @param [Hash] parsed_hash => original parsed hash generated from configuration file
-    # @param [Hash] nodes_hash => nodes hash generated by create_on_aws|create_on_rackspace method in this class
+    # @param [Hash] nodes_hash => nodes hash generated by Cloud#create_on_aws|Cloud#create_on_rackspace
     # @return if rackspace [Hash, Hash] parsed_hash, parsed_internal_ips => which can be used same as local install_mode
     #         if aws [Hash, Hash] parsed_hash, parsed_internal_ips => which can be used same as local install_mode
     def modify_config_hash(parsed_hash, nodes_hash)
@@ -447,6 +437,43 @@ module Ankuscli
         hosts_string << "#{ip_map.last}\t#{fqdn}\t#{fqdn.split('.').first}" << "\n"
       end
       hosts_string
+    end
+
+    # Calculates number of disks to insert into vms and their size based on users specified total storage in
+    # configuration
+    def calculate_disks
+      slave_nodes_disk_size = @parsed_hash['slave_nodes_storage_capacity'] || 0
+      if @provider == 'aws'
+        volume_count =  if slave_nodes_disk_size.nil? or slave_nodes_disk_size.to_i == 0
+                          # assume user do not want any extra volumes
+                          0
+                        else
+                          # user wants extra volumes
+                          4
+                        end
+        volume_size =   if slave_nodes_disk_size.nil? or slave_nodes_disk_size.to_i == 0
+                          0
+                        else
+                          slave_nodes_disk_size / volume_count
+                        end
+        return volume_count, volume_size
+      elsif @provider == 'rackspace'
+        volume_count =  if slave_nodes_disk_size.nil? or slave_nodes_disk_size.to_i == 0
+                          0
+                        elsif slave_nodes_disk_size.to_i > 400
+                          4
+                        else
+                          slave_nodes_disk_size.to_i / 100
+                        end
+        volume_size =   if slave_nodes_disk_size.nil? or slave_nodes_disk_size.to_i == 0
+                          0
+                        elsif slave_nodes_disk_size.to_i > 400
+                          slave_nodes_disk_size / volume_count
+                        else
+                          100
+                        end
+        return volume_count, volume_size
+      end
     end
   end
 end
