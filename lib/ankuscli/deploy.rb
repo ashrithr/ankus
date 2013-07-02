@@ -20,6 +20,7 @@ module Ankuscli
 
       # @param [String] puppet_server => hostname of the puppet server
       # @param [Array] puppet_clients => host_names of puppet clients
+      #        [String] puppet_clients => host_name of puppet client to install puppet client on it
       # @param [String] ssh_key => ssh key to use to log into the machines
       # @param [Hash] parsed_hash => parsed configuration file
       # @param [Integer] ssh_connections => number of concurrent processes (threads) to use for deployments
@@ -147,6 +148,61 @@ module Ankuscli
         puts "\rInstalling puppet on all nodes completed".blue
       end
 
+      # Install only puppet client(s)
+      def install_puppet_clients
+        remote_puppet_installer_loc = "/tmp"
+        remote_puppet_client_cmd = "chmod +x #{remote_puppet_installer_loc}/#{@puppet_installer} && #{remote_puppet_installer_loc}/#{@puppet_installer} -c -H #{@puppet_master} | tee #{REMOTE_LOG_DIR}/install.log"
+        if ! @mock
+          validate_instances @nodes
+
+          puts 'Checking if instances are ssh\'able ...'
+          SshUtils.sshable? @nodes, @ssh_user, @ssh_key
+          puts 'Checking if instances are ssh\'able ... ' + '[OK]'.green.bold
+
+          if @parsed_hash['install_mode'] == 'cloud'
+            result = SshUtils.execute_ssh!('hostname --fqdn', @puppet_master, @ssh_user, @ssh_key)
+            @puppet_server_cloud_fqdn = result[@puppet_master][0].chomp # result[host][0]
+            remote_puppet_client_cmd = "chmod +x #{remote_puppet_installer_loc}/#{@puppet_installer} && #{remote_puppet_installer_loc}/#{@puppet_installer} -c -H #{@puppet_server_cloud_fqdn} | tee #{REMOTE_LOG_DIR}/install.log"
+          end
+
+          if @parsed_hash['cloud_platform'] == 'rackspace'
+            preq(@nodes, remote_puppet_installer_loc, @hosts_file)
+          else
+            preq(@nodes, remote_puppet_installer_loc)
+          end
+
+          puts "\rInstalling puppet agent on : " + "#{@nodes}".blue
+          puts "\r[Debug]: Sending file #{PUPPET_INSTALLER} to #{@nodes}" if @debug
+          @nodes.each do |node|
+            SshUtils.upload!(PUPPET_INSTALLER, remote_puppet_installer_loc, node, @ssh_user, @ssh_key)
+            output = SshUtils.execute_ssh!(
+                remote_puppet_client_cmd,
+                node,
+                @ssh_user,
+                @ssh_key,
+                22,
+                @debug
+            )
+            unless output[node][2].to_i == 0
+              puts '[Error]:'.red + ' Failed to install puppet agent'
+              exit 2
+            end
+            #print output
+            if @debug
+              puts "\rstdout on #{node}"
+              puts "\r#{output[node][0]}"
+              puts "\rstderr on #{node}"
+              puts "\r#{output[node][1]}"
+            end
+          end
+        else
+          #Mocking
+          puts 'Checking if instances are ssh\'able ...'
+          puts 'Checking if instances are ssh\'able ...' + '[OK]'.green.bold
+        end
+        puts "\rInstalling puppet on node(s) #{@nodes.inspect} completed".blue
+      end
+
       # Generate hiera data required by puppet deployments & writes out to the yaml file
       # @param [Hash] parsed_hash => hash from which to generate hiera data
       def generate_hiera(parsed_hash)
@@ -236,7 +292,7 @@ module Ankuscli
         Inventory::EncData.new(nodes_file, ENC_ROLES_FILE, parsed_hash).generate
       end
 
-      # Kick off puppet run on all instances in order of the configuration
+      # Kick off puppet run on all instances orchestrate runs based on configuration
       def run_puppet
         puppet_run_cmd = "puppet agent --server #{@puppet_master} --onetime --verbose --no-daemonize --no-splay --ignorecache --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log"
         if ! @mock
@@ -259,7 +315,7 @@ module Ankuscli
           puts "\rInitializing puppet run on controller".blue
           if controller == 'localhost'
             ShellUtils.run_cmd!(puppet_run_cmd)
-            # TODO First puppet run on controller will fail! Fix this.
+            # TODO First puppet_run on controller will fail! Fix this.
             #   Error: Could not start Service[nagios]: Execution of '/sbin/service nagios start' returned 1
             #   Error: /Stage[main]/Nagios::Server/Service[nagios]/ensure: change from stopped to running failed: Could not start Service[nagios]: Execution of '/sbin/service nagios start' returned 1
             #unless status.success?
@@ -321,6 +377,33 @@ module Ankuscli
         else
           puts "\rPuppet run completed".blue
         end
+      end
+
+      # Kick off puppet run when a new node(s) are being commissioned to the cluster, this includes refreshing puppet master
+      def run_puppet_set(nodes)
+        puppet_run_cmd = "puppet agent --server #{@puppet_master} --onetime --verbose --no-daemonize --no-splay --ignorecache --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log"
+        unless @mock
+          if @parsed_hash['install_mode'] == 'cloud'
+            result = SshUtils.execute_ssh!('hostname --fqdn', @puppet_master, @ssh_user, @ssh_key)
+            @puppet_server_cloud_fqdn = result[@puppet_master][0].chomp
+            puppet_run_cmd = "puppet agent --server #{@puppet_server_cloud_fqdn} --onetime --verbose --no-daemonize --no-splay --ignorecache --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log"
+          end
+          # send enc_roles file to puppet master
+          SshUtils.upload!(ENC_ROLES_FILE, ENC_PATH, @puppet_master, @ssh_user, @ssh_key, 22)
+          puts "\rInitializing puppet run on node(s) #{nodes.inspect}".blue
+          puppet_parallel_run(nodes, puppet_run_cmd)
+          #refresh master
+          if @parsed_hash['controller'] == 'localhost'
+            status = ShellUtils.run_cmd!(puppet_run_cmd)
+            unless status.success?
+              puts '[Error]:'.red + ' Failed to finalize puppet run'
+              #TODO handle rollback
+            end
+          else
+            puppet_single_run(@puppet_master, puppet_run_cmd)
+          end
+        end
+        puts "Completed puppet run on #{nodes.inspect} and refreshed puppet master".blue
       end
 
       private
@@ -394,7 +477,7 @@ module Ankuscli
       def validate_instances(instances, port=22)
         instances.each do |instance|
           unless PortUtils.port_open? instance, port
-            puts "\r[Error]: Node #{instance} is not reachable"
+            puts "\r[Error]: Node #{instance} is not reachable on port #{port} for ssh"
             exit 1
           end
         end
