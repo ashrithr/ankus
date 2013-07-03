@@ -59,6 +59,10 @@ module Ankuscli
     end
 
     desc 'info', 'show the cluster information deployed using ankuscli'
+    method_option :extended,
+                  :desc => 'show more information like slaves in the cluster',
+                  :type => :boolean,
+                  :default => false
     def info
       if @parsed_hash.nil? or @parsed_hash.empty?
         parse_config
@@ -308,6 +312,12 @@ module Ankuscli
         end
         jt = cloud_instances.select { |k, _| k.include? 'jobtracker'}.values.first
         cluster_info << ' *'.cyan << " MapReduce Master: #{jt.first} \n"
+        if options[:extended]
+          cluster_info << ' *'.cyan << " Slaves: \n"
+          cloud_instances.select { |k, _| k.include? 'slaves' }.each do |k, v|
+            cluster_info << "\t" << '- '.cyan << "#{k}: #{v.first}" << "\n"
+          end
+        end
       else
         #local deployment mode
         cluster_info << ' *'.cyan << " Controller: #{parsed_hash['controller']}\n"
@@ -331,6 +341,12 @@ module Ankuscli
           cluster_info << ' *'.cyan << " Zookeeper Quorum: \n"
           parsed_hash['zookeeper_quorum'].each do |zk|
             cluster_info << "\t - #{zk} \n"
+          end
+        end
+        if options[:extended]
+          cluster_info << ' *'.cyan << " Slaves: \n"
+          parsed_hash['slaves_nodes'].each do |slave|
+            cluster_info << "\t" << '- '.cyan << slave << "\n"
           end
         end
       end
