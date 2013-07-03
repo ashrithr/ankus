@@ -272,13 +272,13 @@ module Ankuscli
         abort
       end
       (cluster_info ||= '') << 'Ankuscli Cluster info:' << "\n"
-      cluster_info << " # Hadoop High Availability Configuration: #{parsed_hash['hadoop_ha']} \n"
-      cluster_info << " # MapReduce Framework: #{parsed_hash['mapreduce']['type']} \n"
-      cluster_info << " # HBase Cluster: #{parsed_hash['hbase_install']} \n"
-      cluster_info << " # Security: #{parsed_hash['security']} \n"
-      cluster_info << " # Monitoring(with ganglia): #{parsed_hash['monitoring']} \n"
-      cluster_info << " # Altering(with nagios): #{parsed_hash['alerting']} \n"
-      cluster_info << " # Log Aggregation(with Logstash): #{parsed_hash['log_aggregation']} \n"
+      cluster_info << ' #'.green << " Hadoop High Availability Configuration: #{parsed_hash['hadoop_ha']} \n"
+      cluster_info << ' #'.green << " MapReduce Framework: #{parsed_hash['mapreduce']['type']} \n"
+      cluster_info << ' #'.green << " HBase Cluster: #{parsed_hash['hbase_install']} \n"
+      cluster_info << ' #'.green << " Security: #{parsed_hash['security']} \n"
+      cluster_info << ' #'.green << " Monitoring(with ganglia): #{parsed_hash['monitoring']} \n"
+      cluster_info << ' #'.green << " Altering(with nagios): #{parsed_hash['alerting']} \n"
+      cluster_info << ' #'.green << " Log Aggregation(with Logstash): #{parsed_hash['log_aggregation']} \n"
 
       cluster_info << "\n"
       cluster_info << "Nodes in the cluster: \n"
@@ -288,14 +288,14 @@ module Ankuscli
         cloud_instances = YamlUtils.parse_yaml(CLOUD_INSTANCES)
 
         controller = cloud_instances.select { |k, _| k.include? 'controller'}.values.first
-        cluster_info << " * Controller: #{controller.first} \n"
+        cluster_info << ' *'.cyan << " Controller: #{controller.first} \n"
         if parsed_hash['hadoop_ha'] == 'enabled'
-          cluster_info << " * Namenode(s): \n"
+          cluster_info << ' *'.cyan << " Namenode(s): \n"
           nns = cloud_instances.select {|k, _| k.include? 'namenode'}
           nns.each do |k, v|
             cluster_info << "\t #{k}: #{v.first} \n"
           end
-          cluster_info << " * Journal Quorum & ZooKeeper Quoram: \n"
+          cluster_info << ' *'.cyan << " Journal Quorum & ZooKeeper Quoram: \n"
           zks = cloud_instances.select { |k, _| k.include? 'zookeeper' }
           zks.each do |k, v|
             cluster_info << "\t #{k}: #{v.first} \n"
@@ -303,32 +303,32 @@ module Ankuscli
         else
           namenode = cloud_instances.select { |k, _| k.include? 'namenode'}.values.first
           snn = cloud_instances.select { |k, _| k.include? 'jobtracker'}.values.first
-          cluster_info << " * Namenode: #{namenode.first}\n"
-          cluster_info << " * Secondary Namenode: #{snn.first}\n"
+          cluster_info << ' *'.cyan << " Namenode: #{namenode.first}\n"
+          cluster_info << ' *'.cyan << " Secondary Namenode: #{snn.first}\n"
         end
         jt = cloud_instances.select { |k, _| k.include? 'jobtracker'}.values.first
-        cluster_info << " * MapReduce Master: #{jt.first} \n"
+        cluster_info << ' *'.cyan << " MapReduce Master: #{jt.first} \n"
       else
         #local deployment mode
-        cluster_info << " * Controller: #{parsed_hash['controller']}\n"
+        cluster_info << ' *'.cyan << " Controller: #{parsed_hash['controller']}\n"
         if parsed_hash['hadoop_ha'] == 'enabled'
-          cluster_info << " * Namenode(s): \n"
+          cluster_info << ' *'.cyan << " Namenode(s): \n"
           cluster_info << "\t - Active Namenode: #{parsed_hash['hadoop_namenode'].first} \n"
           cluster_info << "\t - Standby Namenode: #{parsed_hash['hadoop_namenode'].last} \n"
-          cluster_info << " * Journal Quorum: \n"
+          cluster_info << ' *'.cyan << " Journal Quorum: \n"
           parsed_hash['journal_quorum'].each do |jn|
             cluster_info << "\t - #{jn}\n"
           end
         else
-          cluster_info << " * Namenode: #{parsed_hash['hadoop_namenode'].first}\n"
-          cluster_info << " * Secondary Namenode: #{parsed_hash['hadoop_secondarynamenode']}\n"
+          cluster_info << ' *'.cyan << " Namenode: #{parsed_hash['hadoop_namenode'].first}\n"
+          cluster_info << ' *'.cyan << " Secondary Namenode: #{parsed_hash['hadoop_secondarynamenode']}\n"
         end
         if parsed_hash['hbase_install'] == 'enabled'
-          cluster_info << " * Hbase Master: #{parsed_hash['hbase_master'].join(',')} \n"
+          cluster_info << ' *'.cyan << " Hbase Master: #{parsed_hash['hbase_master'].join(',')} \n"
         end
-        cluster_info << " * MapReduce Master: #{parsed_hash['mapreduce']['master']} \n"
+        cluster_info << ' *'.cyan << " MapReduce Master: #{parsed_hash['mapreduce']['master']} \n"
         if parsed_hash['hadoop_ha'] == 'enabled' and parsed_hash['hbase_install'] == 'enabled'
-          cluster_info << " * Zookeeper Quorum: \n"
+          cluster_info << ' *'.cyan << " Zookeeper Quorum: \n"
           parsed_hash['zookeeper_quorum'].each do |zk|
             cluster_info << "\t - #{zk} \n"
           end
@@ -336,7 +336,7 @@ module Ankuscli
       end
       cluster_info << "\n"
       cluster_info << "Login Information:\n"
-      cluster_info << " * ssh into nodes using: ankuscli ssh <role> \n" << "\t Ex: ankuscli ssh controller\n"
+      cluster_info << ' *'.cyan << " ssh into nodes using: ankuscli ssh <role> \n" << "\t Ex: ankuscli ssh controller\n"
       if parsed_hash['install_mode'] == 'cloud'
         if parsed_hash['cloud_platform'] == 'aws'
           cluster_info << " (or) using `ssh -i ~/.ssh/#{parsed_hash['cloud_credentials']['aws_key']} username@host`\n"
