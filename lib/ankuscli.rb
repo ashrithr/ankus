@@ -27,6 +27,7 @@ end
 
 module Ankuscli
   require 'ankuscli/version'
+  require 'ankuscli/helper'
   require 'ankuscli/config_parser'
   require 'ankuscli/cli'
   require 'ankuscli/inventory'
@@ -34,6 +35,4 @@ module Ankuscli
   require 'ankuscli/cloud_init'
   require 'ankuscli/cloud_manage'
   require 'ankuscli/deploy'
-  require 'ankuscli/helper'
-  require 'ankuscli/version'
 end

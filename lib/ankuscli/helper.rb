@@ -18,10 +18,10 @@ module Ankuscli
   ENC_PATH = %q(/etc/puppet/enc)
   HIERA_DATA_PATH = %q(/etc/puppet/hieradata)
   REMOTE_LOG_DIR = %q(/var/log/ankus)
+end
 
-  class String
-    def undent
-      gsub(/^.{#{slice(/^ +/).length}}/, '')
-    end
+class String
+  def undent
+    gsub(/^.{#{slice(/^ +/).length}}/, '')
   end
 end

@@ -263,6 +263,14 @@ module Ankuscli
     # Prints the cluster information
     # @param [Hash] parsed_hash => contains cluster info
     def deployment_info(parsed_hash)
+      # check for files in DATA_DIR if does not exists, we can assume user hasn't deployed a cluster yet
+      unless YamlUtils.parse_yaml(NODES_FILE).is_a? Hash
+        puts 'No cluster details found'.red
+        puts <<-EOS.undent
+          Deploy a cluster by running `ankuscli deploy`
+        EOS
+        abort
+      end
       (cluster_info ||= '') << 'Ankuscli Cluster info:' << "\n"
       cluster_info << " # Hadoop High Availability Configuration: #{parsed_hash['hadoop_ha']} \n"
       cluster_info << " # MapReduce Framework: #{parsed_hash['mapreduce']['type']} \n"
@@ -345,6 +353,7 @@ module Ankuscli
     def destroy_cluster(parsed_hash)
       cloud = create_cloud_obj(parsed_hash)
       cloud.delete_instances(YamlUtils.parse_yaml(CLOUD_INSTANCES))
+      FileUtils.rm_rf DATA_DIR
     end
 
     def ssh_into_instance(role, parsed_hash)
