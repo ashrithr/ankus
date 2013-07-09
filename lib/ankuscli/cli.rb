@@ -81,13 +81,11 @@ module Ankuscli
 
     desc 'destroy', 'destroy the cluster (only valid for cloud deployments)'
     def destroy
-      if agree('Are you sure want to destroy the cluster ?  ')
-        if @parsed_hash.nil? or @parsed_hash.empty?
-          parse_config
-        end
-        raise 'Only applicable for cloud deployments' if @parsed_hash['install_mode'] == 'local'
-        destroy_cluster(@parsed_hash)
+      if @parsed_hash.nil? or @parsed_hash.empty?
+        parse_config
       end
+      raise 'Only applicable for cloud deployments' if @parsed_hash['install_mode'] == 'local'
+      destroy_cluster(@parsed_hash)
     end
 
     private
@@ -271,11 +269,7 @@ module Ankuscli
       # 4. Re-Generate ENC data
       # 3. Re-Run puppet on all nodes
       unless YamlUtils.parse_yaml(NODES_FILE).is_a? Hash
-        puts 'No cluster details found'.red
-        puts <<-EOS.undent
-          Deploy a cluster by running `ankuscli deploy`
-        EOS
-        abort
+        abort 'No cluster found to refresh'.red
       end
       parse_config if @parsed_hash.nil? or @parsed_hash.empty?
       puts 'Reloading Configurations ...'
@@ -411,9 +405,14 @@ module Ankuscli
 
     # destroy the instances in the cloud
     def destroy_cluster(parsed_hash)
-      cloud = create_cloud_obj(parsed_hash)
-      cloud.delete_instances(YamlUtils.parse_yaml(CLOUD_INSTANCES))
-      FileUtils.rm_rf DATA_DIR
+      unless YamlUtils.parse_yaml(NODES_FILE).is_a? Hash
+        abort 'No cluster found to delete'.red
+      end
+      if agree('Are you sure want to destroy the cluster ?  ')
+        cloud = create_cloud_obj(parsed_hash)
+        cloud.delete_instances(YamlUtils.parse_yaml(CLOUD_INSTANCES))
+        FileUtils.rm_rf DATA_DIR
+      end
     end
 
     def ssh_into_instance(role, parsed_hash)
