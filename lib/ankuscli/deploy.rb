@@ -15,7 +15,7 @@ module Ankuscli
       # @param [Integer] ssh_connections => number of concurrent processes (threads) to use for deployments
       # @param [String] ssh_user => user to log into the machine as
       # @param [Boolean] debug => if enabled will print out information to stdout
-      def initialize(puppet_server, puppet_clients, ssh_key, parsed_hash, ssh_connections=10, ssh_user='root', hosts_file = nil, debug=false, mock = false)
+      def initialize(puppet_server, puppet_clients, ssh_key, parsed_hash, ssh_connections=10, ssh_user='root', debug=false, mock = false, hosts_file = nil)
         @puppet_master         = puppet_server
         @nodes                 = puppet_clients
         @parallel_connections  = ssh_connections
@@ -379,7 +379,7 @@ module Ankuscli
           end
           # send enc_roles file to puppet master
           SshUtils.upload!(ENC_ROLES_FILE, ENC_PATH, @puppet_master, @ssh_user, @ssh_key, 22)
-          puts "\rInitializing puppet run on node(s) #{nodes.inspect}".blue
+          puts "\rInitializing puppet run on node(s) #{nodes.inspect}" if @debug
           puppet_parallel_run(nodes, puppet_run_cmd)
           #refresh master
           if @parsed_hash['controller'] == 'localhost'
@@ -392,7 +392,7 @@ module Ankuscli
             puppet_single_run(@puppet_master, puppet_run_cmd)
           end
         end
-        puts "Completed puppet run on #{nodes.inspect} and refreshed puppet master".blue
+        puts "Completed puppet run on #{nodes.join(',').blue} and refreshed puppet master #{@puppet_master.blue}"
       end
 
       private
