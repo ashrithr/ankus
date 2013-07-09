@@ -362,7 +362,9 @@ module Ankuscli
       else
         cluster_info << " (or) using `ssh -i #{parsed_hash['root_ssh_key']} username@host`\n"
       end
+      puts
       puts "\r#{cluster_info}".squeeze(' ')
+      puts
     end
 
     # destroy the instances in the cloud
@@ -393,8 +395,32 @@ module Ankuscli
           puts "No such role found #{role}"
         end
       else
-        puts 'Does not work with local install mode'.yellow
-        puts "Use `ankuscli info` to look at instances info and ssh using '#{parsed_hash['root_ssh_key']}'"
+        #local mode, build roles from conf
+        nodes_roles = {
+            :controller   => parsed_hash['controller'],
+            :jobtracker   => parsed_hash['mapreduce']['master'],
+        }
+        if parsed_hash['hadoop_ha'] == 'enabled'
+          nodes_roles.merge!({ :namenode1 => parsed_hash['hadoop_namenode'][0],
+                               :namenode2 => parsed_hash['hadoop_namenode'][1] })
+          parsed_hash['journal_quorum'].each_with_index { |jn, index| nodes_roles["journalnode#{index+1}"] = jn }
+        else
+          nodes_roles.merge!({ :namenode => parsed_hash['hadoop_namenode'][0] })
+        end
+        if parsed_hash['hadoop_ha'] == 'enabled' or parsed_hash['hbase_install'] == 'enabled'
+          parsed_hash['zookeeper_quorum'].each_with_index { |zk, index| nodes_roles["zookeeper#{index+1}"] = zk }
+        end
+        if parsed_hash['hbase_install'] == 'enabled'
+          parsed_hash['hbase_master'].each_with_index { |hbm, index| nodes_roles["hbasemaster#{index+1}"] = hbm }
+        end
+        parsed_hash['slave_nodes'].each_with_index { |slave, index| nodes_roles["slaves#{index+1}"] = slave }
+
+        if nodes_roles.keys.find { |e| /#{role}/ =~ e }
+          SshUtils.ssh_into_instance(nodes_roles[role], 'root', parsed_hash['root_ssh_key'], 22)
+        else
+          puts "No such role found #{role}"
+          puts "Available roles: #{nodes_roles.keys.join(',')}"
+        end
       end
     end
   end
