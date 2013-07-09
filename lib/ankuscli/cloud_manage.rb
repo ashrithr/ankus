@@ -38,7 +38,7 @@ module Ankuscli
     end
 
     # Parse cloud_configuration; create instances and return instance mappings
-    # @return [Hash] nodes:
+    # @return [Hash]
     #   for aws cloud, nodes: { 'tag' => [public_dns_name, private_dns_name], 'tag' => [public_dns_name, private_dns_name], ... }
     #   for rackspace, nodes: { 'tag(fqdn)' => [public_ip_address, private_ip_address], ... }
     def create_instances
@@ -50,20 +50,20 @@ module Ankuscli
 
       if @provider == 'aws'
         #create nodes to create on aws
-        nodes_to_create['controller'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
+        nodes_to_create['controller'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
         if @parsed_hash['hadoop_ha'] == 'enabled'
-          nodes_to_create['namenode1'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
-          nodes_to_create['namenode2'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
-          nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
+          nodes_to_create['namenode1'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+          nodes_to_create['namenode2'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+          nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
           num_of_zks.times do |i|
-            nodes_to_create["zookeeper#{i+1}"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
+            nodes_to_create["zookeeper#{i+1}"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
           end
           num_of_slaves.times do |i|
             nodes_to_create["slaves#{i+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
           end
         else
-          nodes_to_create['namenode'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
-          nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 } #JT and SNN
+          nodes_to_create['namenode'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+          nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } #JT and SNN
           num_of_slaves.times do |i|
             nodes_to_create["slaves#{i+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
           end
@@ -71,20 +71,20 @@ module Ankuscli
         nodes_created = create_on_aws(nodes_to_create, @credentials, @thread_pool_size)
 
       elsif @provider == 'rackspace'
-        nodes_to_create['controller.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
+        nodes_to_create['controller.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
         if @parsed_hash['hadoop_ha'] == 'enabled'
-          nodes_to_create['namenode1.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
-          nodes_to_create['namenode2.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
-          nodes_to_create['jobtracker.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
+          nodes_to_create['namenode1.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+          nodes_to_create['namenode2.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+          nodes_to_create['jobtracker.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
           num_of_zks.times do |i|
-            nodes_to_create["zookeeper#{i+1}.ankus.com"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
+            nodes_to_create["zookeeper#{i+1}.ankus.com"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
           end
           num_of_slaves.times do |i|
             nodes_to_create["slaves#{i+1}.ankus.com"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
           end
         else
-          nodes_to_create['namenode.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 }
-          nodes_to_create['jobtracker.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 100 } #JT and SNN
+          nodes_to_create['namenode.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+          nodes_to_create['jobtracker.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } #JT and SNN
           num_of_slaves.times do |i|
             nodes_to_create["slaves#{i+1}.ankus.com"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
           end
@@ -180,14 +180,14 @@ module Ankuscli
       elsif @provider == 'rackspace' # fqdn
         parsed_hash_internal_ips['root_ssh_key'] = File.split(File.expand_path(@credentials['rackspace_ssh_key'])).first + '/' +
                                                         File.basename(File.expand_path(@credentials['rackspace_ssh_key']), '.pub')
-        parsed_hash_internal_ips['controller'] = nodes_hash.map { |k,v| k if k =~ /controller/ }.compact.first
-        parsed_hash_internal_ips['hadoop_namenode'] = nodes_hash.map { |k,v| k if k =~ /namenode/ }.compact
-        parsed_hash_internal_ips['mapreduce']['master'] = nodes_hash.map { |k,v| k if k =~ /jobtracker/ }.compact.first
-        parsed_hash_internal_ips['hadoop_secondarynamenode'] = nodes_hash.map { |k,v| k if k =~ /jobtracker/ }.compact.first if parsed_hash['hadoop_ha'] == 'disabled'
-        parsed_hash_internal_ips['slave_nodes'] = nodes_hash.map { |k,v| k if k =~ /slaves/ }.compact
-        parsed_hash_internal_ips['zookeeper_quorum'] = nodes_hash.map { |k,v| k if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled' or parsed_hash['hbase_install'] == 'enabled'
-        parsed_hash_internal_ips['journal_quorum'] = nodes_hash.map { |k,v| k if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled'
-        parsed_hash_internal_ips['hbase_master'] = nodes_hash.map { |k,v| k if k =~ /hbasemaster/ }.compact if parsed_hash['hbase_install'] == 'enabled'
+        parsed_hash_internal_ips['controller'] = nodes_hash.map { |k,_| k if k =~ /controller/ }.compact.first
+        parsed_hash_internal_ips['hadoop_namenode'] = nodes_hash.map { |k,_| k if k =~ /namenode/ }.compact
+        parsed_hash_internal_ips['mapreduce']['master'] = nodes_hash.map { |k,_| k if k =~ /jobtracker/ }.compact.first
+        parsed_hash_internal_ips['hadoop_secondarynamenode'] = nodes_hash.map { |k,_| k if k =~ /jobtracker/ }.compact.first if parsed_hash['hadoop_ha'] == 'disabled'
+        parsed_hash_internal_ips['slave_nodes'] = nodes_hash.map { |k,_| k if k =~ /slaves/ }.compact
+        parsed_hash_internal_ips['zookeeper_quorum'] = nodes_hash.map { |k,_| k if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled' or parsed_hash['hbase_install'] == 'enabled'
+        parsed_hash_internal_ips['journal_quorum'] = nodes_hash.map { |k,_| k if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled'
+        parsed_hash_internal_ips['hbase_master'] = nodes_hash.map { |k,_| k if k =~ /hbasemaster/ }.compact if parsed_hash['hbase_install'] == 'enabled'
       end
       return parsed_hash, parsed_hash_internal_ips
     end
@@ -215,7 +215,7 @@ module Ankuscli
         exit 1
       end
 
-      puts 'Creating servers with tags: ' + "#{nodes_to_create.keys.join(',')}".blue
+      puts 'Creating servers with roles: ' + "#{nodes_to_create.keys.join(',')}".blue
       #hash to store server object to tag mapping { tag => server_obj }, used for attaching volumes
       server_objects = {}
       nodes_to_create.each do |tag, info|
@@ -234,7 +234,7 @@ module Ankuscli
       #wait for the boot to complete
       aws.complete_wait(server_objects.values, @cloud_os) #TODO: this method is taking forever, find another way to make sure volumes are properly mounted
       #build the return string
-      nodes_to_create.each do |tag, info|
+      nodes_to_create.each do |tag, _|
         # fill in return hash
         results[tag] = [ server_objects[tag].dns_name, server_objects[tag].private_dns_name ]
       end
@@ -430,6 +430,7 @@ module Ankuscli
 
     # Builds /etc/hosts file @ file path specified
     # @param [Hash] nodes_ips_map => { 'tag(fqdn)' => [public_ip_address, private_ip_address], ... }
+    # @return [String] contents of hosts file
     def build_hosts(nodes_ips_map)
       hosts_string = ''
       hosts_string << '127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4' << "\n"
@@ -441,6 +442,7 @@ module Ankuscli
 
     # Calculates number of disks to insert into vms and their size based on users specified total storage in
     # configuration
+    # @return [Fixnum, Fixnum] number of volumes to create and size of each volume
     def calculate_disks
       slave_nodes_disk_size = @parsed_hash['slave_nodes_storage_capacity'] || 0
       if @provider == 'aws'
