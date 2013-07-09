@@ -2,37 +2,26 @@
 
 Command line interface for ankus big-data deployment tool. Handles the installation/management of:
 
- - hadoop
- - hadoop ecosystem tools: pig, hive, sqoop, oozie, flume
- - hbase
-
- 
- More deployment modules are in Development:
-
- - Cassandra
- - storm
- - kafka
- - solr
- - mongodb
+ - hadoop (hadoop-2.0.0)
+ - hadoop ecosystem tools: pig (0.11.x), hive (0.10.x), sqoop (1.4.x), oozie (3.3.x), flume-ng
+ - hbase (hbase-0.94)
 
  AnkusCLI can handle deployments in local as well as cloud mode.
 
  1. **Local mode** is where the user specifies the instance roles
  2. **Cloud mode** is where ankus will create/manage vm's and auto assigns roles to them. Currently ankuscli supports AWS (Amazon Web Services) & Rackspace.
 
-  *Note:* Cloud mode is more preferred for POC's and Test/Development environments, where as local is preferred for managing heavy
-  loads and production environments
-
 **Ankuscli leverages open source tools such as:**
 
- - puppet for deployment and configuration management
+ - puppet & puppetdb for deployment and configuration management
+ - passenger for scaling puppet
  - ganglia for monitoring
  - nagios for alerting
  - logstash for log aggregation
+ 
+## Installation
 
-## Installing AnkusCLI
-
-Dependencies:
+###Dependencies
  
  - CentOS:
 
@@ -57,24 +46,29 @@ Dependencies:
 	brew link libxml2 libxslt
 	```
 
-Installing AnkusCLI from Source:
 
-```
-cd ~ && git clone https://github.com/ashrithr/ankus-cli.git
-gem install bundle --no-ri --no-rdoc
-cd ankus-cli && bundle install
-```
-Packaging and installing AnkusCLI as a ruby gem (until the gem is publicly available from rubygems):
+###Installing AnkusCLI
 
-```
-cd ~ && git clone https://github.com/ashrithr/ankus-cli.git
-cd ankus-cli
-gem build ankuscli.gemspec && gem install ankuscli-*.gem
-```
+**Two ways to install AnkusCLI:**
+
+* Installing AnkusCLI from Source:
+
+	```
+	cd ~ && git clone https://github.com/ashrithr/ankus-cli.git
+	gem install bundle --no-ri --no-rdoc
+	cd ankus-cli && bundle install
+	```
+* Packaging and installing AnkusCLI as a ruby gem (until the gem is publicly available from rubygems):
+
+	```
+	cd ~ && git clone https://github.com/ashrithr/ankus-cli.git
+	cd ankus-cli
+	gem build ankuscli.gemspec && gem install ankuscli-*.gem
+	```
 
 ## Usage:
 
-###Deployment in Cloud (AWS | Rackspace):
+###Deployment in Cloud (AWS or Rackspace):
 
 To quickly deploy big-data clusters like hadoop, hbase or cassandra in the cloud, follow the steps:
 
@@ -178,6 +172,16 @@ Change the configuration file as per the requirements and then
 	```
 	bin/ankuscli info
 	```
+	
+##Future Work (WIP)
+ 
+ More deployment modules are in Development:
+
+ - Cassandra
+ - storm
+ - kafka
+ - solr
+ - mongodb
 
 ##Author:
 [Ashrith](https://github.com/ashrithr)
