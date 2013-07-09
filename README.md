@@ -7,6 +7,7 @@ Command line interface for ankus big-data deployment tool. Handles the installat
  - hbase
  - cassandra
 
+ 
  More deployment modules in Development:
 
  - storm
@@ -17,7 +18,7 @@ Command line interface for ankus big-data deployment tool. Handles the installat
  AnkusCLI can handle deployments in local as well as cloud mode.
 
  1. **Local mode** is where the user specifies the instance roles
- 2. **Cloud mode** is where ankus will create/manage vm's and auto assigns roles to them. Currently ankuscli supports AWS (Amazon Web Services) & Rackspace, effort is being made to integrate GCE (Google Compute Engine)
+ 2. **Cloud mode** is where ankus will create/manage vm's and auto assigns roles to them. Currently ankuscli supports AWS (Amazon Web Services) & Rackspace.
 
   *Note:* Cloud mode is more preferred for POC's and Test/Development environments, where as local is preferred for managing heavy
   loads and production environments
