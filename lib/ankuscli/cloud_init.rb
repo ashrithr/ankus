@@ -23,6 +23,12 @@ module Ankuscli
           'ap-northeast-1'  => 'ami-3fe8603e',  #Tokyo
           'sa-east-1'       => 'ami-e2cd68ff',  #Sao Paulo
       }
+      # centos ami's modified with extended root partition of 250G
+      @centos_amis_mod = {
+          'us-east-1'       => 'ami-d8a2deb1',
+          'us-west-1'       => 'ami-727a5237',
+          'us-west-2'       => 'ami-f5a83bc5'
+      }
       @ubuntu_amis    = {
           'us-east-1'       => 'ami-9b85eef2',  #Virginia
           'us-west-1'       => 'ami-9b2d03de',  #Northern California
@@ -59,7 +65,7 @@ module Ankuscli
 
     #Create a single server in aws cloud
     # @param [Fog::Compute::AWS::Real] conn => fog aws connection object
-    # @param [String] instance_type => type of the instance being created, used for the creating tags
+    # @param [String] instance_tag => type of the instance being created, used for the creating tags
     # @param [Hash] opts:
     #   @option [String] os_type        => type of servers to create (CentOS|Ubuntu)
     #   @option [String] key            => security key to ingest into system
@@ -69,7 +75,7 @@ module Ankuscli
     #   @option [Integer] vol_size      => size of the each ebs volumes to create in GB
     #   @option [Integer] root_vol_size => size of the root ebs volume
     # @return [Fog::Compute::AWS::Server] server object
-    def create_server!(conn, instance_type, opts = {})
+    def create_server!(conn, instance_tag, opts = {})
       options = {
           :key => 'ankuscli',
           :groups => %w(ankuscli),
@@ -77,7 +83,7 @@ module Ankuscli
           :os_type => 'CentOS',
           :num_of_vols => 0,
           :vol_size => 50,
-          :root_vol_size => 100
+          :root_vol_size => 250
       }.merge(opts)
 
       unless valid_connection?(conn)
@@ -129,21 +135,23 @@ module Ankuscli
 
       case options[:os_type].downcase
         when 'centos'
+          ami = @centos_amis_mod.has_key?(@region) ? @centos_amis_mod[@region] : @centos_amis[@region]
+          root_ebs_size = @centos_amis_mod.has_key?(@region) ? 0 : options[:root_vol_size]
           server = create_server(conn,
                                  options[:key],
-                                 instance_type,
+                                 instance_tag,
                                  options[:groups],
                                  options[:flavor_id],
-                                 @centos_amis[@region],
+                                 ami,
                                  :num_of_vols => options[:num_of_vols],
                                  :vol_size => options[:vol_size],
-                                 :root_ebs_size => options[:root_vol_size]
+                                 :root_ebs_size => root_ebs_size
           )
           return server
         when 'ubuntu'
           server = create_server(conn,
                                  options[:key],
-                                 instance_type,
+                                 instance_tag,
                                  options[:groups],
                                  options[:flavor_id],
                                  @ubuntu_amis[@region],
@@ -286,7 +294,7 @@ module Ankuscli
     # Create a single server, create tags for the server and returns server_id
     # @param [Fog::Compute::AWS::Real] conn => fog aws connection object
     # @param [String] key_name => aws key to ingest into system
-    # @param [String] type => type of the system being created, used for creating tags
+    # @param [String] tag => type of the system being created, used for creating tags
     # @param [Array] groups => security groups to use
     # @param [String] flavor_id => type of instance to create (t1.micro m1.small m1.medium m1.large m1.xlarge m3.xlarge m3.2xlarge m2.xlarge m2.2xlarge m2.4xlarge c1.medium c1.xlarge hs1.8xlarge)
     # @param [Hash] ebs_options => options for ebs volumes to create and attach to instances
@@ -294,7 +302,7 @@ module Ankuscli
     #   @option [Integer] :vol_size => volumes size in GB per volume
     #   @option [Integer] :root_ebs_size => size of the root volume
     # @return [Fog::Compute::AWS::Server] fog server object
-    def create_server(conn, key_name, type, groups, flavor_id, ami_id, ebs_options = {})
+    def create_server(conn, key_name, tag, groups, flavor_id, ami_id, ebs_options = {})
       num_of_volumes = ebs_options[:num_of_vols] || 0
       size_of_volumes = ebs_options[:vol_size] || 50
       root_volume_size = ebs_options[:root_ebs_size] || 100
@@ -324,12 +332,12 @@ module Ankuscli
       conn.tags.create(
           :resource_id  => server.id,
           :key          => 'Name',
-          :value        => 'ankuscli'
+          :value        => "ankuscli-#{tag}"
       )
       conn.tags.create(
           :resource_id  => server.id,
           :key          => 'Type',
-          :value        => type
+          :value        => tag
       )
       server
     end
@@ -338,11 +346,14 @@ module Ankuscli
     # @param [Integer] num_of_vols => number of volumes to build the hash for
     # @param [Integer] size_per_vol => size of each volume in GB
     # @param [Integer] root_ebs_size => size of the root device (should be able to run `resize2fs /dev/sda` to re-claim re-sized space)
-    # @param [String] ami_id => ami_id used to boot the instance, required for resizing the root ebs vol
+    # @param [String] root_ebs_name => device name of the root (default: /dev/sda)
     # @return [Hash] block_device_mapping => Array of block to device mappings
     def map_devices(num_of_vols, size_per_vol, root_ebs_size, root_ebs_name = '/dev/sda')
       block_device_mapping = []
-      block_device_mapping << { 'DeviceName' => root_ebs_name,  'Ebs.VolumeSize' => root_ebs_size, 'Ebs.DeleteOnTermination' => false }
+      # change the root ebs size only if root_ebs_size > 0 i.e, user should not pass 0 to resize root
+      unless root_ebs_size == 0
+        block_device_mapping << { 'DeviceName' => root_ebs_name,  'Ebs.VolumeSize' => root_ebs_size, 'Ebs.DeleteOnTermination' => false }
+      end
       if num_of_vols > 0
         base = 'sdh' #sdi-z
         num_of_vols.times do
