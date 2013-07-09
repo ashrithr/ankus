@@ -10,7 +10,7 @@
 #     # cloud: ankus will create machines in the cloud
 ########################################################
 install_mode: 'local'
-#root users ssh key to log into machines (or) user with password-less sudo privileges
+#root users ssh private key to log into machines
 root_ssh_key: '~/.ssh/ruby-sample-1363113606'
 # controller: hostname of the server which will host puppet master, kerberos server
 #  if security is enabled, nagios & ganglia servers if monitoring & altering are enabled.
