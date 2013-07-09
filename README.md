@@ -5,11 +5,11 @@ Command line interface for ankus big-data deployment tool. Handles the installat
  - hadoop
  - hadoop ecosystem tools: pig, hive, sqoop, oozie, flume
  - hbase
- - cassandra
 
  
- More deployment modules in Development:
+ More deployment modules are in Development:
 
+ - Cassandra
  - storm
  - kafka
  - solr
