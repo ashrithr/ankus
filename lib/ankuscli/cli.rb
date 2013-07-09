@@ -55,7 +55,7 @@ module Ankuscli
 
     desc 'refresh', 'reload the config files and update the configurations across the cluster'
     def refresh
-      puts 'Not yet implemented'.yellow
+      reload_deployment
     end
 
     desc 'info', 'show the cluster information deployed using ankuscli'
@@ -232,9 +232,9 @@ module Ankuscli
                 @parsed_hash,                                       #parsed config hash
                 options[:thread_pool_size],                         #number of threads to use
                 'root',                                             #ssh_user
-                hosts_file_path,                                    #hostfile path if cloud_provider is rackspace
                 options[:debug],
-                options[:mock]
+                options[:mock],
+                hosts_file_path                                     #hostfile path if cloud_provider is rackspace
               )
       begin
         if options[:add_nodes]
@@ -262,6 +262,48 @@ module Ankuscli
         puppet.run_puppet
         deployment_info @parsed_hash
       end
+    end
+
+    # Refresh the cluster using updated configuration files
+    def reload_deployment
+      # 1. Reload Configurations
+      # 2. Re-Generate Hiera data
+      # 4. Re-Generate ENC data
+      # 3. Re-Run puppet on all nodes
+      unless YamlUtils.parse_yaml(NODES_FILE).is_a? Hash
+        puts 'No cluster details found'.red
+        puts <<-EOS.undent
+          Deploy a cluster by running `ankuscli deploy`
+        EOS
+        abort
+      end
+      parse_config if @parsed_hash.nil? or @parsed_hash.empty?
+      puts 'Reloading Configurations ...'
+      if @parsed_hash['install_mode'] == 'cloud'
+        cloud = create_cloud_obj(@parsed_hash)
+        @parsed_hash, @parsed_hash_with_internal_ips = cloud.modify_config_hash(@parsed_hash, YamlUtils.parse_yaml(CLOUD_INSTANCES))
+      end
+      puppet_server = YamlUtils.parse_yaml(NODES_FILE)['puppet_server']
+      puppet_clients = YamlUtils.parse_yaml(NODES_FILE)['puppet_clients']
+      puppet = Deploy::Puppet.new(
+          puppet_server,
+          puppet_clients,
+          @parsed_hash['root_ssh_key'],
+          @parsed_hash,
+          options[:thread_pool_size],
+          'root',
+          options[:debug],
+          options[:mock]
+      )
+      @parsed_hash['install_mode'] == 'cloud' ?
+          puppet.generate_hiera(@parsed_hash_with_internal_ips) :
+          puppet.generate_hiera(@parsed_hash)
+      @parsed_hash['install_mode'] == 'cloud' ?
+          puppet.generate_enc(@parsed_hash_with_internal_ips, NODES_FILE_CLOUD) :
+          puppet.generate_enc(@parsed_hash, NODES_FILE)
+      puts 'Initializing Refresh across cluster'
+      puppet.run_puppet_set(puppet_clients)
+      puts 'Completed Refreshing Cluster'.blue
     end
 
     # Prints the cluster information
