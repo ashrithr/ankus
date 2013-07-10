@@ -160,8 +160,8 @@ module Ankuscli
             preq(@nodes, remote_puppet_installer_loc)
           end
 
-          puts "\rInstalling puppet agent on : " + "#{@nodes}".blue
-          puts "\r[Debug]: Sending file #{PUPPET_INSTALLER} to #{@nodes}" if @debug
+          puts "\rInstalling puppet agent on : " + "#{@nodes.join(',')}".blue
+          puts "\r[Debug]: Sending file #{PUPPET_INSTALLER} to #{@nodes.join(',')}" if @debug
           @nodes.each do |node|
             SshUtils.upload!(PUPPET_INSTALLER, remote_puppet_installer_loc, node, @ssh_user, @ssh_key)
             output = SshUtils.execute_ssh!(
