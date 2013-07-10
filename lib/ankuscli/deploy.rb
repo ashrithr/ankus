@@ -73,6 +73,8 @@ module Ankuscli
               #TODO handle rollback
             end
           else
+            # if puppet master is not localhost check if the instance is sshable?
+            SshUtils.sshable? @puppet_master, @ssh_user, @ssh_key
             puts "\r[Debug]: Sending file #{PUPPET_INSTALLER} to #{@puppet_master}" if @debug
             SshUtils.upload!(PUPPET_INSTALLER, remote_puppet_installer_loc, @puppet_master, @ssh_user, @ssh_key)
             output = SshUtils.execute_ssh!(
