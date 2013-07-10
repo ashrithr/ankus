@@ -184,6 +184,9 @@ function install_postgres () {
 local all all trust
 host all all 127.0.0.1/32 trust
 host all all ::1/128 trust
+host hive_metastore hiveuser 0.0.0.0/0 trust
+host oozie oozie 0.0.0.0/0 trust
+host hue hue 0.0.0.0/0 trust
 PSQLDELIM
   echo "listen_addresses = '0.0.0.0'" >> ${PSQL_DATA_CONF}
   logit "[Debug]: Setting up postgresql for puppetdb and hsmp"
