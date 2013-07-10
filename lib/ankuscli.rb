@@ -13,16 +13,13 @@ begin
   require 'colored'
   require 'highline/import'
 rescue LoadError
-  puts 'Failed to load gems: fog, highline, thor, multi_json'
-  puts <<-EOF
-    Install the gems using:
-    `gem install fog`
-    `gem install thor`
-    `gem install colored`
-    `gem install multi_json`
-    `gem install highline`
-  EOF
-  exit 1
+  require 'rubygems'
+  require 'thor'
+  require 'thor/group'
+  require 'multi_json'
+  require 'fog'
+  require 'colored'
+  require 'highline/import'
 end
 
 module Ankuscli
