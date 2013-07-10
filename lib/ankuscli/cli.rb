@@ -1,7 +1,7 @@
 module Ankuscli
   # Command line interface for ankuscli
   class CLI < Thor
-    require_relative 'helper'
+    require 'ankuscli/helper'
 
     include Ankuscli
 
@@ -327,7 +327,7 @@ module Ankuscli
         #cloud deployment mode
         cloud_instances = YamlUtils.parse_yaml(CLOUD_INSTANCES)
 
-        controller = cloud_instances.select { |k, _| k.include? 'controller'}.values.first
+        controller = Hash[cloud_instances.select { |k, _| k.include? 'controller'}].values.first
         cluster_info << ' *'.cyan << " Controller: #{controller.first} \n"
         if parsed_hash['hadoop_ha'] == 'enabled'
           cluster_info << ' *'.cyan << " Namenode(s): \n"
@@ -341,12 +341,12 @@ module Ankuscli
             cluster_info << "\t #{k}: #{v.first} \n"
           end
         else
-          namenode = cloud_instances.select { |k, _| k.include? 'namenode'}.values.first
-          snn = cloud_instances.select { |k, _| k.include? 'jobtracker'}.values.first
+          namenode = Hash[cloud_instances.select { |k, _| k.include? 'namenode'}].values.first
+          snn = Hash[cloud_instances.select { |k, _| k.include? 'jobtracker'}].values.first
           cluster_info << ' *'.cyan << " Namenode: #{namenode.first}\n"
           cluster_info << ' *'.cyan << " Secondary Namenode: #{snn.first}\n"
         end
-        jt = cloud_instances.select { |k, _| k.include? 'jobtracker'}.values.first
+        jt = Hash[cloud_instances.select { |k, _| k.include? 'jobtracker'}].values.first
         cluster_info << ' *'.cyan << " MapReduce Master: #{jt.first} \n"
         if options[:extended]
           cluster_info << ' *'.cyan << " Slaves: \n"
@@ -381,7 +381,7 @@ module Ankuscli
         end
         if options[:extended]
           cluster_info << ' *'.cyan << " Slaves: \n"
-          parsed_hash['slaves_nodes'].each do |slave|
+          parsed_hash['slave_nodes'].each do |slave|
             cluster_info << "\t" << '- '.cyan << slave << "\n"
           end
         end
@@ -420,7 +420,7 @@ module Ankuscli
         #check tags and show available tags into machine
         cloud_instances = YamlUtils.parse_yaml(CLOUD_INSTANCES)
         if cloud_instances.keys.find { |e| /#{role}/ =~ e  }
-          host = cloud_instances.select { |k, _| k.include? role}.values.first.first
+          host = Hash[cloud_instances.select { |k, _| k.include? role}].values.first.first
           username = if parsed_hash['cloud_os_type'].downcase == 'centos'
                        'root'
                      elsif parsed_hash['cloud_os_type'].downcase == 'ubuntu'
@@ -434,6 +434,7 @@ module Ankuscli
           SshUtils.ssh_into_instance(host, username, private_key, 22)
         else
           puts "No such role found #{role}"
+          puts "Available roles: #{cloud_instances.keys.join(',')}"
         end
       else
         #local mode, build roles from conf
@@ -449,15 +450,15 @@ module Ankuscli
           nodes_roles.merge!({ :namenode => parsed_hash['hadoop_namenode'][0] })
         end
         if parsed_hash['hadoop_ha'] == 'enabled' or parsed_hash['hbase_install'] == 'enabled'
-          parsed_hash['zookeeper_quorum'].each_with_index { |zk, index| nodes_roles["zookeeper#{index+1}"] = zk }
+          parsed_hash['zookeeper_quorum'].each_with_index { |zk, index| nodes_roles["zookeeper#{index+1}".to_sym] = zk }
         end
         if parsed_hash['hbase_install'] == 'enabled'
-          parsed_hash['hbase_master'].each_with_index { |hbm, index| nodes_roles["hbasemaster#{index+1}"] = hbm }
+          parsed_hash['hbase_master'].each_with_index { |hbm, index| nodes_roles["hbasemaster#{index+1}".to_sym] = hbm }
         end
-        parsed_hash['slave_nodes'].each_with_index { |slave, index| nodes_roles["slaves#{index+1}"] = slave }
+        parsed_hash['slave_nodes'].each_with_index { |slave, index| nodes_roles["slaves#{index+1}".to_sym] = slave }
 
         if nodes_roles.keys.find { |e| /#{role}/ =~ e }
-          SshUtils.ssh_into_instance(nodes_roles[role], 'root', parsed_hash['root_ssh_key'], 22)
+          SshUtils.ssh_into_instance(nodes_roles[role.to_sym], 'root', parsed_hash['root_ssh_key'], 22)
         else
           puts "No such role found #{role}"
           puts "Available roles: #{nodes_roles.keys.join(',')}"
