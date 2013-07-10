@@ -457,7 +457,7 @@ module Ankuscli
         end
         parsed_hash['slave_nodes'].each_with_index { |slave, index| nodes_roles["slaves#{index+1}".to_sym] = slave }
 
-        if nodes_roles.keys.find { |e| /#{role}/ =~ e }
+        if nodes_roles.keys.find { |e| /#{role}/ =~ e.to_s } and nodes_roles[role.to_sym] != nil
           SshUtils.ssh_into_instance(nodes_roles[role.to_sym], 'root', parsed_hash['root_ssh_key'], 22)
         else
           puts "No such role found #{role}"
