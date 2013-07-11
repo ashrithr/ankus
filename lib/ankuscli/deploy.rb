@@ -43,9 +43,11 @@ module Ankuscli
           end
           all_nodes << @puppet_master
           #check if instances are sshable
-          puts 'Checking if instances are ssh\'able ...'
+          puts "\rChecking if instances are ssh'able ..."
           SshUtils.sshable? @nodes, @ssh_user, @ssh_key
-          puts 'Checking if instances are ssh\'able ... ' + '[OK]'.green.bold
+          # if puppet master is not localhost check if the instance is sshable?
+          SshUtils.sshable? @puppet_master, @ssh_user, @ssh_key if @parsed_hash['install_mode'] == 'local'
+          puts "\rChecking if instances are ssh'able ... " + '[OK]'.green.bold
           #get the puppet server hostname this is required for cloud, for aws to get internal_dns_name of host for accurate communication
           if @parsed_hash['install_mode'] == 'cloud'
             result = SshUtils.execute_ssh!('hostname --fqdn', @puppet_master, @ssh_user, @ssh_key)
@@ -68,13 +70,11 @@ module Ankuscli
                 "#{REMOTE_LOG_DIR}/install.log"
             )
             unless status.success?
-              puts '[Error]:'.red + ' Failed to install puppet master'
+              puts "\r[Error]:".red + ' Failed to install puppet master'
               exit 2
               #TODO handle rollback
             end
           else
-            # if puppet master is not localhost check if the instance is sshable?
-            SshUtils.sshable? @puppet_master, @ssh_user, @ssh_key
             puts "\r[Debug]: Sending file #{PUPPET_INSTALLER} to #{@puppet_master}" if @debug
             SshUtils.upload!(PUPPET_INSTALLER, remote_puppet_installer_loc, @puppet_master, @ssh_user, @ssh_key)
             output = SshUtils.execute_ssh!(
@@ -86,7 +86,7 @@ module Ankuscli
                 @debug
             )
             unless output[@puppet_master][2].to_i == 0
-              puts '[Error]:'.red + ' Failed to install puppet master'
+              puts "\r[Error]:".red + ' Failed to install puppet master'
               exit 2
             end
             #print output
@@ -146,9 +146,9 @@ module Ankuscli
         if ! @mock
           validate_instances @nodes
 
-          puts 'Checking if instances are ssh\'able ...'
+          puts "\rChecking if instances are ssh'able ..."
           SshUtils.sshable? @nodes, @ssh_user, @ssh_key
-          puts 'Checking if instances are ssh\'able ... ' + '[OK]'.green.bold
+          puts "\rChecking if instances are ssh'able ... " + '[OK]'.green.bold
 
           if @parsed_hash['install_mode'] == 'cloud'
             result = SshUtils.execute_ssh!('hostname --fqdn', @puppet_master, @ssh_user, @ssh_key)
@@ -175,7 +175,7 @@ module Ankuscli
                 @debug
             )
             unless output[node][2].to_i == 0
-              puts '[Error]:'.red + ' Failed to install puppet agent'
+              puts "\r[Error]:".red + ' Failed to install puppet agent'
               exit 2
             end
             #print output
@@ -359,7 +359,7 @@ module Ankuscli
           if controller == 'localhost'
             status = ShellUtils.run_cmd!(puppet_run_cmd)
             unless status.success?
-              puts '[Error]:'.red + ' Failed to finalize puppet run'
+              puts "\r[Error]:".red + ' Failed to finalize puppet run'
               #TODO handle rollback
             end
           else
@@ -387,14 +387,14 @@ module Ankuscli
           if @parsed_hash['controller'] == 'localhost'
             status = ShellUtils.run_cmd!(puppet_run_cmd)
             unless status.success?
-              puts '[Error]:'.red + ' Failed to finalize puppet run'
+              puts "\r[Error]:".red + ' Failed to finalize puppet run'
               #TODO handle rollback
             end
           else
             puppet_single_run(@puppet_master, puppet_run_cmd)
           end
         end
-        puts "Completed puppet run on #{nodes.join(',').blue} and refreshed puppet master #{@puppet_master.blue}"
+        puts "\rCompleted puppet run on #{nodes.join(',').blue} and refreshed puppet master #{@puppet_master.blue}"
       end
 
       private
@@ -418,7 +418,7 @@ module Ankuscli
           puts "\r#{output[instance][1]}"
         end
         unless exit_status == 0
-          puts '[Error]: '.red + "Puppet run failed on #{instance}, aborting!"
+          puts "\r[Error]: ".red + "Puppet run failed on #{instance}, aborting!"
           #exit 1
           #TODO Rollback lock
         end
