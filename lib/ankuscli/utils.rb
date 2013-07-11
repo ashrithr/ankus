@@ -183,16 +183,24 @@ module Ankuscli
 
       # Check if password less ssh has been setup by executing simple echo on ssh'ed side
       # @param [Array] nodes_arr => array of nodes to check
+      #        [String] nodes_arr => node to check
       # @param [String] ssh_user => user to perform ssh as
       # @param [String] ssh_key  => ssh key to use
       # @param [Integer] port    => ssh port (default: 22)
       # @return nil
       # @raises if instance cannot be ssh'ed into
       def sshable?(nodes_arr, ssh_user, ssh_key, port=22)
-        nodes_arr.each do |instance|
-          `ssh -t -t -o ConnectTimeout=2 -o StrictHostKeyChecking=no -o BatchMode=yes -o UserKnownHostsFile=/dev/null -p #{port} -i #{ssh_key} #{ssh_user}@#{instance} "echo" &>/dev/null`
+        if nodes_arr.is_a? String
+          `ssh -t -t -o ConnectTimeout=2 -o StrictHostKeyChecking=no -o BatchMode=yes -o UserKnownHostsFile=/dev/null -p #{port} -i #{ssh_key} #{ssh_user}@#{nodes_arr} "echo" &>/dev/null`
           unless $?.success?
             raise "Cannot ssh in to instance: #{instance}"
+          end
+        else
+          nodes_arr.each do |instance|
+            `ssh -t -t -o ConnectTimeout=2 -o StrictHostKeyChecking=no -o BatchMode=yes -o UserKnownHostsFile=/dev/null -p #{port} -i #{ssh_key} #{ssh_user}@#{instance} "echo" &>/dev/null`
+            unless $?.success?
+              raise "Cannot ssh in to instance: #{instance}"
+            end
           end
         end
       end
@@ -300,15 +308,15 @@ module Ankuscli
                 abort 'FAILED: could not execute command (ssh.channel.exec)'
               end
 
-              channel.on_data do |ch, data|
+              channel.on_data do |_, data|
                 stdout_data += data
               end
 
-              channel.on_extended_data do |ch,type,data|
+              channel.on_extended_data do |_,type,data|
                 stderr_data += data
               end
 
-              channel.on_request("exit-status") do |ch,data|
+              channel.on_request('exit-status') do |_,data|
                 exit_code = data.read_long
               end
             end

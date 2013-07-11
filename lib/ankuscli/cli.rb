@@ -429,6 +429,7 @@ module Ankuscli
           private_key = if parsed_hash['cloud_platform'] == 'aws'
                           "~/.ssh/#{parsed_hash['cloud_credentials']['aws_key']}"
                         else
+                          # rackspace instances need private file to login
                           parsed_hash['cloud_credentials']['rackspace_ssh_key'][0..-5]
                         end
           SshUtils.ssh_into_instance(host, username, private_key, 22)
