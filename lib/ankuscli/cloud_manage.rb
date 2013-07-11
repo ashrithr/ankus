@@ -209,13 +209,13 @@ module Ankuscli
       results = {}
 
       if aws.valid_connection?(conn)
-        puts 'successfully authenticated with aws'.green if @debug
+        puts "\rsuccessfully authenticated with aws".green if @debug
       else
-        puts '[Error]'.red + ' failed connecting to aws'
+        puts "\r[Error]".red + ' failed connecting to aws'
         exit 1
       end
 
-      puts 'Creating servers with roles: ' + "#{nodes_to_create.keys.join(',')}".blue
+      puts "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')}".blue
       #hash to store server object to tag mapping { tag => server_obj }, used for attaching volumes
       server_objects = {}
       nodes_to_create.each do |tag, info|
@@ -239,7 +239,7 @@ module Ankuscli
         results[tag] = [ server_objects[tag].dns_name, server_objects[tag].private_dns_name ]
       end
       if ! @mock
-        puts 'Partitioning/Formatting attached volumes'.blue
+        puts "\rPartitioning/Formatting attached volumes".blue
         #parition and format attached disks using thread pool
         nodes_to_create.each do |tag, info|
           threads_pool.schedule do
@@ -276,15 +276,18 @@ module Ankuscli
                 puts "\r#{output[server_objects[tag].dns_name][1]}"
                 puts "\rExit code from #{server_objects[tag].dns_name}: #{output[server_objects[tag].dns_name][2]}"
               end
+            else
+              # if not waiting for mounting volumes, wait for instances to become sshable
+              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].dns_name, 'root', File.expand_path('~/.ssh') + "/#{key}")
             end
           end
         end
         threads_pool.shutdown
 
-        puts '[Debug]: Finished creating and attaching volumes' if @debug
+        puts "\r[Debug]: Finished creating and attaching volumes" if @debug
       else
         # pretend doing some work while mocking
-        puts 'Partitioning/Formatting attached volumes'.blue
+        puts "\rPartitioning/Formatting attached volumes".blue
         nodes_to_create.each do |_, info|
           threads_pool.schedule do
             sleep 5 if info[:volumes] > 0
@@ -309,13 +312,13 @@ module Ankuscli
       public_ssh_key_path = credentials['rackspace_ssh_key'] || '~/.ssh/id_rsa.pub'
       ssh_key_path = File.split(public_ssh_key_path).first + '/' + File.basename(public_ssh_key_path, '.pub')
 
-      puts "[Debug]: Using ssh_key #{ssh_key_path}" if @debug
+      puts "\r[Debug]: Using ssh_key #{ssh_key_path}" if @debug
 
       rackspace = create_rackspace_connection
       conn = rackspace.create_connection
       results = {}
 
-      puts 'Creating servers with tags: ' + "#{nodes_to_create.keys.join(',')}".blue
+      puts "\rCreating servers with tags: " + "#{nodes_to_create.keys.join(',')}".blue
       #hash to store server object to tag mapping { tag => server_obj }, used for attaching volumes
       server_objects = {}
       nodes_to_create.each do |tag, info|
@@ -331,7 +334,7 @@ module Ankuscli
       end
       #Attach Volumes
       if ! @mock
-        puts 'Partitioning/Formatting attached volumes'.blue
+        puts "\rPartitioning/Formatting attached volumes".blue
         #parition and format attached disks using thread pool
         nodes_to_create.each do |tag, info|
           threads_pool.schedule do
@@ -364,21 +367,24 @@ module Ankuscli
                   @debug)
               tempfile.unlink #delete the tempfile
               if @debug
-                puts "Stdout on #{server_objects[tag].public_ip_address}"
-                puts output[server_objects[tag].public_ip_address][0]
-                puts "Stdout on #{server_objects[tag].public_ip_address}"
-                puts output[server_objects[tag].public_ip_address][1]
-                puts "Exit code from #{server_objects[tag].public_ip_address}: #{output[server_objects[tag].public_ip_address][2]}"
+                puts "\rStdout on #{server_objects[tag].public_ip_address}"
+                puts "\r#{output[server_objects[tag].public_ip_address][0]}"
+                puts "\rStdout on #{server_objects[tag].public_ip_address}"
+                puts "\r#{output[server_objects[tag].public_ip_address][1]}"
+                puts "\rExit code from #{server_objects[tag].public_ip_address}: #{output[server_objects[tag].public_ip_address][2]}"
               end
+            else
+              #if not mounting volumes wait for instances to become available
+              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, 'root', File.expand_path(ssh_key_path))
             end
           end
         end
         threads_pool.shutdown
-        puts '[Debug]: Finished creating and attaching volumes' if @debug
+        puts "\r[Debug]: Finished creating and attaching volumes" if @debug
       else
         #MOCKING
         # pretend doing some work while mocking
-        puts 'Partitioning/Formatting attached volumes'.blue
+        puts "\rPartitioning/Formatting attached volumes".blue
         nodes_to_create.each do |_, info|
           threads_pool.schedule do
             sleep 5 if info[:volumes] > 0

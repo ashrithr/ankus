@@ -87,14 +87,14 @@ module Ankuscli
       }.merge(opts)
 
       unless valid_connection?(conn)
-        puts '[Error]: Unable to authenticate with AWS, check your credentials'
+        puts "\r[Error]: Unable to authenticate with AWS, check your credentials"
         exit 2
       end
 
       unless @mock
         #validate key, create if does not exist and write it to local system
         unless conn.key_pairs.get(options[:key])
-          puts "[Debug]: Cannot find the key pair specified, creating the key_pair #{options[:key]}"
+          puts "\r[Debug]: Cannot find the key pair specified, creating the key_pair #{options[:key]}"
           key_pair = conn.key_pairs.create(:name => options[:key])
           File.open(File.expand_path("~/.ssh/#{options[:key]}"), 'w') do |f|
             f.write(key_pair.private_key)
@@ -161,7 +161,7 @@ module Ankuscli
           )
           return server
         else
-          puts '[Error]: Provided OS not supported with ankuscli'
+          puts "\r[Error]: Provided OS not supported with ankuscli"
           exit 2
       end
     end
@@ -195,7 +195,7 @@ module Ankuscli
       base = 'sde' #sdf-p
       volumes.times do |i|
         base = base.next!
-        puts "Attaching volume: #{base} (size: #{size}) to serer: #{server.dns_name}"
+        puts "\rAttaching volume: #{base} (size: #{size}) to serer: #{server.dns_name}"
         volume = conn.volumes.create(:size => size, :availability_zone => server.availability_zone, :device => "/dev/#{base}")
         volume.reload
         volume.wait_for { ready? }
@@ -223,12 +223,12 @@ module Ankuscli
     # @return nil
     def wait_for_servers(servers)
       if servers.is_a?(Array)
-        puts 'Waiting until all the servers gets created ...'
+        puts "\rWaiting until all the servers gets created ..."
         servers.each do |server|
           server.wait_for { ready? }
         end
       else
-        puts "Waiting for server to get created #{servers.id}"
+        puts "\rWaiting for server to get created #{servers.id}"
         servers.wait_for { ready? }
         puts
       end
@@ -243,7 +243,7 @@ module Ankuscli
       Timeout::timeout(600) do #Timeout after 10 mins
         sleep 10; return if @mock # if mock is enabled sleep for some time and return back
         if servers.is_a?(Array)
-          puts 'Waiting for cloud instances to complete their boot (which includes mounting the volumes) ...'
+          puts "\rWaiting for cloud instances to complete their boot (which includes mounting the volumes) ..."
           servers.each do |server|
             if os_type.downcase == 'centos'
               server.wait_for { console_output.body['output'] =~ /CentOS release 6\.3 \(Final\)/ }
@@ -254,7 +254,7 @@ module Ankuscli
             end
           end
         else
-          puts 'Waiting for server to complete boot'
+          puts "\rWaiting for server to complete boot"
           if os_type.downcase == 'centos'
             server.wait_for { console_output.body['output'] =~ /CentOS release 6\.3 \(Final\)/ }
           elsif os_type.downcase == 'ubuntu'
@@ -272,17 +272,17 @@ module Ankuscli
       response = conn.servers.get(instance_id)
       abort "InstanceId Not found :#{instance_id}" unless response
       if response.state == 'terminated'
-        puts 'Instance is already in terminated state'
+        puts "\rInstance is already in terminated state"
       else
         response.destroy
-        puts "Terminated Instance: #{instance_id}"
+        puts "\rTerminated Instance: #{instance_id}"
       end
     end
 
     def delete_server_with_dns_name(conn, dns_name)
       server = conn.servers.all('dns-name' => dns_name).first
       if server
-        puts "Terminating instance with dns_name: #{dns_name}"
+        puts "\rTerminating instance with dns_name: #{dns_name}"
         server.destroy
       else
         abort "No server found with dns_name: #{dns_name}"
@@ -392,7 +392,7 @@ module Ankuscli
                            :version            => :v2
                        })
     rescue Excon::Errors::Unauthorized
-      puts '[Error]: '.red + 'Invalid Rackspace Credentials'
+      puts "\r[Error]: '.red + 'Invalid Rackspace Credentials"
       exit 1
     end
 
@@ -444,7 +444,7 @@ module Ankuscli
           server.reload if @mock
           return server
         else
-          puts '[Error]: OS not supported'
+          puts "\r[Error]: OS not supported"
           exit 2
       end
     end
@@ -480,7 +480,7 @@ module Ankuscli
     # @return nil
     def wait_for_servers(servers)
       if servers.is_a?(Array)
-        puts 'Waiting until all the servers gets created ...'
+        puts "\rWaiting until all the servers gets created ..."
         servers.each do |server|
           # check every 5 seconds to see if the server is in the active state for 1200 seconds if not exception
           # will be raised Fog::Errors::TimeoutError
@@ -489,7 +489,7 @@ module Ankuscli
           end
         end
       else
-        puts 'Waiting for server to get created'
+        puts "\rWaiting for server to get created"
         server.wait_for(1200, 5) do
           print '.'
           STDOUT.flush
@@ -534,7 +534,7 @@ module Ankuscli
     def delete_server_with_name(conn, fqdn)
       conn.servers.all.each do |server|
         if server.name == fqdn
-          puts "Deleting instance with fqdn: #{fqdn}"
+          puts "\rDeleting instance with fqdn: #{fqdn}"
           server.destroy
         end
       end
