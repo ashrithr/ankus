@@ -18,6 +18,11 @@ Command line interface for ankus big-data deployment tool. Handles the installat
  - ganglia for monitoring
  - nagios for alerting
  - logstash for log aggregation
+<<<<<<< Updated upstream
+=======
+ 
+![Alt Text](images/ankus_arch.png)
+>>>>>>> Stashed changes
 
 ## Installation
 
