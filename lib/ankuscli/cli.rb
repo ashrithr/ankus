@@ -335,16 +335,28 @@ module Ankuscli
           nns.each do |k, v|
             cluster_info << "\r" << "\t #{k}: #{v.first} \n"
           end
-          cluster_info << "\r" << ' *'.cyan << " Journal Quorum & ZooKeeper Quoram: \n"
-          zks = cloud_instances.select { |k, _| k.include? 'zookeeper' }
-          zks.each do |k, v|
-            cluster_info << "\r" << "\t #{k}: #{v.first} \n"
-          end
         else
           namenode = Hash[cloud_instances.select { |k, _| k.include? 'namenode'}].values.first
           snn = Hash[cloud_instances.select { |k, _| k.include? 'jobtracker'}].values.first
           cluster_info << "\r" << ' *'.cyan << " Namenode: #{namenode.first}\n"
           cluster_info << "\r" << ' *'.cyan << " Secondary Namenode: #{snn.first}\n"
+        end
+        if parsed_hash['hbase_install'] == 'enabled'
+          hms = cloud_instances.select { |k, _| k.include? 'hbasemaster'}
+          hms.each do |k, v|
+            cluster_info << "\r" << ' *'.cyan << " #{k}: #{v.first} \n"
+          end
+        end
+        if parsed_hash['hadoop_ha'] == 'enabled' or parsed_hash['hbase_install'] == 'enabled'
+          if parsed_hash['hadoop_ha'] == 'enabled'
+            cluster_info << "\r" << ' *'.cyan << " Journal Quorum & ZooKeeper Quoram: \n"
+          else
+            cluster_info << "\r" << ' *'.cyan << " ZooKeeper Quoram: \n"
+          end
+          zks = cloud_instances.select { |k, _| k.include? 'zookeeper' }
+          zks.each do |k, v|
+            cluster_info << "\r" << "\t #{k}: #{v.first} \n"
+          end
         end
         jt = Hash[cloud_instances.select { |k, _| k.include? 'jobtracker'}].values.first
         cluster_info << "\r" << ' *'.cyan << " MapReduce Master: #{jt.first} \n"
