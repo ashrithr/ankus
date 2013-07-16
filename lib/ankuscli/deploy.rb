@@ -89,13 +89,6 @@ module Ankuscli
               puts "\r[Error]:".red + ' Failed to install puppet master'
               exit 2
             end
-            #print output
-            if @debug
-              puts "\rstdout on #{@puppet_master}"
-              puts "\r#{output[@puppet_master][0]}"
-              puts "\rstderr on #{@puppet_master}"
-              puts "\r#{output[@puppet_master][1]}"
-            end
           end
           #initiate concurrent threads pool - to install puppet clients all agent nodes
           ssh_connections = ThreadPool.new(@parallel_connections)
@@ -105,12 +98,12 @@ module Ankuscli
             @nodes.each do |instance|
               ssh_connections.schedule do
                 #run puppet installer
-                output << SshUtils.execute_ssh_cmds(
-                    [remote_puppet_client_cmd],
+                output << SshUtils.execute_ssh!(
+                    remote_puppet_client_cmd,
                     instance,
                     @ssh_user,
-                    @ssh_key,
-                    22, false)
+                    @ssh_key
+                    )
                 #puts "Thread #{Thread.current[:id]} finished"
               end
             end
@@ -120,12 +113,13 @@ module Ankuscli
           puts "\r[Debug]: Time to install puppet clients: #{time}" if @debug
           #print output of puppet client installers on console
           if @debug
-            output.each do |o|
-              stdout = o[remote_puppet_client_cmd][0]
-              stderr = o[remote_puppet_client_cmd][1]
-              exit_status = o[remote_puppet_client_cmd][2]
-              puts "\r#{stdout}"
-              puts "\r#{stderr}"
+            @nodes.each do |instance|
+              puts "\rSTDOUT on #{instance}:".blue
+              puts "\r#{o[instance][0]}"
+              unless o[instance][1].empry?
+                puts "\rSTDERR on #{instance}:".yellow
+                puts "\r#{o[instance][1]}"
+              end
             end
           end
           #clean up puppet installer script on all nodes

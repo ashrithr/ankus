@@ -310,10 +310,12 @@ module Ankuscli
 
               channel.on_data do |_, data|
                 stdout_data += data
+                data.lines.map(&:chomp).each { |d| puts "\r[#{ssh.host}]:".blue + "#{d}" }if debug
               end
 
               channel.on_extended_data do |_,type,data|
                 stderr_data += data
+                data.lines.map(&:chomp).each { |d| puts "\r[#{ssh.host}]:".yellow + "#{d}" }if debug
               end
 
               channel.on_request('exit-status') do |_,data|
