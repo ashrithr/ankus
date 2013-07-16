@@ -11,9 +11,9 @@ CLR_END="\033[0m"
 PUPPET_SERVER=`hostname --fqdn`
 DOMAIN_NAME=`echo ${PUPPET_SERVER} | cut -d "." -f 2-`
 IP=`ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | grep 'Bcast' | awk '{print $1}'`
-GIT_REPO="https://github.com/ashrithr/ankus-cli-puppet.git"
+GIT_REPO="https://github.com/ashrithr/ankus-cli-modules.git"
 PUPPET_MODULES_PATH="/etc/puppet/modules"
-PUPPET_MODULES_DOWNLOAD="https://github.com/ashrithr/ankus-cli-puppet/archive/v0.4.tar.gz"
+PUPPET_MODULES_DOWNLOAD="https://github.com/ashrithr/ankus-cli-modules/archive/v0.5.tar.gz"
 
 # => OS specific
 OS=''
@@ -223,9 +223,9 @@ function download_modules () {
     logit "extracting modules"
     tar xzf modules.tar.gz
     if [ $? -eq 0 ]; then
-      mv ankus-cli-puppet*/* ${PUPPET_MODULES_PATH}
+      mv ankus-cli-modules*/* ${PUPPET_MODULES_PATH}
       rm -f modules.tar.gz
-      rm ankus-cli-puppet*
+      rm ankus-cli-modules*
     fi
   else
     printerr "Failed to download puppet modules from git, aborting"
