@@ -337,7 +337,7 @@ module Ankuscli
               hbase_master = @parsed_hash['hbase_master']
               if hbase_master.length == 1
                 puts "\rInitializing hbase master"
-                puppet_single_run(hbase_master, puppet_run_cmd)
+                puppet_single_run(hbase_master.join, puppet_run_cmd)
               else
                 puts "\rInitializing hbase masters"
                 puppet_parallel_run(hbase_master, puppet_run_cmd)
