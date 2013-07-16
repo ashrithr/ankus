@@ -353,6 +353,12 @@ module Ankuscli
             puts '[Error]: '.red + 'hbase master count is required'
             exit 1
           end
+          zookeeper_quorum_count = hash_to_validate['zookeeper_quorum_count']
+          if zookeeper_quorum_count.nil? or zookeeper_quorum_count == 0
+            puts '[Error]: '.red + 'zookeeper quorum count is required'
+            exit 1
+          end
+
         end
       end
 

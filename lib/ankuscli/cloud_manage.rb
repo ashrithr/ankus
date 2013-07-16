@@ -68,6 +68,16 @@ module Ankuscli
             nodes_to_create["slaves#{i+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
           end
         end
+        if @parsed_hash['hbase_install'] == 'enabled'
+          @parsed_hash['hbase_master_count'].times do |hm|
+            nodes_to_create["hbasemaster#{hm+1}"] =  { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+          end
+          unless nodes_to_create.keys.find { |e| /zookeeper/ =~ e }
+            num_of_zks.times do |i|
+              nodes_to_create["zookeeper#{i+1}"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+            end
+          end
+        end
         nodes_created = create_on_aws(nodes_to_create, @credentials, @thread_pool_size)
 
       elsif @provider == 'rackspace'
@@ -87,6 +97,16 @@ module Ankuscli
           nodes_to_create['jobtracker.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } #JT and SNN
           num_of_slaves.times do |i|
             nodes_to_create["slaves#{i+1}.ankus.com"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
+          end
+        end
+        if @parsed_hash['hbase_install'] == 'enabled'
+          @parsed_hash['hbase_master_count'].times do |hm|
+            nodes_to_create["hbasemaster#{hm+1}.ankus.com"] =  { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+          end
+          unless nodes_to_create.keys.find { |e| /zookeeper/ =~ e }
+            num_of_zks.times do |i|
+              nodes_to_create["zookeeper#{i+1}.ankus.com"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+            end
           end
         end
         nodes_created = create_on_rackspace(nodes_to_create, @credentials, @thread_pool_size)
