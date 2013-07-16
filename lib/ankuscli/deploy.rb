@@ -203,6 +203,7 @@ module Ankuscli
         #aggregate hadoop, hbase, all other related configurations in here into a common hash before writing out
         hiera_hash.merge!(parsed_hash)
         hiera_hash.merge!(YamlUtils.parse_yaml(HADOOP_CONF))
+        hiera_hash.merge!(YamlUtils.parse_yaml(HBASE_CONF))
         #TODO add more configs
         #parse zookeeper ensemble
         if parsed_hash['zookeeper_quorum']

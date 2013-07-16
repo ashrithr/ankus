@@ -15,6 +15,7 @@ module Ankuscli
   ENC_SCRIPT =  File.expand_path(File.dirname(__FILE__) + '/../../bin/ankus_puppet_enc')
   GETOSINFO_SCRIPT = File.expand_path(File.dirname(__FILE__) + '../../shell/get_osinfo.sh')
   HADOOP_CONF = File.expand_path(File.dirname(__FILE__) + '/../../conf/ankus_hadoop_conf.yaml')
+  HBASE_CONF = File.expand_path(File.dirname(__FILE__) + '/../../conf/ankus_hbase_conf.yaml')
   ENC_PATH = %q(/etc/puppet/enc)
   HIERA_DATA_PATH = %q(/etc/puppet/hieradata)
   REMOTE_LOG_DIR = %q(/var/log/ankus)
