@@ -235,9 +235,12 @@ module Ankuscli
         exit 1
       end
 
-      puts "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')}".blue
-      #hash to store server object to tag mapping { tag => server_obj }, used for attaching volumes
-      server_objects = {}
+      SpinningCursor.start do
+        banner "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')}".blue
+        type :dots
+        message "\rDone Created servers with roles: " + "#{nodes_to_create.keys.join(',')}".blue
+      end
+      server_objects = {} #hash to store server object to tag mapping { tag => server_obj }, used for attaching volumes
       nodes_to_create.each do |tag, info|
         server_objects[tag] = aws.create_server!(conn,
                                                  tag,
@@ -249,10 +252,25 @@ module Ankuscli
                                                  :vol_size => info[:volume_size]
         )
       end
+      SpinningCursor.stop
       #wait for servers to get created (:state => running)
-      aws.wait_for_servers(server_objects.values)
+      SpinningCursor.start do
+        banner "\rWaiting for servers to get created "
+        type :dots
+        action do
+          aws.wait_for_servers(server_objects.values)
+        end
+        message "\rWaiting for servers to get created " + '[DONE]'.cyan
+      end
       #wait for the boot to complete
-      aws.complete_wait(server_objects.values, @cloud_os) #TODO: this method is taking forever, find another way to make sure volumes are properly mounted
+      SpinningCursor.start do
+        banner "\rWaiting for cloud instances to complete their boot (which includes mounting the volumes) "
+        type :dots
+        action do
+          aws.complete_wait(server_objects.values, @cloud_os) #TODO: this method is taking forever, find another way to make sure volumes are properly mounted
+        end
+        message "\rWaiting for cloud instances to complete their boot " + '[DONE]'.cyan
+      end
       #build the return string
       nodes_to_create.each do |tag, _|
         # fill in return hash
@@ -338,15 +356,27 @@ module Ankuscli
       conn = rackspace.create_connection
       results = {}
 
-      puts "\rCreating servers with tags: " + "#{nodes_to_create.keys.join(',')}".blue
-      #hash to store server object to tag mapping { tag => server_obj }, used for attaching volumes
-      server_objects = {}
+      SpinningCursor.start do
+        banner "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')} ".blue
+        type :dots
+        message "\rDone Created servers with roles: " + "#{nodes_to_create.keys.join(',')}".blue
+      end
+      server_objects = {} #hash to store server object to tag mapping { tag => server_obj }, used for attaching volumes
       nodes_to_create.each do |tag, info|
         server_objects[tag] = rackspace.create_server!(conn, tag, public_ssh_key_path, machine_type, info[:os_type])
       end
+      SpinningCursor.stop
 
       #wait for servers to get created (:state => ACTIVE)
-      rackspace.wait_for_servers(server_objects.values)
+      SpinningCursor.start do
+        banner "\rWaiting for servers to get created "
+        type :dots
+        action do
+          rackspace.wait_for_servers(server_objects.values)
+        end
+        message "\rWaiting for servers to get created " + '[DONE]'.cyan
+      end
+
       #build the return string
       nodes_to_create.each do |tag, info|
         # fill in return hash

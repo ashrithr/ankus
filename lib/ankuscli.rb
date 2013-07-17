@@ -12,6 +12,7 @@ begin
   require 'fog'
   require 'colored'
   require 'highline/import'
+  require 'spinning_cursor'
 rescue LoadError
   require 'rubygems'
   require 'thor'
@@ -20,6 +21,7 @@ rescue LoadError
   require 'fog'
   require 'colored'
   require 'highline/import'
+  require 'spinning_cursor'
 end
 
 module Ankuscli
