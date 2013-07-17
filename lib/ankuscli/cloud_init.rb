@@ -223,12 +223,10 @@ module Ankuscli
     # @return nil
     def wait_for_servers(servers)
       if servers.is_a?(Array)
-        puts "\rWaiting until all the servers gets created ..."
         servers.each do |server|
           server.wait_for { ready? }
         end
       else
-        puts "\rWaiting for server to get created #{servers.id}"
         servers.wait_for { ready? }
         puts
       end
@@ -241,9 +239,8 @@ module Ankuscli
     # @
     def complete_wait(servers, os_type)
       Timeout::timeout(600) do #Timeout after 10 mins
-        sleep 10; return if @mock # if mock is enabled sleep for some time and return back
+        sleep 5; return if @mock # if mock is enabled sleep for some time and return back
         if servers.is_a?(Array)
-          puts "\rWaiting for cloud instances to complete their boot (which includes mounting the volumes) ..."
           servers.each do |server|
             if os_type.downcase == 'centos'
               server.wait_for { console_output.body['output'] =~ /CentOS release 6\.3 \(Final\)/ }
@@ -254,7 +251,6 @@ module Ankuscli
             end
           end
         else
-          puts "\rWaiting for server to complete boot"
           if os_type.downcase == 'centos'
             server.wait_for { console_output.body['output'] =~ /CentOS release 6\.3 \(Final\)/ }
           elsif os_type.downcase == 'ubuntu'

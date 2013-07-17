@@ -90,12 +90,11 @@ module Ankuscli
 
     private
 
-    # Parses the configuraion file
     def parse_config
       @parsed_hash = ConfigParser.new(options[:config], options[:debug]).parse_config
     end
 
-    # Creates a cloud class object which is the interface to ankuscli cloud interactions
+    # Creates a object to interface with ankuscli cloud interactions
     def create_cloud_obj(parsed_hash)
       Cloud.new(
           parsed_hash['cloud_platform'],
@@ -107,15 +106,12 @@ module Ankuscli
       )
     end
 
-    # Initializes the deployment process either on local or cloud
     def initiate_deployment(options)
-      #get the size of the terminal
-      size = `stty size 2>/dev/null`
+      size = `stty size 2>/dev/null` #get the size of the terminal
       cols =  if $? == 0
                 size.split.map { |x| x.to_i }.reverse.first
               else
-                # if failed to get the size, set the terminal size to default of 80 columns
-                80
+                80 # if failed to get the size, set the terminal size to default of 80 columns
               end
       if options[:mock]
         puts '*' * cols
@@ -123,8 +119,8 @@ module Ankuscli
         puts '*' * cols
       end
       puts 'Starting deployment'
-      # parse the configuration file if not parsed prior to this point
       if @parsed_hash.nil? or @parsed_hash.empty?
+        # parse the configuration file if not parsed prior to this point
         puts 'Parsing config file ...'
         parse_config
         puts 'Parsing config file ... ' + '[OK]'.green.bold
@@ -400,7 +396,7 @@ module Ankuscli
       end
       cluster_info << "\n"
       cluster_info << "\r" << "Login Information:\n"
-      cluster_info << "\r" << ' *'.cyan << " ssh into nodes using: ankuscli ssh <role> \n" << "\t Ex: ankuscli ssh controller\n"
+      cluster_info << "\r" << ' *'.cyan << " ssh into nodes using: ankuscli ssh <role> \n" << "\r\t Ex: ankuscli ssh controller\n"
       if parsed_hash['install_mode'] == 'cloud'
         if parsed_hash['cloud_platform'] == 'aws'
           cluster_info << "\r" << " (or) using `ssh -i ~/.ssh/#{parsed_hash['cloud_credentials']['aws_key']} username@host`\n"

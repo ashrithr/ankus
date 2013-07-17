@@ -31,7 +31,7 @@ module Ankuscli
       # Installs puppet server on @puppet_master and puppet agent daemons on @nodes
       def install_puppet
         #helper variables
-        remote_puppet_installer_loc = "/tmp"
+        remote_puppet_installer_loc = '/tmp'
         remote_puppet_server_cmd = "chmod +x #{remote_puppet_installer_loc}/#{@puppet_installer} && #{remote_puppet_installer_loc}/#{@puppet_installer} -s | tee #{REMOTE_LOG_DIR}/install.log"
         remote_puppet_client_cmd = "chmod +x #{remote_puppet_installer_loc}/#{@puppet_installer} && #{remote_puppet_installer_loc}/#{@puppet_installer} -c -H #{@puppet_master} | tee #{REMOTE_LOG_DIR}/install.log"
         if ! @mock
@@ -60,8 +60,16 @@ module Ankuscli
           else
             preq(all_nodes, remote_puppet_installer_loc)
           end
-          puts "\rInstalling puppet master on " + "#{@puppet_master}".blue
-          puts "\r[Debug]: Found puppet installer script at #{PUPPET_INSTALLER}" if @debug
+          if @debug
+            puts "\rInstalling puppet master on " + "#{@puppet_master}".blue
+          else
+            SpinningCursor.start do
+              banner "\rInstalling puppet master ".blue
+              type :dots
+              message "\rInstalling puppet master ".blue + '[DONE]'.cyan
+            end
+          end
+            puts "\r[Debug]: Found puppet installer script at #{PUPPET_INSTALLER}" if @debug
           #if controller is on same machine, install puppet master locally else send the script to controller and install
           #puppet
           if @parsed_hash['controller'] == 'localhost'
@@ -77,7 +85,7 @@ module Ankuscli
           else
             puts "\r[Debug]: Sending file #{PUPPET_INSTALLER} to #{@puppet_master}" if @debug
             SshUtils.upload!(PUPPET_INSTALLER, remote_puppet_installer_loc, @puppet_master, @ssh_user, @ssh_key)
-            output = SshUtils.execute_ssh!(
+            master_output = SshUtils.execute_ssh!(
                 remote_puppet_server_cmd,
                 @puppet_master,
                 @ssh_user,
@@ -85,20 +93,25 @@ module Ankuscli
                 22,
                 @debug
             )
-            unless output[@puppet_master][2].to_i == 0
+            unless master_output[@puppet_master][2].to_i == 0
               puts "\r[Error]:".red + ' Failed to install puppet master'
               exit 2
             end
           end
+          SpinningCursor.stop unless @debug
           #initiate concurrent threads pool - to install puppet clients all agent nodes
           ssh_connections = ThreadPool.new(@parallel_connections)
-          puts "\rInstalling puppet agents on clients: " + "#{@nodes.join(',')}".blue
-          output = []
+          SpinningCursor.start do
+            banner "\rInstalling puppet agents on clients ".blue
+            type :dots
+            message "\rInstalling puppet agents on clients ".blue + '[DONE]'.cyan
+          end
+          clients_output = [] # [ { 'host1' => ['stdout', 'stderr', 'exit_code'] }, { 'host2' => ['stdout', 'stderr', 'exit_code'] }, ... ]
           time = Benchmark.measure do
             @nodes.each do |instance|
               ssh_connections.schedule do
                 #run puppet installer
-                output << SshUtils.execute_ssh!(
+                clients_output << SshUtils.execute_ssh!(
                     remote_puppet_client_cmd,
                     instance,
                     @ssh_user,
@@ -109,16 +122,16 @@ module Ankuscli
             end
             ssh_connections.shutdown
           end
-          puts "\rFinished installing puppet clients".blue
+          SpinningCursor.stop
           puts "\r[Debug]: Time to install puppet clients: #{time}" if @debug
           #print output of puppet client installers on console
           if @debug
-            @nodes.each do |instance|
-              puts "\rSTDOUT on #{instance}:".blue
-              puts "\r#{o[instance][0]}"
-              unless o[instance][1].empry?
-                puts "\rSTDERR on #{instance}:".yellow
-                puts "\r#{o[instance][1]}"
+            clients_output.each do |o|
+              puts "\rSTDOUT".blue + " on #{o.keys.join}"
+              puts "\r#{o.values.first[0]}"
+              unless o.values.first[1].empty?
+                puts "\rSTDERR".yellow + " on #{o.keys.join}"
+                puts "\r#{o.values.first[1]}"
               end
             end
           end
@@ -128,8 +141,24 @@ module Ankuscli
           #MOCKING
           puts 'Checking if instances are ssh\'able ...'
           puts 'Checking if instances are ssh\'able ...' + '[OK]'.green.bold
+          SpinningCursor.start do
+            banner "\rInstalling puppet master on #{@puppet_master}".blue
+            type :dots
+            action do
+              sleep 3
+            end
+            message "\rInstalling puppet master on #{@puppet_master}".blue + '[DONE]'.cyan
+          end
+          SpinningCursor.start do
+            banner "\rInstalling puppet agents on clients ".blue
+            type :dots
+            action do
+              puts "Puppet clients: #{@nodes.join(',')}"
+              sleep 3
+            end
+            message "\rInstalling puppet agents on clients  ".blue + '[DONE]'.cyan
+          end
         end
-
         puts "\rInstalling puppet on all nodes completed".blue
       end
 
@@ -291,77 +320,70 @@ module Ankuscli
           #send enc_data and enc_script to puppet server
           SshUtils.upload!(ENC_ROLES_FILE, ENC_PATH, @puppet_master, @ssh_user, @ssh_key, 22)
           SshUtils.upload!(ENC_SCRIPT, ENC_PATH, @puppet_master, @ssh_user, @ssh_key, 22)
-          #initialize puppet run in order
-            #1. puppet server
-            #2. master nodes and parallel on worker nodes
-          controller    = @parsed_hash['controller']
-          hadoop_ha     = @parsed_hash['hadoop_ha']
-          hbase_install = @parsed_hash['hbase_install']
+        end
+        #initialize puppet run in order
+          #1. puppet server
+          #2. master nodes and parallel on worker nodes
+        controller    = @parsed_hash['controller']
+        hadoop_ha     = @parsed_hash['hadoop_ha']
+        hbase_install = @parsed_hash['hbase_install']
 
+        if controller == 'localhost'
           puts "\rInitializing puppet run on controller".blue
-          if controller == 'localhost'
-            ShellUtils.run_cmd!(puppet_run_cmd)
-            # TODO First puppet_run on controller will fail! Fix this.
-            #   Error: Could not start Service[nagios]: Execution of '/sbin/service nagios start' returned 1
-            #   Error: /Stage[main]/Nagios::Server/Service[nagios]/ensure: change from stopped to running failed: Could not start Service[nagios]: Execution of '/sbin/service nagios start' returned 1
-            #unless status.success?
-            #  puts '[Error]:'.red + ' Failed to install puppet master'
-            #end
+          ShellUtils.run_cmd!(puppet_run_cmd) if ! @mock
+          # TODO First puppet_run on controller will fail! Fix this.
+          #   Error: Could not start Service[nagios]: Execution of '/sbin/service nagios start' returned 1
+          #   Error: /Stage[main]/Nagios::Server/Service[nagios]/ensure: change from stopped to running failed: Could not start Service[nagios]: Execution of '/sbin/service nagios start' returned 1
+          #unless status.success?
+          #  puts '[Error]:'.red + ' Failed to install puppet master'
+          #end
+        else
+          puppet_single_run(@puppet_master, puppet_run_cmd, 'controller')
+        end
+
+        # if ha or hbase,
+          # init puppet agent on zookeepers
+        if hadoop_ha == 'enabled' or hbase_install == 'enabled'
+          #parallel puppet run on zks
+          puppet_parallel_run(@parsed_hash['zookeeper_quorum'], puppet_run_cmd, 'zookeepers')
+        end
+        if hadoop_ha == 'enabled'
+          if @parsed_hash['journal_quorum']
+            #parallel puppet run on jns
+            puppet_parallel_run(@parsed_hash['journal_quorum'], puppet_run_cmd, 'journalnodes')
+          end
+          #parallel run puppet run on nns
+          puppet_parallel_run(@parsed_hash['hadoop_namenode'], puppet_run_cmd, 'namenodes')
+        else
+          puppet_single_run(@parsed_hash['hadoop_namenode'].first, puppet_run_cmd, 'namenode')
+        end
+        if hbase_install == 'enabled'
+          hbase_master = @parsed_hash['hbase_master']
+          if hbase_master.length == 1
+            puts "\rInitializing hbase master"
+            puppet_single_run(hbase_master.join, puppet_run_cmd, 'hbasemaster')
           else
-            puppet_single_run(@puppet_master, puppet_run_cmd)
+            puppet_parallel_run(hbase_master, puppet_run_cmd, 'hbasemasters')
           end
+        end
 
-          # if ha or hbase,
-            # init puppet agent on zookeepers
-          if hadoop_ha == 'enabled' or hbase_install == 'enabled'
-            #parallel puppet run on zks
-            puts "\rInitializing zookeepers"
-            puppet_parallel_run(@parsed_hash['zookeeper_quorum'], puppet_run_cmd)
-            if @parsed_hash['journal_quorum']
-              #parallel puppet run on jns
-              puts "\rInitializing journal nodes"
-              puppet_parallel_run(@parsed_hash['journal_quorum'], puppet_run_cmd)
-            end
-            if hadoop_ha == 'enabled'
-              #parallel run puppet run on nns
-              puts "\rInitializing  namenodes"
-              puppet_parallel_run(@parsed_hash['hadoop_namenode'], puppet_run_cmd)
-            end
-            if hbase_install == 'enabled'
-              hbase_master = @parsed_hash['hbase_master']
-              if hbase_master.length == 1
-                puts "\rInitializing hbase master"
-                puppet_single_run(hbase_master.join, puppet_run_cmd)
-              else
-                puts "\rInitializing hbase masters"
-                puppet_parallel_run(hbase_master, puppet_run_cmd)
-              end
-            end
-          elsif hadoop_ha == 'disabled'
-            puts "\rInitializing namenode"
-            puppet_single_run(@parsed_hash['hadoop_namenode'].first, puppet_run_cmd)
-          end
+        # init puppet agent on mapreduce master
+        puppet_single_run(@parsed_hash['mapreduce']['master'], puppet_run_cmd, 'mapreduce_master')
 
-          # init puppet agent on mapreduce master
-          puts "\rInitializing mapreduce master"
-          puppet_single_run(@parsed_hash['mapreduce']['master'], puppet_run_cmd)
+        # init puppet agent on slave nodes
+        puppet_parallel_run(@parsed_hash['slave_nodes'], puppet_run_cmd, 'slaves')
 
-          # init puppet agent on slave nodes
-          puts "\rInitializing slave nodes"
-          puppet_parallel_run(@parsed_hash['slave_nodes'], puppet_run_cmd)
-
-          # finalize puppet run on controller to refresh nagios
-          if controller == 'localhost'
+        # finalize puppet run on controller to refresh nagios
+        if controller == 'localhost'
+          unless @mock
             status = ShellUtils.run_cmd!(puppet_run_cmd)
             unless status.success?
               puts "\r[Error]:".red + ' Failed to finalize puppet run'
               #TODO handle rollback
             end
-          else
-            puppet_single_run(@puppet_master, puppet_run_cmd)
           end
         else
-          puts "\rPuppet run completed".blue
+          puppet_single_run(@puppet_master, puppet_run_cmd, 'controller')
         end
       end
 
@@ -377,7 +399,7 @@ module Ankuscli
           # send enc_roles file to puppet master
           SshUtils.upload!(ENC_ROLES_FILE, ENC_PATH, @puppet_master, @ssh_user, @ssh_key, 22)
           puts "\rInitializing puppet run on node(s) #{nodes.inspect}" if @debug
-          puppet_parallel_run(nodes, puppet_run_cmd)
+          puppet_parallel_run(nodes, puppet_run_cmd, 'refresh')
           #refresh master
           if @parsed_hash['controller'] == 'localhost'
             status = ShellUtils.run_cmd!(puppet_run_cmd)
@@ -386,7 +408,7 @@ module Ankuscli
               #TODO handle rollback
             end
           else
-            puppet_single_run(@puppet_master, puppet_run_cmd)
+            puppet_single_run(@puppet_master, puppet_run_cmd, 'controller')
           end
         end
         puts "\rCompleted puppet run on #{nodes.join(',').blue} and refreshed puppet master #{@puppet_master.blue}"
@@ -396,65 +418,89 @@ module Ankuscli
 
       # Runs puppet on single instance
       # @param [String] instance => node on which puppet should be run
-      def puppet_single_run(instance, puppet_run_cmd)
-        output = SshUtils.execute_ssh!(
-            puppet_run_cmd,
-            instance,
-            @ssh_user,
-            @ssh_key,
-            22,
-            @debug
-        )
-        exit_status = output[instance][2].to_i
-        if @debug
-          puts "\rstdout on #{instance}: "
-          puts "\r#{output[instance][0]}"
-          puts "\rstderr on #{instance}: "
-          puts "\r#{output[instance][1]}"
+      # @param [String] puppet_run_cmd => command to run on remote client to run puppet
+      # @param [String] role => role installing on remote client
+      def puppet_single_run(instance, puppet_run_cmd, role)
+        unless @debug
+          SpinningCursor.start do
+            banner "\rInitializing #{role} on " + "#{instance} ".blue
+            type :dots
+            message "\rInitializing #{role} on " + "#{instance} ".blue + '[DONE]'.cyan
+          end
+        else
+          puts "\rInitializing #{role} on " + "#{instance}".blue
         end
-        unless exit_status == 0
-          puts "\r[Error]: ".red + "Puppet run failed on #{instance}, aborting!"
-          #exit 1
-          #TODO Rollback lock
+        unless @mock
+          output = SshUtils.execute_ssh!(
+              puppet_run_cmd,
+              instance,
+              @ssh_user,
+              @ssh_key,
+              22,
+              @debug
+          )
+          exit_status = output[instance][2].to_i
+          unless exit_status == 0
+            puts "\r[Error]: ".red + "Puppet run failed on #{instance}, aborting!"
+            #exit 1
+            #TODO Rollback lock
+          end
+        else
+          sleep 3
         end
-        puts "\rCompleted puppet run on" +" #{instance}".blue
+        unless @debug
+          SpinningCursor.stop
+        else
+          puts "\rCompleted puppet run on" +" #{instance}".blue if @debug
+        end
       end
 
       # Runs puppet on instances in parallel using thread pool
       # @param [Array] instances_array => list of instances on which puppet should be run in parallel
-      def puppet_parallel_run(instances_array, puppet_run_cmd)
-        #initiate concurrent threads pool - to install puppet clients all agent nodes
-        ssh_connections = ThreadPool.new(@parallel_connections)
-        puts "\rRunning puppet on clients: " + "#{instances_array.join(',')}".blue if @debug
-        output = []
-        time = Benchmark.measure do
-          instances_array.each do |instance|
-            ssh_connections.schedule do
-              #run puppet installer
-              output << SshUtils.execute_ssh!(
-                  puppet_run_cmd,
-                  instance,
-                  @ssh_user,
-                  @ssh_key,
-                  22,
-                  false)
+      # @param [String] puppet_run_cmd => command to run on remote client to run puppet
+      # @param [String] role => role installing on remote client
+      def puppet_parallel_run(instances_array, puppet_run_cmd, role)
+        SpinningCursor.start do
+          banner "\rInitializing #{role} on client(s): " + "#{instances_array.join(',')} ".blue
+          type :dots
+          message "\rInitializing puppet run on client(s): " + "#{instances_array.join(',')} ".blue + '[DONE]'.cyan
+          output :at_stop
+        end
+        if ! @mock
+          #initiate concurrent threads pool - to install puppet clients all agent nodes
+          ssh_connections = ThreadPool.new(@parallel_connections)
+          output = []
+          time = Benchmark.measure do
+            instances_array.each do |instance|
+              ssh_connections.schedule do
+                #run puppet installer
+                output << SshUtils.execute_ssh!(
+                    puppet_run_cmd,
+                    instance,
+                    @ssh_user,
+                    @ssh_key,
+                    22,
+                    false)
+              end
+            end
+            ssh_connections.shutdown
+          end
+          puts "\r[Debug]: Time to run puppet on clients: #{time}" if @debug
+          #check if puppet run failed
+          if @debug
+            output.each do |o|
+              instance = o.keys[0]
+              puts "\rStdout on #{instance}"
+              puts "\r#{o[instance][0]}"
+              puts "\rStderr on #{instance}"
+              puts "\r#{o[instance][1]}"
+              puts "\r[Error]: Puppet run failed on #{instance}" unless o[instance][2].to_i == 0
             end
           end
-          ssh_connections.shutdown
+        else
+          sleep 3
         end
-        puts "\r[Debug]: Finished puppet run on #{instances_array.join(',')}" if @debug
-        puts "\r[Debug]: Time to install puppet clients: #{time}" if @debug
-        #check if puppet run failed
-        if @debug
-          output.each do |o|
-            instance = o.keys[0]
-            puts "\rStdout on #{instance}"
-            puts "\r#{o[instance][0]}"
-            puts "\rStderr on #{instance}"
-            puts "\r#{o[instance][1]}"
-            puts "\r[Error]: Puppet run failed on #{instance}" unless o[instance][2].to_i == 0
-          end
-        end
+        SpinningCursor.stop
       end
 
       # Checks if instances are listening in ssh port by default 22
