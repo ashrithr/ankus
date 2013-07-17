@@ -401,7 +401,7 @@ module Ankuscli
         begin
           Net::SSH.start(host, ssh_user, :port => ssh_port, :keys => ssh_key, :auth_methods => %w(publickey)) do |ssh|
             ssh.scp.upload!(source_file, dest_path) do |ch, name, sent, total|
-              puts "\r#{name}: #{(sent.to_f * 100 / total.to_f).to_i}%" if debug
+              puts "\r[Debug]: #{name} -> #{(sent.to_f * 100 / total.to_f).to_i}%" if debug
             end
           end
         rescue Net::SSH::HostKeyMismatch => e
