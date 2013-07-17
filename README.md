@@ -18,6 +18,11 @@ Command line interface for ankus big-data deployment tool. Handles the installat
  - ganglia for monitoring
  - nagios for alerting
  - logstash for log aggregation
+
+**Supported Deployment Types:**
+
+ - Highly Available Hadoop & HBase clusters
+ - Secure Hadoop & HBase clusters (using kerberos)
  
 ![Alt Text](images/ankus_arch.png)
 
