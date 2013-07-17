@@ -216,12 +216,12 @@ module Ankuscli
           exit 1
         end
         if slave_nodes_storage_capacity.nil?
-          puts '[Debug]' + ' (Warning) '.yellow + 'if slave_nodes_storage_capacity is not specified no volumes will be created and attached' if @debug
+          puts '[Debug]:' + ' (Warning) '.yellow + 'if slave_nodes_storage_capacity is not specified no volumes will be created and attached' if @debug
         elsif ! slave_nodes_storage_capacity.is_a?(Numeric)
           puts '[Error]: '.red + 'expecting numeric value for slave_nodes_storage_capacity'
           exit 1
         elsif slave_nodes_storage_capacity == 0
-          puts '[Debug]' + ' (Warning) '.yellow + 'slave_nodes_storage_capacity is zero, no volumes will be created and attached to cloud instances' if @debug
+          puts '[Debug]:' + ' (Warning) '.yellow + 'slave_nodes_storage_capacity is zero, no volumes will be created and attached to cloud instances' if @debug
         end
       end
 
