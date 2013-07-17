@@ -8,7 +8,7 @@ hbase_master_java_heap_size_max: 1000m
 # size of the jvm new generaion/eden heap segment
 hbase_master_java_heap_size_new: 256m
 # JVM garbage collection tuning for the hbase master
-hbase_master_gc_tuning_options: '-XX:+UseConcMarkSweepGC -XX:+CMSIncrementalMode -XX:+AggressiveOpts'
+hbase_master_gc_tuning_options: '-XX:+UseConcMarkSweepGC -XX:+CMSIncrementalMode'
 # What details to log about JVM garbage collection statistics for the hbase master
 hbase_master_gc_log_opts: '-verbose:gc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps'
 
@@ -20,7 +20,7 @@ hbase_regionserver_java_heap_size_max: 2000m
 # size of the JVM "New Generation/Eden" heap segment (regionserver)
 hbase_regionserver_java_heap_size_new: 256m
 # JVM garbage collection tuning for the hbase regionserver
-hbase_regionserver_gc_tuning_opts: "-XX:+UseConcMarkSweepGC -XX:+CMSIncrementalMode -XX:+AggressiveOpts -XX:CMSInitiatingOccupancyFraction=88"
+hbase_regionserver_gc_tuning_opts: "-XX:+UseConcMarkSweepGC -XX:+CMSIncrementalMode -XX:CMSInitiatingOccupancyFraction=70"
 # What details to log about JVM garbage collection statistics for the hbase regionserver
 hbase_regionserver_gc_log_opts: '-verbose:gc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps'
 # HRegion server lease period in milliseconds. Default is 60 seconds. Clients must report in within this period else
