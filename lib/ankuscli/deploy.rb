@@ -203,9 +203,9 @@ module Ankuscli
             end
             #print output
             if @debug
-              puts "\rstdout on #{node}"
+              puts "\r[Debug]: Stdout on #{node}"
               puts "\r#{output[node][0]}"
-              puts "\rstderr on #{node}"
+              puts "\r[Debug]: Stderr on #{node}"
               puts "\r#{output[node][1]}"
             end
           end
@@ -463,7 +463,7 @@ module Ankuscli
         SpinningCursor.start do
           banner "\rInitializing #{role} on client(s): " + "#{instances_array.join(',')} ".blue
           type :dots
-          message "\rInitializing puppet run on client(s): " + "#{instances_array.join(',')} ".blue + '[DONE]'.cyan
+          message "\rInitializing #{role} on client(s): " + "#{instances_array.join(',')} ".blue + '[DONE]'.cyan
           output :at_stop
         end
         if ! @mock
@@ -490,11 +490,11 @@ module Ankuscli
           if @debug
             output.each do |o|
               instance = o.keys[0]
-              puts "\rStdout on #{instance}"
+              puts "\r[Debug]: Stdout on #{instance}"
               puts "\r#{o[instance][0]}"
-              puts "\rStderr on #{instance}"
+              puts "\r[Debug]: Stderr on #{instance}"
               puts "\r#{o[instance][1]}"
-              puts "\r[Error]: Puppet run failed on #{instance}" unless o[instance][2].to_i == 0
+              puts "\r[Debug]: (Error) Puppet run failed on #{instance}" unless o[instance][2].to_i == 0
             end
           end
         else
@@ -537,10 +537,10 @@ module Ankuscli
                 @ssh_key,
                 22, false)
             #send the script over to clients
-            puts "\rsending file to #{instance}" if @debug
+            puts "\r[Debug]: Sending file to #{instance}" if @debug
             SshUtils.upload!(PUPPET_INSTALLER, remote_puppet_loc, instance, @ssh_user, @ssh_key)
             if hosts_file
-              puts "\rsending hosts file to #{instance}" if @debug
+              puts "\r[Debug]: Sending hosts file to #{instance}" if @debug
               SshUtils.upload!(hosts_file, '/etc/hosts', instance, @ssh_user, @ssh_key)
             end
           end

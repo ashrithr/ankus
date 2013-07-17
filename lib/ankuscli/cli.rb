@@ -165,7 +165,7 @@ module Ankuscli
         end
         YamlUtils.write_yaml(nodes_fqdn_map, CLOUD_INSTANCES)
         if options[:mock] and options[:debug]
-          puts 'NODES HASH'.red
+          puts '[Debug]: ' + 'Nodes Hash'.blue
           pp nodes_fqdn_map
           puts
         end
@@ -174,10 +174,10 @@ module Ankuscli
         # hiera data and enc data
         @parsed_hash, @parsed_hash_with_internal_ips = cloud.modify_config_hash(@parsed_hash, nodes_fqdn_map)
         if options[:mock] and options[:debug]
-          puts 'PARSED HASH'.red
+          puts '[Debug]: ' + 'Parsed Hash'.blue
           pp @parsed_hash
           puts
-          puts 'PARSED HASH WITH INTERNAL IPS'.red
+          puts '[Debug]: ' + 'Parsed hash with internal ip(s)'.blue
           pp @parsed_hash_with_internal_ips
         end
         Fog.unmock! if options[:mock]
@@ -187,7 +187,7 @@ module Ankuscli
           hosts_file.write(cloud.build_hosts(nodes_fqdn_map))
           hosts_file.close
           if options[:mock] and options[:debug]
-            puts 'HOSTS FILE'.red
+            puts '[Debug]: ' + 'Hosts file'.blue
             puts cloud.build_hosts(nodes_fqdn_map)
           end
         end

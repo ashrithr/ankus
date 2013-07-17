@@ -64,7 +64,7 @@ module Ankuscli
     # Validations specific to local install_mode
     # @param [Hash] hash_to_validate => hash to validate
     def local_validator(hash_to_validate)
-      puts 'calling local validator' if @debug
+      puts '[Debug]: calling local validator' if @debug
       #required:
         #controller:
       if hash_to_validate['controller'].nil? or hash_to_validate['controller'].empty?
@@ -89,7 +89,7 @@ module Ankuscli
     # Validations specific to cloud install_mode
     # @param [Hash] hash_to_validate => hash to validate
     def cloud_validator(hash_to_validate)
-      puts 'calling cloud validator' if @debug
+      puts '[Debug]: calling cloud validator' if @debug
       # cloud_platform - aws|rackspace
       #   if aws: 'cloud_credentials' => { 'aws_access_key' => '', 'aws_secret_key' => '', 'aws_machine_type' => 'm1.large' }
       #   if rackspace: 'cloud_credentials' => { 'rackspace_username' => '', 'rackspace_api_key' => '', 'rackspace_instance_type' => 'm1.large' }
@@ -134,7 +134,7 @@ module Ankuscli
           end
         end
         #validate connection
-        puts 'validating aws connection' if @debug
+        puts '[Debug]: validating aws connection' if @debug
         aws = Aws.new(cloud_credentials['aws_access_id'], cloud_credentials['aws_secret_key'], cloud_credentials['aws_region'])
         unless aws.valid_connection?(aws.create_connection)
           puts '[Error]: '.red + 'failed establishing connection to aws, check your credentials'
@@ -171,7 +171,7 @@ module Ankuscli
     # Validates params which are common for both local and cloud install_modes
     # @param [Hash] hash_to_validate => hash to validate
     def common_validator(hash_to_validate)
-      puts 'calling common validator' if @debug
+      puts '[Debug]: calling common validator' if @debug
       install_mode = hash_to_validate['install_mode']
       hadoop_ha = hash_to_validate['hadoop_ha']
       hbase_install = hash_to_validate['hbase_install']
@@ -216,12 +216,12 @@ module Ankuscli
           exit 1
         end
         if slave_nodes_storage_capacity.nil?
-          puts '[Warning]: '.yellow + 'if slave_nodes_storage_capacity is not specified no volumes will be created and attached' if @debug
+          puts '[Debug]' + ' (Warning) '.yellow + 'if slave_nodes_storage_capacity is not specified no volumes will be created and attached' if @debug
         elsif ! slave_nodes_storage_capacity.is_a?(Numeric)
           puts '[Error]: '.red + 'expecting numeric value for slave_nodes_storage_capacity'
           exit 1
         elsif slave_nodes_storage_capacity == 0
-          puts '[Warning]: '.yellow + 'slave_nodes_storage_capacity is zero, no volumes will be created and attached to cloud instances' if @debug
+          puts '[Debug]' + ' (Warning) '.yellow + 'slave_nodes_storage_capacity is zero, no volumes will be created and attached to cloud instances' if @debug
         end
       end
 
@@ -374,7 +374,7 @@ module Ankuscli
     # @param [Array] journal_quorum
     # @param [Array] slave_nodes
     def hadoop_validator(hadoop_ha, hadoop_namenode, hadoop_snn, mapreduce_type, mapreduce_master, zookeeper_quorum, journal_quorum, slave_nodes)
-      puts 'calling hadoop validator' if @debug
+      puts '[Debug]: calling hadoop validator' if @debug
       if hadoop_ha == 'enabled'
         #### HA Specific
         unless hadoop_namenode.length == 2

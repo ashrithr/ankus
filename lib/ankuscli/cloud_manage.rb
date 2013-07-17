@@ -229,7 +229,7 @@ module Ankuscli
       results = {}
 
       if aws.valid_connection?(conn)
-        puts "\rsuccessfully authenticated with aws".green if @debug
+        puts "\r[Debug]: successfully authenticated with aws" if @debug
       else
         puts "\r[Error]".red + ' failed connecting to aws'
         exit 1
@@ -308,11 +308,11 @@ module Ankuscli
                   @debug)
               tempfile.unlink #delete the tempfile
               if @debug
-                puts "\rStdout on #{server_objects[tag].dns_name}"
+                puts "\r[Debug]: Stdout on #{server_objects[tag].dns_name}"
                 puts "\r#{output[server_objects[tag].dns_name][0]}"
-                puts "\rStderr on #{server_objects[tag].dns_name}"
+                puts "\r[Debug]: Stderr on #{server_objects[tag].dns_name}"
                 puts "\r#{output[server_objects[tag].dns_name][1]}"
-                puts "\rExit code from #{server_objects[tag].dns_name}: #{output[server_objects[tag].dns_name][2]}"
+                puts "\r[Debug]: Exit code from #{server_objects[tag].dns_name}: #{output[server_objects[tag].dns_name][2]}"
               end
             else
               # if not waiting for mounting volumes, wait for instances to become sshable
@@ -417,11 +417,11 @@ module Ankuscli
                   @debug)
               tempfile.unlink #delete the tempfile
               if @debug
-                puts "\rStdout on #{server_objects[tag].public_ip_address}"
+                puts "\r[Debug]: Stdout on #{server_objects[tag].public_ip_address}"
                 puts "\r#{output[server_objects[tag].public_ip_address][0]}"
-                puts "\rStdout on #{server_objects[tag].public_ip_address}"
+                puts "\r[Debug]: Stdout on #{server_objects[tag].public_ip_address}"
                 puts "\r#{output[server_objects[tag].public_ip_address][1]}"
-                puts "\rExit code from #{server_objects[tag].public_ip_address}: #{output[server_objects[tag].public_ip_address][2]}"
+                puts "\r[Debug]: Exit code from #{server_objects[tag].public_ip_address}: #{output[server_objects[tag].public_ip_address][2]}"
               end
             else
               #if not mounting volumes wait for instances to become available
