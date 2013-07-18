@@ -117,18 +117,27 @@ module Ankuscli
                 ip_permission['ipProtocol'] == 'tcp' &&
                 ip_permission['toPort'] == 22
           end
-          open_all = sec_group.ip_permissions.detect do |ip_permission|
+          open_all_tcp = sec_group.ip_permissions.detect do |ip_permission|
             ip_permission['ipRanges'].first && ip_permission['ipRanges'].first['cidrIp'] == '0.0.0.0/0' &&
                 ip_permission['fromPort'] == 0 &&
                 ip_permission['ipProtocol'] == 'tcp' &&
+                ip_permission['toPort'] == 65535
+          end
+          open_all_udp = sec_group.ip_permissions.detect do |ip_permission|
+            ip_permission['ipRanges'].first && ip_permission['ipRanges'].first['cidrIp'] == '0.0.0.0/0' &&
+                ip_permission['fromPort'] == 0 &&
+                ip_permission['ipProtocol'] == 'udp' &&
                 ip_permission['toPort'] == 65535
           end
           unless authorized
             sec_group.authorize_port_range(22..22)
           end
           #TODO: authorize specific ports for hadoop, hbase
-          unless open_all
+          unless open_all_tcp
             sec_group.authorize_port_range(0..65535)
+          end
+          unless open_all_udp
+            sec_group.authorize_port_range(0..65535, {:ip_protocol => 'udp'})
           end
         end
       end
@@ -476,7 +485,6 @@ module Ankuscli
     # @return nil
     def wait_for_servers(servers)
       if servers.is_a?(Array)
-        puts "\rWaiting until all the servers gets created ..."
         servers.each do |server|
           # check every 5 seconds to see if the server is in the active state for 1200 seconds if not exception
           # will be raised Fog::Errors::TimeoutError
@@ -485,7 +493,6 @@ module Ankuscli
           end
         end
       else
-        puts "\rWaiting for server to get created"
         server.wait_for(1200, 5) do
           print '.'
           STDOUT.flush
