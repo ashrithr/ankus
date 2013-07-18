@@ -374,16 +374,30 @@ module Ankuscli
         puppet_parallel_run(@parsed_hash['slave_nodes'], puppet_run_cmd, 'slaves')
 
         # finalize puppet run on controller to refresh nagios
-        if controller == 'localhost'
-          unless @mock
-            status = ShellUtils.run_cmd!(puppet_run_cmd)
-            unless status.success?
-              puts "\r[Error]:".red + ' Failed to finalize puppet run'
-              #TODO handle rollback
+        if @parsed_hash['alerting'] == 'enabled'
+          puts "\r[Info]: Triggering refresh on controller ..."
+          if controller == 'localhost'
+            unless @mock
+              status = ShellUtils.run_cmd!(puppet_run_cmd)
+              unless status.success?
+                puts "\r[Error]:".red + ' Failed to finalize puppet run'
+                #TODO handle rollback
+              end
             end
+          else
+            puppet_single_run(@puppet_master, puppet_run_cmd, 'controller')
           end
-        else
-          puppet_single_run(@puppet_master, puppet_run_cmd, 'controller')
+        end
+        # hbasemasters need service refresh after datanodes came online
+        if @parsed_hash['hbase_install'] == 'enabled'
+          puts "\r[Info]: Triggering refresh on hbase master(s) ..."
+          hbase_master = @parsed_hash['hbase_master']
+          if hbase_master.length == 1
+            puts "\rInitializing hbase master"
+            puppet_single_run(hbase_master.join, puppet_run_cmd, 'hbasemaster')
+          else
+            puppet_parallel_run(hbase_master, puppet_run_cmd, 'hbasemasters')
+          end
         end
       end
 
