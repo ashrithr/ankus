@@ -249,6 +249,7 @@ module Ankuscli
         end
         #nagios server os_type is required
         if parsed_hash['install_mode'] == 'cloud'
+          hiera_hash['nagios_server'] = parsed_hash['controller']
           hiera_hash['nagios_server_ostype'] = parsed_hash['cloud_os_type'].downcase =~ /centos/ ? 'CentOS' : 'Ubuntu'
         else
           if parsed_hash['alerting'] == 'enabled'
@@ -475,7 +476,7 @@ module Ankuscli
       # @param [String] role => role installing on remote client
       def puppet_parallel_run(instances_array, puppet_run_cmd, role)
         SpinningCursor.start do
-          banner "\rInitializing #{role} on client(s): " + "#{instances_array.join(',')} ".blue
+          banner "\rInitializing #{role} on client(s) "
           type :dots
           message "\rInitializing #{role} on client(s): " + "#{instances_array.join(',')} ".blue + '[DONE]'.cyan
           output :at_stop
