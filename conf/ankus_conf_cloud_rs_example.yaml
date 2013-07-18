@@ -18,7 +18,7 @@ cloud_platform: rackspace
 cloud_credentials:
   rackspace_username:
   rackspace_api_key:
-  rackspace_instance_type: 4
+  rackspace_instance_type: 5
   rackspace_ssh_key: '~/.ssh/id_rsa.pub'
 cloud_os_type: CentOS
 

@@ -356,16 +356,13 @@ module Ankuscli
       conn = rackspace.create_connection
       results = {}
 
-      SpinningCursor.start do
-        banner "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')} ".blue
-        type :dots
-        message "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')}".blue + '[DONE]'.cyan
-      end
+      puts "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')} ...".blue
       server_objects = {} #hash to store server object to tag mapping { tag => server_obj }, used for attaching volumes
       nodes_to_create.each do |tag, info|
         server_objects[tag] = rackspace.create_server!(conn, tag, public_ssh_key_path, machine_type, info[:os_type])
       end
-      SpinningCursor.stop
+      puts "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')} ".blue + '[DONE]'.cyan
+
 
       #wait for servers to get created (:state => ACTIVE)
       SpinningCursor.start do
