@@ -353,8 +353,12 @@ module Ankuscli
             #parallel puppet run on jns
             puppet_parallel_run(@parsed_hash['journal_quorum'], puppet_run_cmd, 'journalnodes')
           end
-          #parallel run puppet run on nns
-          puppet_parallel_run(@parsed_hash['hadoop_namenode'], puppet_run_cmd, 'namenodes')
+          # puppet run on nns
+          puppet_single_run(@parsed_hash['hadoop_namenode'].first, puppet_run_cmd, 'active_namenode')
+          puppet_single_run(@parsed_hash['hadoop_namenode'].last, puppet_run_cmd, 'standby_namenode')
+          # parallel run breaks beacuse namenode2 should copy namenode1 dfs.name.dir contents which only happens after
+          # namenode1 is bootstrapped, caused beacuse of Bug 'HDFS-3752'
+          # puppet_parallel_run(@parsed_hash['hadoop_namenode'], puppet_run_cmd, 'namenodes')
         else
           puppet_single_run(@parsed_hash['hadoop_namenode'].first, puppet_run_cmd, 'namenode')
         end
