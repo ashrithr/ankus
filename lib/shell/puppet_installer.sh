@@ -431,7 +431,11 @@ fi
 printclr "Installing passenger"
 gem install --no-rdoc --no-ri rack
 gem install --no-rdoc --no-ri passenger --version=3.0.18
-/usr/bin/passenger-install-apache2-module -a
+if [[ $OS =~ centos || $OS =~ redhat ]]; then
+  /usr/bin/passenger-install-apache2-module -a
+elif [[ ${OS} =~ ubuntu ]]; then
+  /usr/local/bin/passenger-install-apache2-module -a
+fi
 printclr "Configuring passenger"
 #passenger conf file for puppet
 cat > ${PASSENGER_CONF_PATH} << DELIM
