@@ -137,13 +137,14 @@ module Ankuscli
 
     # Delete cloud instances created by ankuscli
     # @param [Hash] nodes_hash => hash containing info about instances (as returned by Cloud#create_instances)
-    def delete_instances(nodes_hash)
+    # @param [Boolean] delete_volumes => specifies whether to delete volumes attached to instances as well
+    def delete_instances(nodes_hash, delete_volumes = false)
       if @parsed_hash['cloud_platform'] == 'aws'
         aws = create_aws_connection
         conn = aws.create_connection
         nodes_hash.each do |_, nodes_dns_map|
           server_dns_name = nodes_dns_map.first
-          aws.delete_server_with_dns_name(conn, server_dns_name)
+          aws.delete_server_with_dns_name(conn, server_dns_name, delete_volumes)
         end
       elsif @parsed_hash['cloud_platform'] == 'rackspace'
         rackspace = create_rackspace_connection
