@@ -196,7 +196,7 @@ module Ankuscli
         if options[:add_nodes]
           abort '--host option is required' unless options[:hosts]
           # validate hosts
-          SshUtils.sshable? options[:hosts], 'root', @parsed_hash['root_ssh_key']
+          SshUtils.sshable? options[:hosts], @parsed_hash['ssh_user'], @parsed_hash['ssh_key']
           # aggregate the existing slaves with new slaves & add them to conf
           @parsed_hash['slave_nodes'] = @parsed_hash['slave_nodes'] | options[:hosts]
           YamlUtils.write_yaml(@parsed_hash, options[:config])
@@ -220,15 +220,15 @@ module Ankuscli
                           YamlUtils.parse_yaml(NODES_FILE)['puppet_clients']
                         end
       puppet = Deploy::Puppet.new(
-                YamlUtils.parse_yaml(NODES_FILE)['puppet_server'],  #puppet server
-                puppet_clients,                                     #nodes to install puppet client on
-                @parsed_hash['root_ssh_key'],                       #ssh_key to use
-                @parsed_hash,                                       #parsed config hash
-                options[:thread_pool_size],                         #number of threads to use
-                'root',                                             #ssh_user
-                options[:debug],
-                options[:mock],
-                hosts_file_path                                     #hostfile path if cloud_provider is rackspace
+                YamlUtils.parse_yaml(NODES_FILE)['puppet_server'],  # puppet server
+                puppet_clients,                                     # nodes to install puppet client on
+                @parsed_hash['ssh_key'],                       # ssh_key to use
+                @parsed_hash,                                       # parsed config hash
+                options[:thread_pool_size],                         # number of threads to use
+                @parsed_hash['ssh_user'],                           # ssh_user
+                options[:debug],                                    # enabled debud mode
+                options[:mock],                                     # enable mocking
+                hosts_file_path                                     # hostfile path if cloud_provider is rackspace
               )
       begin
         if options[:add_nodes]
@@ -278,10 +278,10 @@ module Ankuscli
       puppet = Deploy::Puppet.new(
           puppet_server,
           puppet_clients,
-          @parsed_hash['root_ssh_key'],
+          @parsed_hash['ssh_key'],
           @parsed_hash,
           options[:thread_pool_size],
-          'root',
+          @parsed_hash['ssh_user'],
           options[:debug],
           options[:mock]
       )
@@ -422,7 +422,7 @@ module Ankuscli
           login_info << "\r" << " (or) using `ssh -i #{parsed_hash['cloud_credentials']['rackspace_ssh_key']} username@host`\n"
         end
       else
-        login_info << "\r" << " (or) using `ssh -i #{parsed_hash['root_ssh_key']} username@host`\n"
+        login_info << "\r" << " (or) using `ssh -i #{parsed_hash['ssh_key']} username@host`\n"
       end
       puts
       puts "\r#{cluster_info.squeeze(' ')}"
@@ -450,11 +450,7 @@ module Ankuscli
         cloud_instances = YamlUtils.parse_yaml(CLOUD_INSTANCES)
         if cloud_instances.keys.find { |e| /#{role}/ =~ e  }
           host = Hash[cloud_instances.select { |k, _| k.include? role}].values.first.first
-          username = if parsed_hash['cloud_os_type'].downcase == 'centos'
-                       'root'
-                     elsif parsed_hash['cloud_os_type'].downcase == 'ubuntu'
-                       'ubuntu'
-                     end
+          username = parsed_hash['ssh_user']
           private_key = if parsed_hash['cloud_platform'] == 'aws'
                           "~/.ssh/#{parsed_hash['cloud_credentials']['aws_key']}"
                         else
@@ -488,7 +484,7 @@ module Ankuscli
         parsed_hash['slave_nodes'].each_with_index { |slave, index| nodes_roles["slaves#{index+1}".to_sym] = slave }
 
         if nodes_roles.keys.find { |e| /#{role}/ =~ e.to_s } and nodes_roles[role.to_sym] != nil
-          SshUtils.ssh_into_instance(nodes_roles[role.to_sym], 'root', parsed_hash['root_ssh_key'], 22)
+          SshUtils.ssh_into_instance(nodes_roles[role.to_sym], @parsed_hash['ssh_user'], parsed_hash['ssh_key'], 22)
         else
           puts "No such role found #{role}"
           puts "Available roles: #{nodes_roles.keys.join(',')}"

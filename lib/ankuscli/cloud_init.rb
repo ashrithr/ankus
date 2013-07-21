@@ -272,7 +272,8 @@ module Ankuscli
             if os_type.downcase == 'centos'
               server.wait_for { console_output.body['output'] =~ /CentOS release 6\.3 \(Final\)/ }
             elsif os_type.downcase == 'ubuntu'
-              server.wait_for { console_output.body['output'] =~ /^cloud-init boot finished/ }
+              # server.wait_for { console_output.body['output'] =~ /^cloud-init boot finished/ }
+              server.wait_for { console_output.body['output'] =~ /^cloud-init start running/ }
             else
               true
             end
@@ -281,13 +282,20 @@ module Ankuscli
           if os_type.downcase == 'centos'
             server.wait_for { console_output.body['output'] =~ /CentOS release 6\.3 \(Final\)/ }
           elsif os_type.downcase == 'ubuntu'
-            server.wait_for { console_output.body['output'] =~ /^cloud-init boot finished/ }
+            # server.wait_for { console_output.body['output'] =~ /^cloud-init boot finished/ }
+            server.wait_for { console_output.body['output'] =~ /^cloud-init start running/ }
           else
             true
           end
         end
       end
     rescue Timeout::Error
+      #Destroy the servers as we cannot manage them any more
+      if servers.is_a?(Array)
+        servers.each { |server| server.destroy }
+      else
+        servers.destroy
+      end
       raise 'It took more than 10 mins for the servers to complete boot, this generally does not happen.'
     end
 

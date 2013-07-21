@@ -11,7 +11,11 @@
 ########################################################
 install_mode: 'local'
 #root users ssh private key to log into machines
-root_ssh_key: '~/.ssh/ruby-sample-1363113606'
+ssh_key: '~/.ssh/ruby-sample-1363113606'
+#username used to log into machines, change this if the user is not 'root', ssh_user
+#should have password less sudo privileges (you can make a user password-less sudo by adding the user
+#to /etc/sudoers file like this `ssh_user  ALL = (ALL) NOPASSWD: ALL` )
+ssh_user: 'root'
 # controller: hostname of the server which will host puppet master, kerberos server
 #  if security is enabled, nagios & ganglia servers if monitoring & altering are enabled.
 #  logstash indexer if log_aggregation is enabled this could be local host if running

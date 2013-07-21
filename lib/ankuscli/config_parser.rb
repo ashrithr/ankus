@@ -71,18 +71,23 @@ module Ankuscli
         puts '[Error]:'.red + ' controller is required for local install_mode'
         exit 1
       end
-        #root_ssh_key
-      if hash_to_validate['root_ssh_key'].nil? or hash_to_validate['root_ssh_key'].empty?
-        puts '[Error]:'.red + ' root_ssh_key is required for local install_mode'
+      #ssh_key
+      if hash_to_validate['ssh_key'].nil? or hash_to_validate['ssh_key'].empty?
+        puts '[Error]:'.red + ' ssh_key is required for local install_mode'
         exit 1
       else
-        #check if root_ssh_key has valid key path
-        if File.exists? File.expand_path(hash_to_validate['root_ssh_key'])
+        #check if ssh_key has valid key path
+        if File.exists? File.expand_path(hash_to_validate['ssh_key'])
           common_validator(hash_to_validate)
         else
-          puts '[Error]:'.red + " root_ssh_key: #{hash_to_validate['root_ssh_key']} does not exists"
+          puts '[Error]:'.red + " ssh_key: #{hash_to_validate['ssh_key']} does not exists"
           exit 1
         end
+      end
+      #ssh_user
+      if hash_to_validate['ssh_user'].nil? or hash_to_validate['ssh_user'].empty?
+        puts '[Debug]: ssh_user is not specified assuming ssh_user as root' if @debug
+        hash_to_validate['ssh_user'] = 'root'
       end
     end
 
@@ -164,6 +169,13 @@ module Ankuscli
         puts '[Error]:'.red + ' supported cloud os types are centos|ubuntu'
         exit 1
       end
+
+      #add ssh_user to hash
+      hash_to_validate['ssh_user'] =  if cloud_os_type.downcase == 'cenots'
+                                        'root'
+                                      elsif cloud_os_type.downcase == 'ubuntu'
+                                        'ubuntu'
+                                      end
 
       common_validator(hash_to_validate)
     end
