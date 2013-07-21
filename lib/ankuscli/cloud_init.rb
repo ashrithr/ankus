@@ -310,11 +310,26 @@ module Ankuscli
       end
     end
 
-    def delete_server_with_dns_name(conn, dns_name)
+    def delete_server_with_dns_name(conn, dns_name, delete_volumes = false)
+      block_mappings = []
       server = conn.servers.all('dns-name' => dns_name).first
       if server
         puts "\rTerminating instance with dns_name: #{dns_name}"
-        server.destroy
+        server.destroy if server.state == 'running'
+        block_mappings << server.block_device_mapping
+        if delete_volumes
+          puts "\rDeleting volumes attached to instance: #{dns_name}"
+          unless block_mappings.length == 0
+            block_mappings.each do |bm|
+              bm.each do |vol_info|
+                vol = conn.volumes.get(vol_info['volumeId'])
+                puts "\r[Info]: waiting for volume to detach from instance"
+                vol.wait_for { vol.state == 'available' }
+                vol.destroy if vol_info['deleteOnTermination'] != 'true'
+              end
+            end
+          end
+        end
       else
         abort "No server found with dns_name: #{dns_name}"
       end

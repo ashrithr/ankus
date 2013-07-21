@@ -80,12 +80,16 @@ module Ankuscli
     end
 
     desc 'destroy', 'destroy the cluster (only valid for cloud deployments)'
+    method_option :delete_volumes,
+                  :type => :boolean,
+                  :default => false,
+                  :desc => 'deletes volumes attached to instances as well (danger zone)'
     def destroy
       if @parsed_hash.nil? or @parsed_hash.empty?
         parse_config
       end
       raise 'Only applicable for cloud deployments' if @parsed_hash['install_mode'] == 'local'
-      destroy_cluster(@parsed_hash)
+      destroy_cluster(@parsed_hash, options)
     end
 
     private
@@ -443,13 +447,13 @@ module Ankuscli
     end
 
     # destroy the instances in the cloud
-    def destroy_cluster(parsed_hash)
+    def destroy_cluster(parsed_hash, options)
       unless YamlUtils.parse_yaml(NODES_FILE).is_a? Hash
         abort 'No cluster found to delete'.red
       end
       if agree('Are you sure want to destroy the cluster ?  ')
         cloud = create_cloud_obj(parsed_hash)
-        cloud.delete_instances(YamlUtils.parse_yaml(CLOUD_INSTANCES))
+        cloud.delete_instances(YamlUtils.parse_yaml(CLOUD_INSTANCES), options[:delete_volumes])
         FileUtils.rm_rf DATA_DIR
       end
     end
