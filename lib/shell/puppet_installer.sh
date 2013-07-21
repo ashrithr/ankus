@@ -55,6 +55,7 @@ elif [[ ${OS} =~ ubuntu ]]; then
   APACHE_PKG=apache2
   PUPPET_DAEMON="puppetmaster"
   PSQL_CONFIG="/etc/postgresql/9.1/main/pg_hba.conf"
+  PSQL_DATA_CONF="/etc/postgresql/9.1/main/postgresql.conf"
   PUPPET_DB_DEFAULT="/etc/default/puppetdb"
   PASSENGER_CONF_PATH="/etc/apache2/sites-available/puppetmasterd"
   RUBY_PATH="/var/lib"
@@ -196,6 +197,7 @@ PSQLDELIM
   create database puppetdb with owner puppetdb;
   create user hiveuser with password 'hiveuser';
   create database hive_metastore with owner hiveuser;
+  alter database hive_metastore SET standard_conforming_strings = off;
   create user oozie with password 'oozie';
   create database oozie with owner oozie;
   create user hue with password 'hue';
@@ -363,6 +365,8 @@ if [ "${PS_SETUP}" == "1" ]; then
 
   #download puppet modules
   download_modules
+  #install puppetlabs-apt which we require
+  puppet module install puppetlabs/apt
 
   #start puppet services if not using apache passenger
   #puppet resource service puppet ensure=running enable=true
