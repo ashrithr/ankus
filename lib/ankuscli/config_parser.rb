@@ -2,6 +2,7 @@ module Ankuscli
 
   # ConfigParser: parses the configuration file of ankus and returns a hash to process upon
   class ConfigParser
+    require 'ankuscli/helper'
     include Ankuscli
 
     # Creates a configParser object with specified file_path, and a parsed_hash object
@@ -513,10 +514,37 @@ module Ankuscli
     end
   end
 
-  #class to parse ankus_hadoop_config.yaml
+  #class to parse hadoop configuration
   class HadoopConfigParser
-    def initialize(hadoop_conf)
-      #TODO - validate conf/ankus_hadoop_conf.yaml
+    def initialize(hadoop_conf_file, debug = false)
+      puts "[Debug]: validating hadoop conf" if debug
+      hadoop_conf = YamlUtils.parse_yaml(hadoop_conf_file).keys
+      unless HADOOP_CONF_KEYS.all?{|key| hadoop_conf.include?(key)}
+        puts "[Error]: Required keys are not present in #{hadoop_conf_file}"
+        puts "Required keys: #{HADOOP_CONF_KEYS}"
+        exit 1
+      end
+      diff_keys = hadoop_conf - HADOOP_CONF_KEYS
+      unless diff_keys.empty?
+        puts "[Debug]: Following keys were added additionally by the user to #{hadoop_conf_file}: #{diff_keys}" if debug
+      end
+    end
+  end
+
+  #parse hbase configuration
+  class HBaseConfigParser
+    def initialize(hbase_conf_file, debug = false)
+      puts "[Debug]: validating hbase conf" if debug
+      hbase_conf = YamlUtils.parse_yaml(hbase_conf_file).keys
+      unless HBASE_CONF_KEYS.all?{|key| hbase_conf.include?(key) }
+        puts "[Error]: Required keys are not present in #{hbase_conf_file}"
+        puts "Required keys: #{HBASE_CONF_KEYS}"
+        exit 1
+      end
+      diff_keys = hbase_conf - HBASE_CONF_KEYS
+      unless diff_keys.empty?
+        puts "[Debug]: Following keys were added additionally by the user to #{hbase_conf_file}: #{diff_keys}" if debug
+      end
     end
   end
 end
