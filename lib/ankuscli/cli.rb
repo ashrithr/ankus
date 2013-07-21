@@ -92,6 +92,8 @@ module Ankuscli
 
     def parse_config
       @parsed_hash = ConfigParser.new(options[:config], options[:debug]).parse_config
+      HadoopConfigParser.new(HADOOP_CONF, options[:debug])
+      HBaseConfigParser.new(HBASE_CONF, options[:debug])
     end
 
     # Creates a object to interface with ankuscli cloud interactions
@@ -291,7 +293,7 @@ module Ankuscli
       @parsed_hash['install_mode'] == 'cloud' ?
           puppet.generate_enc(@parsed_hash_with_internal_ips, NODES_FILE_CLOUD) :
           puppet.generate_enc(@parsed_hash, NODES_FILE)
-      puts 'Initializing Refresh across cluster'
+      puts 'Initializing Refresh across cluster'.blue
       puppet.run_puppet_set(puppet_clients)
       puts 'Completed Refreshing Cluster'.blue
     end
@@ -328,7 +330,11 @@ module Ankuscli
         controller = Hash[cloud_instances.select { |k, _| k.include? 'controller'}].values.first
         cluster_info << "\r" << ' *'.cyan << " Controller: #{controller.first} \n"
         urls << "\r" << ' %'.black << " Ganglia: http://#{controller.first}/ganglia \n" if parsed_hash['monitoring'] == 'enabled'
-        urls << "\r" << ' %'.black << " Nagios: http://#{controller.first}/nagios \n" if parsed_hash['alerting'] == 'enabled'
+        if parsed_hash['cloud_os_type'].downcase == 'centos'
+          urls << "\r" << ' %'.black << " Nagios: http://#{controller.first}/nagios \n" if parsed_hash['alerting'] == 'enabled'
+        elsif parsed_hash['cloud_os_type'].downcase == 'ubuntu'
+          urls << "\r" << ' %'.black << " Nagios: http://#{controller.first}/nagios3 \n" if parsed_hash['alerting'] == 'enabled'
+        end
         urls << "\r" << ' %'.black << " LogStash: http://#{controller.first}:5601 \n" if parsed_hash['alerting'] == 'enabled'
 
         if parsed_hash['hadoop_ha'] == 'enabled'
@@ -376,7 +382,11 @@ module Ankuscli
         #local deployment mode
         cluster_info << "\r" << ' *'.cyan << " Controller: #{parsed_hash['controller']}\n"
         urls << "\r" << ' %'.black << " Ganglia: http://#{parsed_hash['controller']}/ganglia \n" if parsed_hash['monitoring'] == 'enabled'
-        urls << "\r" << ' %'.black << " Nagios: http://#{parsed_hash['controller']}/nagios \n" if parsed_hash['alerting'] == 'enabled'
+        if parsed_hash['cloud_os_type'].downcase == 'centos'
+          urls << "\r" << ' %'.black << " Nagios: http://#{parsed_hash['controller']}/nagios \n" if parsed_hash['alerting'] == 'enabled'
+        elsif parsed_hash['cloud_os_type'].downcase == 'ubuntu'
+          urls << "\r" << ' %'.black << " Nagios: http://#{parsed_hash['controller']}/nagios3 \n" if parsed_hash['alerting'] == 'enabled'
+        end
         urls << "\r" << ' %'.black << " LogStash: http://#{parsed_hash['controller']}:5601 \n" if parsed_hash['alerting'] == 'enabled'
 
         if parsed_hash['hadoop_ha'] == 'enabled'
