@@ -162,7 +162,7 @@ module Ankuscli
     def modify_config_hash(parsed_hash, nodes_hash)
       parsed_hash_internal_ips = Marshal.load(Marshal.dump(parsed_hash))
       #things to add back to parsed_hash:
-      # root_ssh_key:
+      # ssh_key:
       # controller:
       # hadoop_namenode: []
       # hadoop_secondarynamenode: if hadoop_ha == 'disabled'
@@ -171,12 +171,12 @@ module Ankuscli
       # mapreduce['master']:
       # slave_nodes: []
       # hbase_master: [] if hbase_install == enabled
-      parsed_hash['root_ssh_key'] = if @provider == 'aws'
-                                      File.expand_path('~/.ssh') + '/' + @credentials['aws_key']
-                                    elsif @provider == 'rackspace'
-                                      File.split(File.expand_path(@credentials['rackspace_ssh_key'])).first + '/' +
-                                          File.basename(File.expand_path(@credentials['rackspace_ssh_key']), '.pub')
-                                    end
+      parsed_hash['ssh_key'] =  if @provider == 'aws'
+                                  File.expand_path('~/.ssh') + '/' + @credentials['aws_key']
+                                elsif @provider == 'rackspace'
+                                  File.split(File.expand_path(@credentials['rackspace_ssh_key'])).first + '/' +
+                                  File.basename(File.expand_path(@credentials['rackspace_ssh_key']), '.pub')
+                                end
       parsed_hash['controller'] = nodes_hash.map { |k,v| v.first if k =~ /controller/ }.compact.first
       parsed_hash['hadoop_namenode'] = nodes_hash.map { |k,v| v.first if k =~ /namenode/ }.compact
       parsed_hash['mapreduce']['master'] = nodes_hash.map { |k,v| v.first if k =~ /jobtracker/ }.compact.first
@@ -188,7 +188,7 @@ module Ankuscli
 
       #hash with internal ips
       if @provider == 'aws' # internal_ips
-        parsed_hash_internal_ips['root_ssh_key'] = File.expand_path('~/.ssh') + '/' + @parsed_hash['cloud_credentials']['aws_key']
+        parsed_hash_internal_ips['ssh_key'] = File.expand_path('~/.ssh') + '/' + @parsed_hash['cloud_credentials']['aws_key']
         parsed_hash_internal_ips['controller'] = nodes_hash.map { |k,v| v.last if k =~ /controller/ }.compact.first
         parsed_hash_internal_ips['hadoop_namenode'] = nodes_hash.map { |k,v| v.last if k =~ /namenode/ }.compact
         parsed_hash_internal_ips['mapreduce']['master'] = nodes_hash.map { |k,v| v.last if k =~ /jobtracker/ }.compact.first
@@ -198,7 +198,7 @@ module Ankuscli
         parsed_hash_internal_ips['journal_quorum'] = nodes_hash.map { |k,v| v.last if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled'
         parsed_hash_internal_ips['hbase_master'] = nodes_hash.map { |k,v| v.last if k =~ /hbasemaster/ }.compact if parsed_hash['hbase_install'] == 'enabled'
       elsif @provider == 'rackspace' # fqdn
-        parsed_hash_internal_ips['root_ssh_key'] = File.split(File.expand_path(@credentials['rackspace_ssh_key'])).first + '/' +
+        parsed_hash_internal_ips['ssh_key'] = File.split(File.expand_path(@credentials['rackspace_ssh_key'])).first + '/' +
                                                         File.basename(File.expand_path(@credentials['rackspace_ssh_key']), '.pub')
         parsed_hash_internal_ips['controller'] = nodes_hash.map { |k,_| k if k =~ /controller/ }.compact.first
         parsed_hash_internal_ips['hadoop_namenode'] = nodes_hash.map { |k,_| k if k =~ /namenode/ }.compact
@@ -288,13 +288,13 @@ module Ankuscli
               tempfile.write(partition_script)
               tempfile.close
               # wait for the server to be ssh'able
-              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].dns_name, 'root', File.expand_path('~/.ssh') + "/#{key}")
+              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].dns_name, @parsed_hash['ssh_user'], File.expand_path('~/.ssh') + "/#{key}")
               # upload and execute the partition script on the remote machine
               SshUtils.upload!(
                   tempfile.path,
                   '/tmp',
                   server_objects[tag].dns_name,
-                  'root',
+                  @parsed_hash['ssh_user'],
                   File.expand_path('~/.ssh') + "/#{key}",
                   22,
                   @debug
@@ -302,7 +302,7 @@ module Ankuscli
               output = Ankuscli::SshUtils.execute_ssh!(
                   "chmod +x /tmp/#{File.basename(tempfile.path)} && sudo sh -c '/tmp/#{File.basename(tempfile.path)} | tee /var/log/bootstrap_volumes.log'",
                   server_objects[tag].dns_name,
-                  'root',
+                  @parsed_hash['ssh_user'],
                   File.expand_path('~/.ssh') + "/#{key}",
                   22,
                   @debug)
@@ -316,7 +316,7 @@ module Ankuscli
               end
             else
               # if not waiting for mounting volumes, wait for instances to become sshable
-              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].dns_name, 'root', File.expand_path('~/.ssh') + "/#{key}")
+              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].dns_name, @parsed_hash['ssh_user'], File.expand_path('~/.ssh') + "/#{key}")
             end
           end
         end
@@ -394,13 +394,13 @@ module Ankuscli
               tempfile.write(partition_script)
               tempfile.close
               # wait for the server to be ssh'able
-              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, 'root', File.expand_path(ssh_key_path))
+              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, @parsed_hash['ssh_user'], File.expand_path(ssh_key_path))
               # upload and execute the partition script on the remote machine
               SshUtils.upload!(
                   tempfile.path,
                   '/tmp',
                   server_objects[tag].public_ip_address,
-                  'root',
+                  @parsed_hash['ssh_user'],
                   File.expand_path(ssh_key_path),
                   22,
                   @debug
@@ -408,7 +408,7 @@ module Ankuscli
               output = Ankuscli::SshUtils.execute_ssh!(
                   "chmod +x /tmp/#{File.basename(tempfile.path)} && sudo sh -c '/tmp/#{File.basename(tempfile.path)} | tee /var/log/bootstrap_volumes.log'",
                   server_objects[tag].public_ip_address,
-                  'root',
+                  @parsed_hash['ssh_user'],
                   File.expand_path(ssh_key_path),
                   22,
                   @debug)
@@ -422,7 +422,7 @@ module Ankuscli
               end
             else
               #if not mounting volumes wait for instances to become available
-              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, 'root', File.expand_path(ssh_key_path))
+              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, @parsed_hash['ssh_user'], File.expand_path(ssh_key_path))
             end
           end
         end
