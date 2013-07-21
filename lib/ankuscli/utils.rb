@@ -260,23 +260,12 @@ module Ankuscli
           results = {}
           begin
             Net::SSH.start(host, ssh_user, :port => ssh_port, :keys => ssh_key, :auth_methods => %w(publickey)) do |ssh|
-
               commands.each { |command|
-                puts "\nRunning " + "#{command}".blue + ' on server ' + "#{host}".blue if debug
+                puts "\r[Debug]: Running '#{command}' on server '#{host}'" if debug
                 results[command] = ssh_exec!(ssh, command, debug)
                 if debug
                   command_output = results[command]
-                  #unless command_output[0].empty?
-                  #  puts "\nSTDOUT:".green
-                  #  puts "#{command_output[0]}"
-                  #end
-
-                  #unless command_output[1].empty?
-                  #  puts "\nSTDERR:".red
-                  #  puts "#{command_output[1]}"
-                  #end
-
-                  puts 'EXIT CODE: '.yellow + "#{command_output[2]}"
+                  puts "[Debug]: Exit code of running '#{command}' is: #{command_output[2]}"
                 end
               }
             end
