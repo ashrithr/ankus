@@ -8,18 +8,22 @@ module Ankuscli
 
     # Generates server inventory files based on the hash passed from configuration parser
     class Generator
-      # @param [String] nodes_file => path to nodes_file
       # @param [String] config_file => path to the config file
       # @param [Hash] parsed_hash => parsed configuration hash
-      def initialize(nodes_file, config_file, parsed_hash)
-        @nodes_file   = nodes_file
+      def initialize(config_file, parsed_hash)
         @config_file  = config_file
         @parsed_hash  = parsed_hash
       end
 
       # Generates inventory (a mapping of puppet_server and puppet_client host_names), and writes out to @nodes_file
+      # @param [String] nodes_file => path to nodes_file
+      def generate!(nodes_file)
+        YamlUtils.write_yaml(create_nodes, nodes_file)
+      end
+
+      # Generates inventory
       def generate
-        YamlUtils.write_yaml(create_nodes, @nodes_file)
+        create_nodes
       end
 
       private

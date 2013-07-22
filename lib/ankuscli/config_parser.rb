@@ -22,7 +22,8 @@ module Ankuscli
       create_req_files
       @parsed_hash
     rescue
-      puts $! if @debug
+      puts "#{$!.message} (#{$!.class})"
+      puts $@ if @debug
       exit 1
     end
 
@@ -78,18 +79,26 @@ module Ankuscli
         exit 1
       else
         #check if ssh_key has valid key path
-        if File.exists? File.expand_path(hash_to_validate['ssh_key'])
-          common_validator(hash_to_validate)
-        else
+        unless File.exists? File.expand_path(hash_to_validate['ssh_key'])
           puts '[Error]:'.red + " ssh_key: #{hash_to_validate['ssh_key']} does not exists"
           exit 1
         end
       end
       #ssh_user
       if hash_to_validate['ssh_user'].nil? or hash_to_validate['ssh_user'].empty?
-        puts '[Debug]: ssh_user is not specified assuming ssh_user as root' if @debug
+        puts '[Debug]: ssh_user is not specified assuming ssh_user as \'root\'' if @debug
         hash_to_validate['ssh_user'] = 'root'
       end
+      # force user to enter hostname instead of ipaddress
+      nodes = Inventory::Generator.new(@config_file, @parsed_hash).generate
+      ( all_nodes ||= [] ) << nodes['puppet_server']
+      nodes['puppet_clients'].each {|pc| all_nodes << pc }
+      all_nodes.each do |node|
+        unless node =~ HOSTNAME_REGEX
+          raise(Ankuscli::Errors::ParseError.new("\r[Error]: Expecting hostname got ipaddress @ #{node}".red))
+        end
+      end
+      common_validator(hash_to_validate)
     end
 
     # Validations specific to cloud install_mode
