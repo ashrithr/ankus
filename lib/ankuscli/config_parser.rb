@@ -181,10 +181,12 @@ module Ankuscli
       end
 
       #add ssh_user to hash
-      hash_to_validate['ssh_user'] =  if cloud_os_type.downcase == 'cenots'
+      hash_to_validate['ssh_user'] =  if cloud_os_type.downcase == 'centos'
                                         'root'
-                                      elsif cloud_os_type.downcase == 'ubuntu'
+                                      elsif cloud_os_type.downcase == 'ubuntu' and cloud_platform.downcase == 'aws'
                                         'ubuntu'
+                                      else
+                                        'root'
                                       end
 
       common_validator(hash_to_validate)
@@ -354,6 +356,16 @@ module Ankuscli
         mapreduce_type = hash_to_validate['mapreduce']['type']
         mapreduce_master = hash_to_validate['mapreduce']['master']
         slave_nodes = hash_to_validate['slave_nodes']
+        # required: if hadoop_ha is enabled - zookeepers_quorum should be present
+        #           if hbase is enabled - zookeepers_quorum should be present
+        if hadoop_ha == 'enabled' or hbase_install == 'enabled'
+          zookeeper_quorum = hash_to_validate['zookeeper_quorum']
+          if zookeeper_quorum.nil? or zookeeper_quorum.empty?
+            puts '[Error]: '.red + "'zookeeper_quorum' is required for hbase or hadoop_ha install"
+            exit 1
+          end
+        end
+        # call hadoop_validator
         hadoop_validator(hadoop_ha, hadoop_namenode, hadoop_snn, mapreduce_type, mapreduce_master, zookeeper_quorum, journal_quorum, slave_nodes)
         if hbase_install == 'enabled'
           hbase_master = hash_to_validate['hbase_master']
