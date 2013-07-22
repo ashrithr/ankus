@@ -210,11 +210,11 @@ module Ankuscli
       end
       # generate puppet nodes file from configuration
       if @parsed_hash['install_mode'] == 'cloud'
-        Inventory::Generator.new(NODES_FILE_CLOUD, options[:config], @parsed_hash_with_internal_ips).generate #for enc generate
-        Inventory::Generator.new(NODES_FILE, options[:config], @parsed_hash).generate # for puppet install/runs
+        Inventory::Generator.new(options[:config], @parsed_hash_with_internal_ips).generate! NODES_FILE_CLOUD #for enc generate
+        Inventory::Generator.new(options[:config], @parsed_hash).generate! NODES_FILE # for puppet install/runs
       else
         # for enc and puppet install/runs
-        Inventory::Generator.new(NODES_FILE, options[:config], @parsed_hash).generate
+        Inventory::Generator.new(options[:config], @parsed_hash).generate! NODES_FILE
       end
 
       ## create puppet_deploy object which is can install puppet & generate hiera data, enc data
@@ -225,16 +225,17 @@ module Ankuscli
                         else
                           YamlUtils.parse_yaml(NODES_FILE)['puppet_clients']
                         end
+      puppet_master = YamlUtils.parse_yaml(NODES_FILE)['puppet_server']
       puppet = Deploy::Puppet.new(
-                YamlUtils.parse_yaml(NODES_FILE)['puppet_server'],  # puppet server
-                puppet_clients,                                     # nodes to install puppet client on
-                @parsed_hash['ssh_key'],                       # ssh_key to use
-                @parsed_hash,                                       # parsed config hash
-                options[:thread_pool_size],                         # number of threads to use
-                @parsed_hash['ssh_user'],                           # ssh_user
-                options[:debug],                                    # enabled debud mode
-                options[:mock],                                     # enable mocking
-                hosts_file_path                                     # hostfile path if cloud_provider is rackspace
+                puppet_master,                # puppet server
+                puppet_clients,               # nodes to install puppet client on
+                @parsed_hash['ssh_key'],      # ssh_key to use
+                @parsed_hash,                 # parsed config hash
+                options[:thread_pool_size],   # number of threads to use
+                @parsed_hash['ssh_user'],     # ssh_user
+                options[:debug],              # enabled debud mode
+                options[:mock],               # enable mocking
+                hosts_file_path               # hostfile path if cloud_provider is rackspace
               )
       begin
         if options[:add_nodes]

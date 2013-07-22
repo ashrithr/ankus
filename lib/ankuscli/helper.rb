@@ -20,6 +20,8 @@ module Ankuscli
   HIERA_DATA_PATH = %q(/etc/puppet/hieradata)
   REMOTE_LOG_DIR = %q(/var/log/ankus)
 
+  HOSTNAME_REGEX = /^(([a-zA-Z]|[a-zA-Z][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z]|[A-Za-z][A-Za-z0-9\-]*[A-Za-z0-9])$/
+
   HADOOP_CONF_KEYS = %w{
     hadoop_heap_size
     hadoop_namenode_opts

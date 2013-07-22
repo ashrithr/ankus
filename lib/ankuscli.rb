@@ -34,4 +34,5 @@ module Ankuscli
   require 'ankuscli/cloud_init'
   require 'ankuscli/cloud_manage'
   require 'ankuscli/deploy'
+  require 'ankuscli/errors'
 end
