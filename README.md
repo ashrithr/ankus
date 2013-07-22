@@ -95,7 +95,6 @@ AnkusCLI is a configuration based deployment platform, so deployments should be 
 		```shell
 		cp conf/ankus_conf_cloud_aws_example.yaml conf/ankus_conf.yaml
 		```
-
 	* If you are working with rackspace cloud platform use `conf/ankus_conf_cloud_rs_example.yaml` as a base line template for configuration
 
 		```shell
