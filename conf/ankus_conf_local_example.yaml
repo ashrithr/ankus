@@ -34,10 +34,10 @@ controller: 'controller.ops.cw.com'
 #   if hadoop_ha is disabled, pass in one fqdn
 # hadoop_secondarynamenode:
 #   if hadoop_ha is disabled pass in a fqdn in which secondarynamenode is configured
-# zookeeper_quoram:
+# zookeeper_quorum:
 #   if hadoop_ha is auto, pass in odd number of fqdn's. zookeepers are nodes which are used for
 #   co-ordination for namenode fail-over
-# journal_quoram:
+# journal_quorum:
 #   if hadoop_ha is enabled|auto, pass in odd number of fqdn's. Journal nodes are used to store
 #   metadata in high availability configuration
 # Note: (zookeepers and journal nodes can co-exist on same machines)

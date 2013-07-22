@@ -219,7 +219,7 @@ function download_modules () {
     mkdir -p ${PUPPET_MODULES_PATH}
   fi
   cd /etc/puppet
-  with_backoff wget --no-check-certificate -O modules.tar.gz ${PUPPET_MODULES_DOWNLOAD}
+  with_backoff wget --no-check-certificate --quiet -O modules.tar.gz ${PUPPET_MODULES_DOWNLOAD}
   if [ $? -eq 0 ]; then
     logit "sucessfully downloaded puppet modules from git"
     logit "extracting modules"
@@ -227,7 +227,7 @@ function download_modules () {
     if [ $? -eq 0 ]; then
       mv ankus-cli-modules*/* ${PUPPET_MODULES_PATH}
       rm -f modules.tar.gz
-      rm ankus-cli-modules*
+      rm -rf ankus-cli-modules*
     fi
   else
     printerr "Failed to download puppet modules from git, aborting"
@@ -428,6 +428,10 @@ if [[ $OS =~ centos || $OS =~ redhat ]]; then
 elif [[ ${OS} =~ ubuntu ]]; then
   apt-get -y install apache2 ruby1.8-dev rubygems libcurl4-openssl-dev libssl-dev zlib1g-dev apache2-prefork-dev \
     libapr1-dev libaprutil1-dev
+  if [ $? -ne 0 ]; then
+    printerr "failed installing dependencies"
+    exit 2
+  fi
   a2enmod ssl
   a2enmod headers
   update-rc.d -f puppetmaster remove  #making sure puppetmaster does not start using init scripts

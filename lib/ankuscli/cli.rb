@@ -314,6 +314,7 @@ module Ankuscli
         EOS
         abort
       end
+      hiera_data = YamlUtils.parse_yaml(HIERA_DATA_FILE)
       (cluster_info ||= '') << 'Ankuscli Cluster Info'.black_on_cyan.bold.underline << "\n"
       cluster_info << "\r" << ' #'.green << " Hadoop High Availability Configuration: #{parsed_hash['hadoop_ha']} \n"
       cluster_info << "\r" << ' #'.green << " MapReduce Framework: #{parsed_hash['mapreduce']['type']} \n"
@@ -387,9 +388,9 @@ module Ankuscli
         #local deployment mode
         cluster_info << "\r" << ' *'.cyan << " Controller: #{parsed_hash['controller']}\n"
         urls << "\r" << ' %'.black << " Ganglia: http://#{parsed_hash['controller']}/ganglia \n" if parsed_hash['monitoring'] == 'enabled'
-        if parsed_hash['cloud_os_type'].downcase == 'centos'
+        if hiera_data['nagios_server_ostype'].downcase == 'centos'
           urls << "\r" << ' %'.black << " Nagios: http://#{parsed_hash['controller']}/nagios \n" if parsed_hash['alerting'] == 'enabled'
-        elsif parsed_hash['cloud_os_type'].downcase == 'ubuntu'
+        elsif hiera_data['nagios_server_ostype'].downcase == 'ubuntu'
           urls << "\r" << ' %'.black << " Nagios: http://#{parsed_hash['controller']}/nagios3 \n" if parsed_hash['alerting'] == 'enabled'
         end
         urls << "\r" << ' %'.black << " LogStash: http://#{parsed_hash['controller']}:5601 \n" if parsed_hash['alerting'] == 'enabled'
@@ -411,7 +412,7 @@ module Ankuscli
         end
         if parsed_hash['hbase_install'] == 'enabled'
           cluster_info << "\r" << ' *'.cyan << " Hbase Master: #{parsed_hash['hbase_master'].join(',')} \n"
-          cluster_info << "\r" << ' *'.cyan << " Hbase Master: http://#{parsed_hash['hbase_master'].first}:60010 \n"
+          urls << "\r" << ' %'.black << " Hbase Master: http://#{parsed_hash['hbase_master'].first}:60010 \n"
         end
         cluster_info << "\r" << ' *'.cyan << " MapReduce Master: #{parsed_hash['mapreduce']['master']} \n"
         if parsed_hash['hadoop_ha'] == 'enabled' and parsed_hash['hbase_install'] == 'enabled'
