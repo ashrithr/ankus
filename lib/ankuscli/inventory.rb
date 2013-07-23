@@ -140,7 +140,8 @@ module Ankuscli
               #eco-system
               roles_hash[pc]['hadoop-hive'] = nil           if @parsed_hash['hadoop_ecosystem'].include?('hive')
               roles_hash[pc]['hadoop-pig'] = nil            if @parsed_hash['hadoop_ecosystem'].include?('pig')
-              roles_hash[pc]['hadoop-sqoop'] = nil          if @parsed_hash['hadoop_ecosystem'].include?('sqoop')
+              roles_hash[pc]['hadoop-sqoop::server'] = nil  if @parsed_hash['hadoop_ecosystem'].include?('sqoop')
+              roles_hash[pc]['hadoop-sqoop::client'] = nil  if @parsed_hash['hadoop_ecosystem'].include?('sqoop')
               roles_hash[pc]['hadoop-pig'] = nil            if @parsed_hash['hadoop_ecosystem'].include?('pig')
               roles_hash[pc]['hadoop-oozie::server'] = nil  if @parsed_hash['hadoop_ecosystem'].include?('oozie')
               roles_hash[pc]['hadoop-oozie::client'] = nil  if @parsed_hash['hadoop_ecosystem'].include?('oozie')
