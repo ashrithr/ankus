@@ -3,7 +3,7 @@
 Command line interface for ankus big-data deployment orchestration tool. Handles the installation & management of:
 
  - hadoop (hadoop-2.0.0)
- - hadoop ecosystem tools: pig (0.11.x), hive (0.10.x), sqoop (1.4.x), oozie (3.3.x), flume-ng
+ - hadoop ecosystem tools: pig (0.11.x), hive (0.10.x), sqoop2, oozie (3.3.x), flume-ng
  - hbase (hbase-0.94)
 
  Ankus can handle deployments in local (group of local machines) as well as cloud (servers hosted by cloud providers).

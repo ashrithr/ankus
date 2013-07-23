@@ -384,6 +384,10 @@ module Ankuscli
             cluster_info << "\r" << "\t" << '- '.cyan << "#{k.capitalize}: #{v.first}" << "\n"
           end
         end
+        #hadoop_ecosystem
+        if parsed_hash['hadoop_ecosystem'] and parsed_hash['hadoop_ecosystem'].include?('oozie')
+          urls << "\r" << ' %'.black << " Oozie Console: http://#{jt.first}:11000/oozie \n"
+        end
       else
         #local deployment mode
         cluster_info << "\r" << ' *'.cyan << " Controller: #{parsed_hash['controller']}\n"
