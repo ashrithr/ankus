@@ -89,7 +89,7 @@ module Ankuscli
         roles_hash[@ps]['java'] = nil
         roles_hash[@ps]['nagios::server'] = nil if @parsed_hash['alerting'] == 'enabled'
         roles_hash[@ps]['ganglia::server'] = nil if @parsed_hash['monitoring'] == 'enabled'
-        roles_hash[@ps]['kerberos::server'] = nil if @parsed_hash['security'] == 'enabled'
+        roles_hash[@ps]['kerberos::server'] = nil if @parsed_hash['security'] == 'kerberos'
         roles_hash[@ps]['logstash'] = { 'role' => 'indexer' } if @parsed_hash['log_aggregation'] == 'enabled'
 
         #puppet clients
@@ -157,7 +157,7 @@ module Ankuscli
           #monitoring, alerting & security
           roles_hash[pc]['nagios::nrpe'] = nil if @parsed_hash['alerting'] == 'enabled'
           roles_hash[pc]['ganglia::client'] = nil if @parsed_hash['monitoring'] == 'enabled'
-          roles_hash[pc]['kerberos::client'] = nil if @parsed_hash['security'] == 'enabled'
+          roles_hash[pc]['kerberos::client'] = nil if @parsed_hash['security'] == 'kerberos'
           ##log aggregation
           #if @parsed_hash['log_aggregation'] == 'enabled'
           #  roles_hash[pc]['logstash::lumberjack'] = {

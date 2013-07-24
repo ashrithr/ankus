@@ -284,10 +284,10 @@ module Ankuscli
           end
         end
         #security
-        if parsed_hash['security'] == 'enabled'
+        if parsed_hash['security'] == 'kerberos'
           hiera_hash['kerberos_kdc_server'] = @puppet_master
-          hiera_hash['kerberos_realm'] = @parsed_hash['realm_name']
-          hiera_hash['kerberos_domain'] = @parsed_hash['domain_name']
+          hiera_hash['kerberos_realm'] = @parsed_hash['realm_name'] if @parsed_hash['realm_name']
+          hiera_hash['kerberos_domain'] = @parsed_hash['domain_name'] if @parsed_hash['domain_name']
         end
           #hadoop_eco_system
         hadoop_ecosystem = parsed_hash['hadoop_ecosystem']
