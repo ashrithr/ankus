@@ -236,24 +236,29 @@ module Ankuscli
         exit 1
       end
 
-      SpinningCursor.start do
-        banner "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')}".blue
-        type :dots
-        message "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')}".blue + ' [DONE]'.cyan
+      begin
+        SpinningCursor.start do
+          banner "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')}".blue
+          type :dots
+          message "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')}".blue + ' [DONE]'.cyan
+        end
+        server_objects = {} #hash to store server object to tag mapping { tag => server_obj }, used for attaching volumes
+        nodes_to_create.each do |tag, info|
+          server_objects[tag] = aws.create_server!(conn,
+                                                   tag,
+                                                   :key => key,
+                                                   :groups => groups,
+                                                   :flavor_id => flavor_id,
+                                                   :os_type => info[:os_type],
+                                                   :num_of_vols => info[:volumes],
+                                                   :vol_size => info[:volume_size]
+          )
+        end
+        SpinningCursor.stop
+      rescue SpinningCursor::CursorNotRunning
+        #silently ignore this for mocking
       end
-      server_objects = {} #hash to store server object to tag mapping { tag => server_obj }, used for attaching volumes
-      nodes_to_create.each do |tag, info|
-        server_objects[tag] = aws.create_server!(conn,
-                                                 tag,
-                                                 :key => key,
-                                                 :groups => groups,
-                                                 :flavor_id => flavor_id,
-                                                 :os_type => info[:os_type],
-                                                 :num_of_vols => info[:volumes],
-                                                 :vol_size => info[:volume_size]
-        )
-      end
-      SpinningCursor.stop
+
       #wait for servers to get created (:state => running)
       SpinningCursor.start do
         banner "\rWaiting for servers to get created "
@@ -368,13 +373,17 @@ module Ankuscli
 
 
       #wait for servers to get created (:state => ACTIVE)
-      SpinningCursor.start do
-        banner "\rWaiting for servers to get created "
-        type :dots
-        action do
-          rackspace.wait_for_servers(server_objects.values)
+      begin
+        SpinningCursor.start do
+          banner "\rWaiting for servers to get created "
+          type :dots
+          action do
+            rackspace.wait_for_servers(server_objects.values)
+          end
+          message "\rWaiting for servers to get created " + '[DONE]'.cyan
         end
-        message "\rWaiting for servers to get created " + '[DONE]'.cyan
+      rescue SpinningCursor::CursorNotRunning
+        #silently ignore this
       end
 
       #build the return string
