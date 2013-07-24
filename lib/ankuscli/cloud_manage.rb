@@ -239,7 +239,7 @@ module Ankuscli
       SpinningCursor.start do
         banner "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')}".blue
         type :dots
-        message "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')}".blue + '[DONE]'.cyan
+        message "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')}".blue + ' [DONE]'.cyan
       end
       server_objects = {} #hash to store server object to tag mapping { tag => server_obj }, used for attaching volumes
       nodes_to_create.each do |tag, info|

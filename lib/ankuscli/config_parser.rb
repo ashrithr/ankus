@@ -325,7 +325,7 @@ module Ankuscli
       if alerting and alerting == 'enabled'
         admin_email = hash_to_validate['admin_email']
         if admin_email.nil? or admin_email.empty?
-          puts '[Error]:'.red + ' admin_email is required parameter, valid values: enabled|disabled'
+          puts '[Error]:'.red + " 'admin_email' is required if altering is enabled"
           exit 1
         end
       end

@@ -341,7 +341,7 @@ module Ankuscli
         elsif parsed_hash['cloud_os_type'].downcase == 'ubuntu'
           urls << "\r" << ' %'.black << " Nagios: http://#{controller.first}/nagios3 \n" if parsed_hash['alerting'] == 'enabled'
         end
-        urls << "\r" << ' %'.black << " LogStash: http://#{controller.first}:5601 \n" if parsed_hash['alerting'] == 'enabled'
+        urls << "\r" << ' %'.black << " LogStash: http://#{controller.first}:5601 \n" if parsed_hash['log_aggregation'] == 'enabled'
 
         if parsed_hash['hadoop_ha'] == 'enabled'
           cluster_info << "\r" << ' *'.cyan << " Namenode(s): \n"
@@ -397,7 +397,7 @@ module Ankuscli
         elsif hiera_data['nagios_server_ostype'].downcase == 'ubuntu'
           urls << "\r" << ' %'.black << " Nagios: http://#{parsed_hash['controller']}/nagios3 \n" if parsed_hash['alerting'] == 'enabled'
         end
-        urls << "\r" << ' %'.black << " LogStash: http://#{parsed_hash['controller']}:5601 \n" if parsed_hash['alerting'] == 'enabled'
+        urls << "\r" << ' %'.black << " LogStash: http://#{parsed_hash['controller']}:5601 \n" if parsed_hash['log_aggregation'] == 'enabled'
 
         if parsed_hash['hadoop_ha'] == 'enabled'
           cluster_info << "\r" << ' *'.cyan << " Namenode(s): \n"
