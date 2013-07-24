@@ -293,17 +293,15 @@ module Ankuscli
         puts '[Error]:'.red + ' invalid value for security, valid values: simple|kerberos'
         exit 1
       end
-      if security == 'enabled'
+      if security == 'kerberos'
         #if security is enabled
         realm_name = hash_to_validate['hadoop_kerberos_realm']
         domain_name = hash_to_validate['hadoop_kerberos_domain']
         if realm_name.nil? or realm_name.empty?
-          puts '[Error]: '.red + 'kerberos realm name is required if security is enabled'
-          exit 1
+          puts '[Debug]: ' + 'kerberos realm name is not provided, using default realm name' if @debug
         end
         if domain_name.nil? or domain_name.empty?
-          puts '[Error]: '.red + 'kerberos domain name is required if security is enabled'
-          exit 1
+          puts '[Debug]: ' + 'kerberos domain name is not provided, using default domain name' if @debug
         end
       end
 
