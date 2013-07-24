@@ -362,7 +362,7 @@ module Ankuscli
           hms.each do |k, v|
             cluster_info << "\r" << ' *'.cyan << " #{k.capitalize}: #{v.first} \n"
           end
-          urls << "\r" << ' %'.black << " HBaseMaster: http://#{hms['hbasemaster1'].first}:60010 \n"
+          urls << "\r" << ' %'.black << " HBaseMaster: http://#{Hash[hms.select {|k,v| k.include? 'hbasemaster1'}].values.flatten.first}:60010 \n"
         end
         if parsed_hash['hadoop_ha'] == 'enabled' or parsed_hash['hbase_install'] == 'enabled'
           if parsed_hash['hadoop_ha'] == 'enabled'
