@@ -264,13 +264,15 @@ module Ankuscli
         message "\rWaiting for servers to get created " + '[DONE]'.cyan
       end
       #wait for the boot to complete
-      SpinningCursor.start do
-        banner "\rWaiting for cloud instances to complete their boot (which includes mounting the volumes) "
-        type :dots
-        action do
-          aws.complete_wait(server_objects.values, @cloud_os) #TODO: this method is taking forever, find another way to make sure volumes are properly mounted
+      if ! @mock
+        SpinningCursor.start do
+          banner "\rWaiting for cloud instances to complete their boot (which includes mounting the volumes) "
+          type :dots
+          action do
+            aws.complete_wait(server_objects.values, @cloud_os) #TODO: this method is taking forever, find another way to make sure volumes are properly mounted
+          end
+          message "\rWaiting for cloud instances to complete their boot " + '[DONE]'.cyan
         end
-        message "\rWaiting for cloud instances to complete their boot " + '[DONE]'.cyan
       end
       #build the return string
       nodes_to_create.each do |tag, _|
@@ -329,7 +331,7 @@ module Ankuscli
         puts "\rPartitioning/Formatting attached volumes".blue
         nodes_to_create.each do |_, info|
           threads_pool.schedule do
-            sleep 5 if info[:volumes] > 0
+            sleep 5 if info[:volumes] > 0 and @debug
           end
         end
         threads_pool.shutdown
@@ -435,7 +437,7 @@ module Ankuscli
         puts "\rPartitioning/Formatting attached volumes".blue
         nodes_to_create.each do |_, info|
           threads_pool.schedule do
-            sleep 5 if info[:volumes] > 0
+            sleep 5 if info[:volumes] > 0 and @debug
           end
         end
         threads_pool.shutdown

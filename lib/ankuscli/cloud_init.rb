@@ -239,7 +239,7 @@ module Ankuscli
         volume.server = server
         volume.delete_on_termination = true #TODO Remove me
       end
-      sleep 5   #sleep to give some time for instances to refresh and update partitions info
+      #sleep 5   #sleep to give some time for instances to refresh and update partitions info
     end
 
 
@@ -266,7 +266,10 @@ module Ankuscli
     # @
     def complete_wait(servers, os_type)
       Timeout::timeout(600) do #Timeout after 10 mins
-        sleep 5; return if @mock # if mock is enabled sleep for some time and return back
+        if @mock # if mock is enabled sleep for some time and return back
+          #sleep 5
+          return
+        end
         if servers.is_a?(Array)
           servers.each do |server|
             if os_type.downcase == 'centos'

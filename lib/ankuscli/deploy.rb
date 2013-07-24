@@ -141,25 +141,13 @@ module Ankuscli
           #MOCKING
           puts 'Checking if instances are ssh\'able ...'
           puts 'Checking if instances are ssh\'able ...' + '[OK]'.green.bold
-          SpinningCursor.start do
-            banner "\rInstalling puppet master on #{@puppet_master}".blue
-            type :dots
-            action do
-              sleep 3
-            end
-            message "\rInstalling puppet master on #{@puppet_master}".blue + '[DONE]'.cyan
-          end
-          SpinningCursor.start do
-            banner "\rInstalling puppet agents on clients ".blue
-            type :dots
-            action do
-              puts "Puppet clients: #{@nodes.join(',')}"
-              sleep 3
-            end
-            message "\rInstalling puppet agents on clients  ".blue + '[DONE]'.cyan
-          end
+          puts "\rInstalling puppet master on #{@puppet_master}".blue
+          puts "\rInstalling puppet master on #{@puppet_master}".blue + '[DONE]'.cyan
+          puts "\rInstalling puppet agents on clients ".blue
+          puts "Puppet clients: #{@nodes.join(',')}"
+          puts "\rInstalling puppet agents on clients  ".blue + '[DONE]'.cyan
+          puts "\rInstalling puppet on all nodes completed".blue
         end
-        puts "\rInstalling puppet on all nodes completed".blue
       end
 
       # Install only puppet client(s)
@@ -463,16 +451,16 @@ module Ankuscli
       # @param [String] puppet_run_cmd => command to run on remote client to run puppet
       # @param [String] role => role installing on remote client
       def puppet_single_run(instance, puppet_run_cmd, role)
-        unless @debug
-          SpinningCursor.start do
-            banner "\rInitializing #{role} on " + "#{instance} ".blue
-            type :dots
-            message "\rInitializing #{role} on " + "#{instance} ".blue + '[DONE]'.cyan
-          end
-        else
-          puts "\rInitializing #{role} on " + "#{instance}".blue
-        end
         unless @mock
+          unless @debug
+            SpinningCursor.start do
+              banner "\rInitializing #{role} on " + "#{instance} ".blue
+              type :dots
+              message "\rInitializing #{role} on " + "#{instance} ".blue + '[DONE]'.cyan
+            end
+          else
+            puts "\rInitializing #{role} on " + "#{instance}".blue
+          end
           output = SshUtils.execute_ssh!(
               puppet_run_cmd,
               instance,
@@ -487,13 +475,13 @@ module Ankuscli
             #exit 1
             #TODO Rollback lock
           end
+          unless @debug
+            SpinningCursor.stop
+          else
+            puts "\rCompleted puppet run on" +" #{instance}".blue if @debug
+          end
         else
-          sleep 3
-        end
-        unless @debug
-          SpinningCursor.stop
-        else
-          puts "\rCompleted puppet run on" +" #{instance}".blue if @debug
+          puts "Initializing puppet #{role} on #{instance}"
         end
       end
 
@@ -502,13 +490,13 @@ module Ankuscli
       # @param [String] puppet_run_cmd => command to run on remote client to run puppet
       # @param [String] role => role installing on remote client
       def puppet_parallel_run(instances_array, puppet_run_cmd, role)
-        SpinningCursor.start do
-          banner "\rInitializing #{role} on client(s) "
-          type :dots
-          message "\rInitializing #{role} on client(s): " + "#{instances_array.join(',')} ".blue + '[DONE]'.cyan
-          output :at_stop
-        end
         if ! @mock
+          SpinningCursor.start do
+            banner "\rInitializing #{role} on client(s) "
+            type :dots
+            message "\rInitializing #{role} on client(s): " + "#{instances_array.join(',')} ".blue + '[DONE]'.cyan
+            output :at_stop
+          end
           #initiate concurrent threads pool - to install puppet clients all agent nodes
           ssh_connections = ThreadPool.new(@parallel_connections)
           output = []
@@ -539,10 +527,10 @@ module Ankuscli
               puts "\r[Debug]: (Error) Puppet run failed on #{instance}" unless o[instance][2].to_i == 0
             end
           end
+          SpinningCursor.stop
         else
-          sleep 3
+          puts "Initializing #{role} on client(s) "
         end
-        SpinningCursor.stop
       end
 
       # Checks if instances are listening in ssh port by default 22
