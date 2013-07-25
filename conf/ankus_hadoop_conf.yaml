@@ -86,11 +86,9 @@ hadoop_config_dfs_client_block_write_retries: 3
 ########################################################
 # MapReduce/Yarn properties
 ########################################################
-# Controls the JVM options passed down to child tasks launched by tasktracker
-# '-Xmx<SIZE_IN_MB>m' represents set the JVM size to 256 MB, one can also set
-# initial JVM size using '-Xms<SIZE_IN_MB>m' and pass custom properties using
-# '-Dproperty=value'
-hadoop_config_mapred_child_java_opts: -Xmx256m
+# Controls the JVM size of the child processes (map & reduce tasks) invoked by
+# tasktracker
+hadoop_config_mapred_child_java_opts: 256
 # Size of the in-memory circular buffer used by map tasks to write the output
 hadoop_config_io_sort_mb: 128
 # Number of files to merge at once, used by both map and reduce tasks
