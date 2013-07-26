@@ -4,7 +4,6 @@
 ########################################################
 install_mode: 'cloud'
 
-cloud_platform: aws
 ########################################################
 # Cloud Service Credentials
 # cloud_credentials
@@ -16,8 +15,8 @@ cloud_platform: aws
 ########################################################
 cloud_platform: rackspace
 cloud_credentials:
-  rackspace_username:
-  rackspace_api_key:
+  rackspace_username: ''
+  rackspace_api_key: ''
   rackspace_instance_type: 5
   rackspace_ssh_key: '~/.ssh/id_rsa.pub'
 cloud_os_type: CentOS
@@ -60,7 +59,7 @@ hbase_install: disabled
 #                                  If ignored no additional disks are created
 ########################################################
 slave_nodes_count: 5
-slave_nodes_storage_capacity: 100
+slave_nodes_storage_capacity: 0
 
 ########################################################
 # Additional tools - hadoop ecosystem tools to install
@@ -68,10 +67,8 @@ slave_nodes_storage_capacity: 100
 hadoop_ecosystem:
   - hive
   - sqoop
-  - flume
   - pig
   - oozie
-  - hue
 
 ########################################################
 # Security Config
@@ -95,6 +92,6 @@ security: simple
 # log_aggregation (enabled|disabled) => if enabled, logstash will be installed to aggregate logs from all the servers
 ########################################################
 monitoring: enabled
-alerting: enabled
+alerting: disabled
 admin_email: 'admin@cw.com'
-log_aggregation: enabled
+log_aggregation: disabled

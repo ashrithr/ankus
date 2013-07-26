@@ -104,7 +104,6 @@ hadoop_ecosystem:
   - sqoop
   - pig
   - oozie
-  - hue
 
 ########################################################
 # Security Config
