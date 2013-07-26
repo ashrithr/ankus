@@ -142,6 +142,13 @@ module Ankuscli
           puts '[Error]:'.red + ' cloud_credentials is malformed/invalid, look sample cloud config for example'
           exit 1
         end
+        if cloud_credentials['aws_secret_key'].length == 0
+          puts '[Error]: '.red + 'aws_secret_key are missing'
+          exit 1
+        elsif cloud_credentials['aws_access_id'].length == 0
+          puts '[Error]: '.red + 'aws_access_id are missing'
+          exit 1
+        end
         if cloud_credentials['aws_sec_groups']
           unless cloud_credentials['aws_sec_groups'].is_a?(Array)
             puts '[Error]: '.red + 'expecting list(array) representation of groups'
@@ -164,6 +171,24 @@ module Ankuscli
         unless cloud_credentials.keys.sort == valid_credentials.keys.sort
           puts '[Error]:'.red + ' cloud_credentials is malformed/invalid, look sample cloud config for example'
           exit 1
+        end
+        if cloud_credentials['rackspace_username'].length == 0
+          puts '[Error]: '.red + 'rackspace_username are missing'
+          exit 1
+        elsif cloud_credentials['rackspace_api_key'].length == 0
+          puts '[Error]: '.red + 'rackspace_api_key are missing'
+          exit 1
+        end
+        #validate ssh key
+        if cloud_credentials['rackspace_ssh_key'].nil? or cloud_credentials['rackspace_ssh_key'].empty?
+          puts '[Error]:'.red + ' rackspace_ssh_key is required'
+          exit 1
+        else
+          #check if ssh_key has valid key path
+          unless File.exists? File.expand_path(cloud_credentials['rackspace_ssh_key'])
+            puts '[Error]:'.red + " ssh_key: #{cloud_credentials['rackspace_ssh_key']} does not exists"
+            exit 1
+          end
         end
         #validate connection
         rackspace = Rackspace.new(cloud_credentials['rackspace_api_key'], cloud_credentials['rackspace_username'])
