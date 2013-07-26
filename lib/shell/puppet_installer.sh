@@ -593,13 +593,13 @@ else
 fi
 
 #check if puppetdb has started listening
-printclr "Pausing till puppetdb is listening"
-while : ; do
- grep "Started SslSelectChannelConnector@" /var/log/puppetdb/puppetdb.log &>/dev/null && break
- printf .
- sleep 1
-done
-echo ""
+# printclr "Pausing till puppetdb is listening"
+# while : ; do
+#  grep "Started SslSelectChannelConnector@" /var/log/puppetdb/puppetdb.log &>/dev/null && break
+#  printf .
+#  sleep 1
+# done
+# echo ""
 printclr "test puppet agent run to test if setup was ok"
 puppet agent -t && printclr "puppet run suceeded" || printerr "puppet agent run failed"
 
