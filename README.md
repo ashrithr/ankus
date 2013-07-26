@@ -45,8 +45,9 @@ Ankus orchestrator is built on ruby and some of its libraries, so to built from 
  - Ubuntu:
 
    ```shell
-    apt-get install -y ruby1.8-dev ruby1.8 ri1.8 rdoc1.8 irb1.8 libreadline-ruby1.8 libruby1.8 \
-    libopenssl-ruby libxslt-dev libxml2-dev gcc make
+   apt-get install -y ruby1.9.1 ruby1.9.1-dev rubygems1.9.1 irb1.9.1 ri1.9.1 rdoc1.9.1 \
+	  build-essential libopenssl-ruby1.9.1 libssl-dev zlib1g-dev libxslt-dev libxml2-dev \
+	  git
    ```
 
  - Mac OSX:

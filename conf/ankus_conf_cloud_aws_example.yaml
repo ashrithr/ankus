@@ -4,7 +4,6 @@
 ########################################################
 install_mode: 'cloud'
 
-cloud_platform: aws
 ########################################################
 # Cloud Service Credentials
 #  aws_access_id => access id of aws user account
@@ -13,6 +12,7 @@ cloud_platform: aws
 #  aws_region => aws region in which to deploy the cluster
 #  aws_key => ssh_key to inject to aws instances
 ########################################################
+cloud_platform: aws
 cloud_credentials:
   aws_access_id: ''
   aws_secret_key: ''
@@ -60,7 +60,7 @@ hbase_install: disabled
 #                                  disks are created. Note: Slave Instances get 250GB by default for root
 ########################################################
 slave_nodes_count: 5
-slave_nodes_storage_capacity: 300
+slave_nodes_storage_capacity: 0
 
 ########################################################
 # Additional tools - hadoop ecosystem tools to install
@@ -70,7 +70,6 @@ hadoop_ecosystem:
   - sqoop
   - pig
   - oozie
-  - hue
 
 ########################################################
 # Security Config
@@ -94,6 +93,6 @@ security: simple
 # log_aggregation (enabled|disabled) => if enabled, logstash will be installed to aggregate logs from all the servers
 ########################################################
 monitoring: enabled
-alerting: enabled
+alerting: disabled
 admin_email: 'admin@cw.com'
-log_aggregation: enabled
+log_aggregation: disabled
