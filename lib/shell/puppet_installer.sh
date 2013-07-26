@@ -203,6 +203,8 @@ PSQLDELIM
   create user hue with password 'hue';
   create database hue with owner hue;
 END
+  logit "Reloading postgresql"
+  service postgresql restart
 }
 
 function download_modules () {
