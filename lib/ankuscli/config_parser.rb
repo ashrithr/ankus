@@ -163,11 +163,13 @@ module Ankuscli
           exit 2
         end
       elsif cloud_platform == 'rackspace'
-        valid_credentials = { 'rackspace_username' => '',
+        valid_credentials = {
+                              'rackspace_username' => '',
                               'rackspace_api_key' => '',
                               'rackspace_instance_type' => '',
-                              'rackspace_ssh_key' => ''
-        }
+                              'rackspace_ssh_key' => '',
+                              'rackspace_cluster_identifier' => ''
+                            }
         unless cloud_credentials.keys.sort == valid_credentials.keys.sort
           puts '[Error]:'.red + ' cloud_credentials is malformed/invalid, look sample cloud config for example'
           exit 1
@@ -189,6 +191,13 @@ module Ankuscli
             puts '[Error]:'.red + " ssh_key: #{cloud_credentials['rackspace_ssh_key']} does not exists"
             exit 1
           end
+        end
+        #validate cluster identifier
+        if cloud_credentials['rackspace_cluster_identifier'].length == 0
+          puts '[Debug]: rackspace_cluster_identifier is not set, using the default: \'ops\''
+          hash_to_validate['rackspace_cluster_identifier'] = 'ops'
+        else
+          hash_to_validate['rackspace_cluster_identifier'] = cloud_credentials['rackspace_cluster_identifier']
         end
         #validate connection
         rackspace = Rackspace.new(cloud_credentials['rackspace_api_key'], cloud_credentials['rackspace_username'])
