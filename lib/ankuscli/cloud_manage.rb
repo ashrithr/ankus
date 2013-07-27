@@ -502,8 +502,14 @@ module Ankuscli
     # @return [String] contents of hosts file
     def build_hosts(nodes_ips_map)
       hosts_string = ''
-      hosts_string << "127.0.0.1\tlocalhost localhost.localdomain localhost4 localhost4.localdomain4" << "\n"
-      hosts_string << "::1\tlocalhost localhost.localdomain localhost6 localhost6.localdomain6" << "\n"
+      if @cloud_os.downcase == 'centos'
+        hosts_string << "127.0.0.1\tlocalhost localhost.localdomain localhost4 localhost4.localdomain4" << "\n"
+        hosts_string << "::1\tlocalhost localhost.localdomain localhost6 localhost6.localdomain6" << "\n"
+      elsif @cloud_os.downcase == 'ubuntu'
+        hosts_string << "127.0.0.1\tlocalhost" << "\n"
+        hosts_string << "::1\tip6-localhost\tip6-loopback" << "\n"
+        hosts_string << "fe00::0\tip6-localnet\nff00::0\tip6-mcastprefix\nff02::1\tip6-allnodes\nff02::2\tip6-allrouters" << "\n"
+      end
       nodes_ips_map.each do |fqdn, ip_map|
         hosts_string << "#{ip_map.first}\t#{fqdn}" << "\n"
       end

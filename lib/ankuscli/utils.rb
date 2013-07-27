@@ -265,7 +265,7 @@ module Ankuscli
                 results[command] = ssh_exec!(ssh, command, debug)
                 if debug
                   command_output = results[command]
-                  puts "[Debug]: Exit code of running '#{command}' is: #{command_output[2]}"
+                  puts "\r[Debug]: Exit code of running '#{command}' is: #{command_output[2]}"
                 end
               }
             end
