@@ -11,6 +11,7 @@ install_mode: 'cloud'
 #   rackspace_api_key => api key of the rackspace user account
 #   rackspace_instance_type => type of instance to boot (2-512M, 3-1GB, 4-2GB, 5-4GB, 6-8GB, 7-15GB, 8-30G)
 #   ssh_key => ssh key path to inject into instances
+#   rackspace_cluster_identifier => unique name which differentiates other cluster (used for hostnames of instances)
 # cloud_os_type => type of os to boot into cloud instances (supported: CentOS|Ubuntu)
 ########################################################
 cloud_platform: rackspace
@@ -19,6 +20,7 @@ cloud_credentials:
   rackspace_api_key: ''
   rackspace_instance_type: 5
   rackspace_ssh_key: '~/.ssh/id_rsa.pub'
+  rackspace_cluster_identifier: 'ops'
 cloud_os_type: CentOS
 
 ########################################################
