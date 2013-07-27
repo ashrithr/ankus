@@ -94,12 +94,12 @@ AnkusCLI is a configuration based deployment platform, so deployments should be 
 	* If you are working with aws use `conf/ankus_conf_cloud_aws_example.yaml` as a base line template for configuration
 
 		```shell
-		cp conf/ankus_conf_cloud_aws_example.yaml conf/ankus_conf.yaml
+		cp conf/exmaple_confs/ankus_conf_cloud_aws_example.yaml conf/ankus_conf.yaml
 		```
 	* If you are working with rackspace cloud platform use `conf/ankus_conf_cloud_rs_example.yaml` as a base line template for configuration
 
 		```shell
-		cp conf/ankus_conf_cloud_rs_example.yaml conf/ankus_conf.yaml
+		cp conf/exmaple_confs/ankus_conf_cloud_rs_example.yaml conf/ankus_conf.yaml
 		```
 
 2. Once base line configuration file is in place you can open up the configuration file (`conf/ankus_conf.yaml`) in your favorite text editor, the configuration itself is fairly explanatory with comments in place for every option in the config file.
@@ -166,7 +166,7 @@ Local deployment mode, is where user provides the instances on which specified r
 Similar to that of cloud deployments, local deployment also has template configuration file that could be used as base line
 
 ```
-cp conf/ankus_conf_local_example.yaml conf/ankus_conf.yaml
+cp conf/exmaple_confs/ankus_conf_local_example.yaml conf/ankus_conf.yaml
 ```
 
 Change the configuration file as per the requirements and then
