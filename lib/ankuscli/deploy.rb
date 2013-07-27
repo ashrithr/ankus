@@ -557,7 +557,7 @@ module Ankuscli
                  "sudo sh -c 'touch #{REMOTE_LOG_DIR}/install.log'",
                  "sudo sh -c 'touch #{REMOTE_LOG_DIR}/puppet_run.log'"
         ]
-        cmds << "sudo sh -c 'cp /etc/hosts /etc/hosts.backup'" if hosts_file
+        cmds << "sudo sh -c 'cp /etc/hosts /etc/hosts_backup.backup'" if hosts_file
         instances.each do |instance|
           ssh_connections.schedule do
             output << SshUtils.execute_ssh_cmds(
@@ -567,13 +567,13 @@ module Ankuscli
                 @ssh_key,
                 22, false)
             #send the script over to clients
-            puts "\r[Debug]: Sending file to #{instance}" if @debug
+            puts "\r[Debug]: Sending puppet installer script to #{instance}" if @debug
             SshUtils.upload!(PUPPET_INSTALLER, remote_puppet_loc, instance, @ssh_user, @ssh_key)
             if hosts_file
               puts "\r[Debug]: Sending hosts file to #{instance}" if @debug
               SshUtils.upload!(hosts_file, '/tmp/hosts', instance, @ssh_user, @ssh_key)
               SshUtils.execute_ssh!(
-                "sudo mv /tmp/hosts /etc",
+                "sudo mv /tmp/hosts /etc && chmod 644 /etc/hosts",
                 instance,
                 @ssh_user,
                 @ssh_key
