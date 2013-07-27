@@ -81,35 +81,39 @@ module Ankuscli
         nodes_created = create_on_aws(nodes_to_create, @credentials, @thread_pool_size)
 
       elsif @provider == 'rackspace'
-        nodes_to_create['controller.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+        domain_name = "#{@parsed_hash['rackspace_cluster_identifier']}.ankus.com"
+        nodes_to_create['controller'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
         if @parsed_hash['hadoop_ha'] == 'enabled'
-          nodes_to_create['namenode1.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-          nodes_to_create['namenode2.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-          nodes_to_create['jobtracker.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+          nodes_to_create['namenode1'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+          nodes_to_create['namenode2'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+          nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
           num_of_zks.times do |i|
-            nodes_to_create["zookeeper#{i+1}.ankus.com"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+            nodes_to_create["zookeeper#{i+1}"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
           end
           num_of_slaves.times do |i|
-            nodes_to_create["slaves#{i+1}.ankus.com"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
+            nodes_to_create["slaves#{i+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
           end
         else
-          nodes_to_create['namenode.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-          nodes_to_create['jobtracker.ankus.com'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } #JT and SNN
+          nodes_to_create['namenode'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+          nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } #JT and SNN
           num_of_slaves.times do |i|
-            nodes_to_create["slaves#{i+1}.ankus.com"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
+            nodes_to_create["slaves#{i+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
           end
         end
         if @parsed_hash['hbase_install'] == 'enabled'
           @parsed_hash['hbase_master_count'].times do |hm|
-            nodes_to_create["hbasemaster#{hm+1}.ankus.com"] =  { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+            nodes_to_create["hbasemaster#{hm+1}"] =  { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
           end
           unless nodes_to_create.keys.find { |e| /zookeeper/ =~ e }
             num_of_zks.times do |i|
-              nodes_to_create["zookeeper#{i+1}.ankus.com"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+              nodes_to_create["zookeeper#{i+1}"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
             end
           end
         end
-        nodes_created = create_on_rackspace(nodes_to_create, @credentials, @thread_pool_size)
+        # add domain name to roles to form fqdn
+        nodes_to_create_fqdn = {}
+        nodes_to_create.each {|k,v| nodes_to_create_fqdn["#{k}.#{domain_name}"] = v }
+        nodes_created = create_on_rackspace(nodes_to_create_fqdn, @credentials, @thread_pool_size)
       end
       #returns parse nodes hash
       nodes_created
@@ -498,9 +502,10 @@ module Ankuscli
     # @return [String] contents of hosts file
     def build_hosts(nodes_ips_map)
       hosts_string = ''
-      hosts_string << '127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4' << "\n"
+      hosts_string << "127.0.0.1\tlocalhost localhost.localdomain localhost4 localhost4.localdomain4" << "\n"
+      hosts_string << "::1\tlocalhost localhost.localdomain localhost6 localhost6.localdomain6" << "\n"
       nodes_ips_map.each do |fqdn, ip_map|
-        hosts_string << "#{ip_map.last}\t#{fqdn}\t#{fqdn.split('.').first}" << "\n"
+        hosts_string << "#{ip_map.first}\t#{fqdn}" << "\n"
       end
       hosts_string
     end
