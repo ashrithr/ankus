@@ -185,12 +185,13 @@ function install_postgres () {
 local all all trust
 host all all 127.0.0.1/32 trust
 host all all ::1/128 trust
+host puppetdb puppetdb 0.0.0.0/0 trust
 host hive_metastore hiveuser 0.0.0.0/0 trust
 host oozie oozie 0.0.0.0/0 trust
 host hue hue 0.0.0.0/0 trust
 PSQLDELIM
   echo "listen_addresses = '0.0.0.0'" >> ${PSQL_DATA_CONF}
-  logit "[Debug]: Setting up postgresql for puppetdb and hsmp"
+  logit "[Debug]: Setting up postgresql for puppetdb and ankus"
   service postgresql restart #restart postgresql to take effects
   psql -U postgres -d template1 <<\END
   create user puppetdb with password 'puppetdb';
@@ -557,7 +558,9 @@ PUPPETDBDELIM
 
 sed -e s,PASSWORD_PH,${PSQL_PWD},g -i /etc/puppetdb/conf.d/database.ini
 
-#Configure Jetty to listen on 8085 and ssl on 8086
+#Configure Jetty to listen on 8085 and ssl on 8086 and on all interfaces 0.0.0.0
+# sed -i s/#host\ \=\ localhost/host \=\ 0.0.0.0/g /etc/puppetdb/conf.d/jetty.ini
+# sed -i s/ssl-host\ \=\ `hostname --fqdn`/ssl-host \=\ 0.0.0.0/g /etc/puppetdb/conf.d/jetty.ini
 sed -i s/port\ \=\ 8080/port\ \=\ 8085/g  /etc/puppetdb/conf.d/jetty.ini
 sed -i s/ssl-port\ \=\ 8081/ssl-port\ \=\ 8086/g  /etc/puppetdb/conf.d/jetty.ini
 
@@ -597,14 +600,24 @@ fi
 
 #check if puppetdb has started listening
 printclr "Pausing till puppetdb is listening"
+#timeout for 60 seconds if not exit out
+timeout 60s bash -c '
 while : ; do
  grep "Started SslSelectChannelConnector@" /var/log/puppetdb/puppetdb.log &>/dev/null && break
  printf .
  sleep 1
 done
 echo ""
-printclr "test puppet agent run to test if setup was ok"
-puppet agent -t && printclr "puppet run suceeded" || printerr "puppet agent run failed"
+'
+#timeout command exits out with 124 if it timeouts
+if [ $? -eq 124 ]; then
+  echo "Raised Timeout waiting for puppetdb to listen"
+  exit 22
+else
+  echo "PuppetDB started listening"
+fi
+printclr "Test puppet agent run to test if setup was ok"
+puppet agent -t && printclr "Puppet run suceeded" || printerr "Puppet agent run failed with PuppetDB"
 
 #enc configuration
 if [ -d /etc/puppet/enc ]; then
@@ -612,6 +625,7 @@ echo "  node_terminus = exec
   external_nodes = /etc/puppet/enc/ankus_puppet_enc" >> /etc/puppet/puppet.conf
 fi
 
+printclr "Reloading Apache to pick up new configurations"
 service ${APACHE_PKG} restart #reload configurations
 if [ $? -ne 0 ]; then
   echo "[Fatal]: Failed to restart passenger" 1>&2
