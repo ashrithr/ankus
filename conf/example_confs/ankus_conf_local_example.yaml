@@ -59,6 +59,8 @@ journal_quorum:
 # MapReduce Configuration
 #   type => type of mapreduce framework to setup, supported values mr1 (regular mapreduce) or mr2 (yarn)
 #   master => fqdn of host which is responsible for managing mapreduce resources
+# Disabling mapreduce is possible, but not recommended
+# Ex: mapreduce: 'disabled'
 ########################################################
 mapreduce:
   type: 'mr1'
