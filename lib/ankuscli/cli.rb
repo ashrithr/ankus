@@ -27,7 +27,9 @@ module Ankuscli
 
     desc 'parse', 'parse the config file for errors'
     def parse
+      puts "Parsing config file '#{options[:config]}' ... "
       parse_config
+      puts 'Parsing config file ... ' + '[OK]'.green.bold
     end
 
     desc 'version', 'show the version'
@@ -352,7 +354,11 @@ module Ankuscli
           end
         else
           namenode = Hash[cloud_instances.select { |k, _| k.include? 'namenode'}].values.first
-          snn = Hash[cloud_instances.select { |k, _| k.include? 'jobtracker'}].values.first
+          snn = if parsed_hash['mapreduce'] == 'disabled'
+                  Hash[cloud_instances.select { |k, _| k.include? 'snn'}].values.first
+                else
+                  Hash[cloud_instances.select { |k, _| k.include? 'jobtracker'}].values.first
+                end
           cluster_info << "\r" << ' *'.cyan << " Namenode: #{namenode.first}\n"
           cluster_info << "\r" << ' *'.cyan << " Secondary Namenode: #{snn.first}\n"
           urls << "\r" << ' %'.black << " Namenode: http://#{namenode.first}:50070 \n"
@@ -375,18 +381,20 @@ module Ankuscli
             cluster_info << "\r" << "\t #{k.capitalize}: #{v.first} \n"
           end
         end
-        jt = Hash[cloud_instances.select { |k, _| k.include? 'jobtracker'}].values.first
-        cluster_info << "\r" << ' *'.cyan << " MapReduce Master: #{jt.first} \n"
-        urls << "\r" << ' %'.black << " MapReduce Master: http://#{jt.first}:50030 \n"
+        if parsed_hash['mapreduce'] != 'disabled'
+          jt = Hash[cloud_instances.select { |k, _| k.include? 'jobtracker'}].values.first
+          cluster_info << "\r" << ' *'.cyan << " MapReduce Master: #{jt.first} \n"
+          urls << "\r" << ' %'.black << " MapReduce Master: http://#{jt.first}:50030 \n"
+          #hadoop_ecosystem
+          if parsed_hash['hadoop_ecosystem'] and parsed_hash['hadoop_ecosystem'].include?('oozie')
+            urls << "\r" << ' %'.black << " Oozie Console: http://#{jt.first}:11000/oozie \n"
+          end
+        end
         if options[:extended]
           cluster_info << "\r" << ' *'.cyan << " Slaves: \n"
           cloud_instances.select { |k, _| k.include? 'slaves' }.each do |k, v|
             cluster_info << "\r" << "\t" << '- '.cyan << "#{k.capitalize}: #{v.first}" << "\n"
           end
-        end
-        #hadoop_ecosystem
-        if parsed_hash['hadoop_ecosystem'] and parsed_hash['hadoop_ecosystem'].include?('oozie')
-          urls << "\r" << ' %'.black << " Oozie Console: http://#{jt.first}:11000/oozie \n"
         end
       else
         #local deployment mode

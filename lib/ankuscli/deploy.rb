@@ -376,7 +376,12 @@ module Ankuscli
         end
 
         # init puppet agent on mapreduce master
-        puppet_single_run(@parsed_hash['mapreduce']['master'], puppet_run_cmd, 'mapreduce_master')
+        if @parsed_hash['mapreduce'] != 'disabled'
+          puppet_single_run(@parsed_hash['mapreduce']['master'], puppet_run_cmd, 'mapreduce_master')
+        else
+          #mapreduce is disabled for cloud_deployments, snn will be on diff machine
+          puppet_single_run(@parsed_hash['hadoop_secondarynamenode'], puppet_run_cmd, 'secondary_namenode') unless hadoop_ha == 'enabled'
+        end
 
         # init puppet agent on slave nodes
         puppet_parallel_run(@parsed_hash['slave_nodes'], puppet_run_cmd, 'slaves')

@@ -63,10 +63,14 @@ module Ankuscli
           end
         else
           nodes_to_create['namenode'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-          nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } #JT and SNN
           num_of_slaves.times do |i|
             nodes_to_create["slaves#{i+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
           end
+        end
+        if @parsed_hash['mapreduce'] != 'disabled'
+          nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } #JT and SNN
+        elsif @parsed_hash['mapreduce'] and @parsed_hash['hadoop_ha'] == 'disabled'
+          nodes_to_create['snn'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } #SNN
         end
         if @parsed_hash['hbase_install'] == 'enabled'
           @parsed_hash['hbase_master_count'].times do |hm|
@@ -86,18 +90,16 @@ module Ankuscli
         if @parsed_hash['hadoop_ha'] == 'enabled'
           nodes_to_create['namenode1'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
           nodes_to_create['namenode2'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-          nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+          nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } if @parsed_hash['mapreduce'] != disabled
           num_of_zks.times do |i|
             nodes_to_create["zookeeper#{i+1}"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
           end
-          num_of_slaves.times do |i|
-            nodes_to_create["slaves#{i+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
-          end
         else
           nodes_to_create['namenode'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-          nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } #JT and SNN
-          num_of_slaves.times do |i|
-            nodes_to_create["slaves#{i+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
+          if @parsed_hash['mapreduce'] != 'disabled'
+            nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } #JT and SNN
+          elsif @parsed_hash['mapreduce'] and @parsed_hash['hadoop_ha'] == 'disabled'
+            nodes_to_create['snn'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } #SNN
           end
         end
         if @parsed_hash['hbase_install'] == 'enabled'
@@ -109,6 +111,9 @@ module Ankuscli
               nodes_to_create["zookeeper#{i+1}"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
             end
           end
+        end
+        num_of_slaves.times do |i|
+          nodes_to_create["slaves#{i+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
         end
         # add domain name to roles to form fqdn
         nodes_to_create_fqdn = {}
@@ -184,8 +189,12 @@ module Ankuscli
                                 end
       parsed_hash['controller'] = nodes_hash.map { |k,v| v.first if k =~ /controller/ }.compact.first
       parsed_hash['hadoop_namenode'] = nodes_hash.map { |k,v| v.first if k =~ /namenode/ }.compact
-      parsed_hash['mapreduce']['master'] = nodes_hash.map { |k,v| v.first if k =~ /jobtracker/ }.compact.first
-      parsed_hash['hadoop_secondarynamenode'] = nodes_hash.map { |k,v| v.first if k =~ /jobtracker/ }.compact.first if parsed_hash['hadoop_ha'] == 'disabled'
+      parsed_hash['mapreduce']['master'] = nodes_hash.map { |k,v| v.first if k =~ /jobtracker/ }.compact.first if parsed_hash['mapreduce'] != 'disabled'
+      if parsed_hash['mapreduce'] == 'disabled' and parsed_hash['hadoop_ha'] == 'disabled'
+        parsed_hash['hadoop_secondarynamenode'] = nodes_hash.map { |k,v| v.first if k =~ /snn/ }.compact.first
+      elsif parsed_hash['mapreduce'] == 'disabled' and parsed_hash['hadoop_ha'] == 'disabled'
+        parsed_hash['hadoop_secondarynamenode'] = nodes_hash.map { |k,v| v.first if k =~ /jobtracker/ }.compact.first
+      end
       parsed_hash['slave_nodes'] = nodes_hash.map { |k,v| v.first if k =~ /slaves/ }.compact
       parsed_hash['zookeeper_quorum'] = nodes_hash.map { |k,v| v.first if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled' or parsed_hash['hbase_install'] == 'enabled'
       parsed_hash['journal_quorum'] = nodes_hash.map { |k,v| v.first if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled'
@@ -196,8 +205,12 @@ module Ankuscli
         parsed_hash_internal_ips['ssh_key'] = File.expand_path('~/.ssh') + '/' + @parsed_hash['cloud_credentials']['aws_key']
         parsed_hash_internal_ips['controller'] = nodes_hash.map { |k,v| v.last if k =~ /controller/ }.compact.first
         parsed_hash_internal_ips['hadoop_namenode'] = nodes_hash.map { |k,v| v.last if k =~ /namenode/ }.compact
-        parsed_hash_internal_ips['mapreduce']['master'] = nodes_hash.map { |k,v| v.last if k =~ /jobtracker/ }.compact.first
-        parsed_hash_internal_ips['hadoop_secondarynamenode'] = nodes_hash.map { |k,v| v.last if k =~ /jobtracker/ }.compact.first if parsed_hash['hadoop_ha'] == 'disabled'
+        parsed_hash_internal_ips['mapreduce']['master'] = nodes_hash.map { |k,v| v.last if k =~ /jobtracker/ }.compact.first if parsed_hash['mapreduce'] != 'disabled'
+        if parsed_hash['mapreduce'] == 'disabled' and parsed_hash['hadoop_ha'] == 'disabled'
+          parsed_hash_internal_ips['hadoop_secondarynamenode'] = nodes_hash.map { |k,v| v.last if k =~ /snn/ }.compact.first
+        elsif parsed_hash['mapreduce'] == 'disabled' and parsed_hash['hadoop_ha'] == 'disabled'
+          parsed_hash_internal_ips['hadoop_secondarynamenode'] = nodes_hash.map { |k,v| v.last if k =~ /jobtracker/ }.compact.first
+        end
         parsed_hash_internal_ips['slave_nodes'] = nodes_hash.map { |k,v| v.last if k =~ /slaves/ }.compact
         parsed_hash_internal_ips['zookeeper_quorum'] = nodes_hash.map { |k,v| v.last if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled' or parsed_hash['hbase_install'] == 'enabled'
         parsed_hash_internal_ips['journal_quorum'] = nodes_hash.map { |k,v| v.last if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled'
@@ -207,8 +220,12 @@ module Ankuscli
                                                         File.basename(File.expand_path(@credentials['rackspace_ssh_key']), '.pub')
         parsed_hash_internal_ips['controller'] = nodes_hash.map { |k,_| k if k =~ /controller/ }.compact.first
         parsed_hash_internal_ips['hadoop_namenode'] = nodes_hash.map { |k,_| k if k =~ /namenode/ }.compact
-        parsed_hash_internal_ips['mapreduce']['master'] = nodes_hash.map { |k,_| k if k =~ /jobtracker/ }.compact.first
-        parsed_hash_internal_ips['hadoop_secondarynamenode'] = nodes_hash.map { |k,_| k if k =~ /jobtracker/ }.compact.first if parsed_hash['hadoop_ha'] == 'disabled'
+        parsed_hash_internal_ips['mapreduce']['master'] = nodes_hash.map { |k,_| k if k =~ /jobtracker/ }.compact.first if parsed_hash['mapreduce'] != 'disabled'
+        if parsed_hash['mapreduce'] == 'disabled' and parsed_hash['hadoop_ha'] == 'disabled'
+          parsed_hash_internal_ips['hadoop_secondarynamenode'] = nodes_hash.map { |k,_| k if k =~ /snn/ }.compact.first
+        elsif parsed_hash['mapreduce'] == 'disabled' and parsed_hash['hadoop_ha'] == 'disabled'
+          parsed_hash_internal_ips['hadoop_secondarynamenode'] = nodes_hash.map { |k,_| k if k =~ /jobtracker/ }.compact.first
+        end
         parsed_hash_internal_ips['slave_nodes'] = nodes_hash.map { |k,_| k if k =~ /slaves/ }.compact
         parsed_hash_internal_ips['zookeeper_quorum'] = nodes_hash.map { |k,_| k if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled' or parsed_hash['hbase_install'] == 'enabled'
         parsed_hash_internal_ips['journal_quorum'] = nodes_hash.map { |k,_| k if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled'
@@ -511,7 +528,7 @@ module Ankuscli
         hosts_string << "fe00::0\tip6-localnet\nff00::0\tip6-mcastprefix\nff02::1\tip6-allnodes\nff02::2\tip6-allrouters" << "\n"
       end
       nodes_ips_map.each do |fqdn, ip_map|
-        hosts_string << "#{ip_map.first}\t#{fqdn}" << "\n"
+        hosts_string << "#{ip_map.last}\t#{fqdn}\t#{fqdn.split('.').first}" << "\n"
       end
       hosts_string
     end
