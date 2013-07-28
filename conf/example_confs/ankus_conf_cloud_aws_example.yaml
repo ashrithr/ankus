@@ -36,6 +36,8 @@ zookeeper_quorum_count: 3
 # MapReduce Configuration
 #   type => type of mapreduce framework to setup,
 #           supported values mr1 (regular mapreduce) or mr2 (yarn)
+# Disabling mapreduce is possible, but not recommended
+# Ex: mapreduce: 'disabled'
 ########################################################
 mapreduce:
   type: 'mr1'
