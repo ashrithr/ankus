@@ -39,7 +39,11 @@ module Ankuscli
           nodes.push(*@parsed_hash['zookeeper_quorum'])
         end
         #mapreduce
-        nodes << @parsed_hash['mapreduce']['master']
+        if @parsed_hash['mapreduce'] != 'disabled'
+          nodes << @parsed_hash['mapreduce']['master']
+        else
+          nodes << @parsed_hash['hadoop_secondarynamenode'] unless @parsed_hash['hadoop_ha'] == 'enabled'
+        end
         #hbase
         if @parsed_hash['hbase_install'] == 'enabled'
           nodes.push(*@parsed_hash['hbase_master'])

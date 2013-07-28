@@ -66,27 +66,27 @@ module Ankuscli
     # Validations specific to local install_mode
     # @param [Hash] hash_to_validate => hash to validate
     def local_validator(hash_to_validate)
-      puts '[Debug]: calling local validator' if @debug
+      puts '[Debug]: Calling local validator' if @debug
       #required:
         #controller:
       if hash_to_validate['controller'].nil? or hash_to_validate['controller'].empty?
-        puts '[Error]:'.red + ' controller is required for local install_mode'
+        puts '[Error]:'.red + " 'controller' is required for local install_mode"
         exit 1
       end
       #ssh_key
       if hash_to_validate['ssh_key'].nil? or hash_to_validate['ssh_key'].empty?
-        puts '[Error]:'.red + ' ssh_key is required for local install_mode'
+        puts '[Error]:'.red + " 'ssh_key' is required for local install_mode"
         exit 1
       else
         #check if ssh_key has valid key path
         unless File.exists? File.expand_path(hash_to_validate['ssh_key'])
-          puts '[Error]:'.red + " ssh_key: #{hash_to_validate['ssh_key']} does not exists"
+          puts '[Error]:'.red + " 'ssh_key': #{hash_to_validate['ssh_key']} does not exists"
           exit 1
         end
       end
       #ssh_user
       if hash_to_validate['ssh_user'].nil? or hash_to_validate['ssh_user'].empty?
-        puts '[Debug]: ssh_user is not specified assuming ssh_user as \'root\'' if @debug
+        puts '[Debug]: \'ssh_user\' is not specified assuming ssh_user as \'root\'' if @debug
         hash_to_validate['ssh_user'] = 'root'
       end
       # force user to enter hostname instead of ipaddress
@@ -104,7 +104,7 @@ module Ankuscli
     # Validations specific to cloud install_mode
     # @param [Hash] hash_to_validate => hash to validate
     def cloud_validator(hash_to_validate)
-      puts '[Debug]: calling cloud validator' if @debug
+      puts '[Debug]: Calling cloud validator' if @debug
       # cloud_platform - aws|rackspace
       #   if aws: 'cloud_credentials' => { 'aws_access_key' => '', 'aws_secret_key' => '', 'aws_machine_type' => 'm1.large' }
       #   if rackspace: 'cloud_credentials' => { 'rackspace_username' => '', 'rackspace_api_key' => '', 'rackspace_instance_type' => 'm1.large' }
@@ -116,18 +116,18 @@ module Ankuscli
 
 
       if cloud_platform.nil? or cloud_platform.empty?
-        puts '[Error]:'.red + ' cloud_platform is required for cloud install_mode'
+        puts '[Error]:'.red + " 'cloud_platform' is required for cloud install_mode"
         exit 1
       elsif ! %w(aws rackspace).include?(cloud_platform)
-        puts '[Error]:'.red + ' invalid value for cloud_platform, supported values are aws|rackspace'
+        puts '[Error]:'.red + " invalid value for 'cloud_platform', supported values are aws|rackspace"
         exit 1
       end
 
       if cloud_credentials.nil? or cloud_credentials.empty?
-        puts '[Error]:'.red + ' cloud_credentials is required for cloud install_mode'
+        puts '[Error]:'.red + " 'cloud_credentials' is required for cloud install_mode"
         exit 1
       elsif ! cloud_credentials.is_a?(Hash)
-        puts '[Error]:'.red + ' cloud_credentials is malformed, look sample cloud config for example'
+        puts '[Error]:'.red + " 'cloud_credentials' is malformed, look sample cloud config for example"
         exit 1
       end
 
@@ -139,7 +139,7 @@ module Ankuscli
                               'aws_key' => ''
         }
         unless cloud_credentials.keys.sort == valid_credentials.keys.sort
-          puts '[Error]:'.red + ' cloud_credentials is malformed/invalid, look sample cloud config for example'
+          puts '[Error]:'.red + " 'cloud_credentials' is malformed/invalid, look sample cloud config for example"
           exit 1
         end
         if cloud_credentials['aws_secret_key'].length == 0
@@ -151,12 +151,12 @@ module Ankuscli
         end
         if cloud_credentials['aws_sec_groups']
           unless cloud_credentials['aws_sec_groups'].is_a?(Array)
-            puts '[Error]: '.red + 'expecting list(array) representation of groups'
+            puts '[Error]: '.red + 'expecting list(array) representation of groups for \'aws_sec_groups\''
             exit 1
           end
         end
         #validate connection
-        puts '[Debug]: validating aws connection' if @debug
+        puts '[Debug]: Validating aws connection' if @debug
         aws = Aws.new(cloud_credentials['aws_access_id'], cloud_credentials['aws_secret_key'], cloud_credentials['aws_region'])
         unless aws.valid_connection?(aws.create_connection)
           puts '[Error]: '.red + 'failed establishing connection to aws, check your credentials'
@@ -171,7 +171,7 @@ module Ankuscli
                               'rackspace_cluster_identifier' => ''
                             }
         unless cloud_credentials.keys.sort == valid_credentials.keys.sort
-          puts '[Error]:'.red + ' cloud_credentials is malformed/invalid, look sample cloud config for example'
+          puts '[Error]:'.red + " 'cloud_credentials' is malformed/invalid, look sample cloud config for example"
           exit 1
         end
         if cloud_credentials['rackspace_username'].length == 0
@@ -207,10 +207,10 @@ module Ankuscli
       end
 
       if cloud_os_type.nil? or cloud_os_type.empty?
-        puts '[Error]:'.red + ' cloud_os_type is required for cloud install_mode'
+        puts '[Error]:'.red + " 'cloud_os_type' is required for cloud install_mode"
         exit 1
       elsif ! %w(centos ubuntu).include?(cloud_os_type.downcase)
-        puts '[Error]:'.red + ' supported cloud os types are centos|ubuntu'
+        puts '[Error]:'.red + " supported 'cloud_os_type' values are centos|ubuntu"
         exit 1
       end
 
@@ -229,7 +229,7 @@ module Ankuscli
     # Validates params which are common for both local and cloud install_modes
     # @param [Hash] hash_to_validate => hash to validate
     def common_validator(hash_to_validate)
-      puts '[Debug]: calling common validator' if @debug
+      puts '[Debug]: Calling common validator' if @debug
       install_mode = hash_to_validate['install_mode']
       hadoop_ha = hash_to_validate['hadoop_ha']
       hbase_install = hash_to_validate['hbase_install']
@@ -242,10 +242,10 @@ module Ankuscli
       log_aggregation = hash_to_validate['log_aggregation']
 
       if hadoop_ha.nil? or hadoop_ha.empty?
-        puts '[Error]:'.red + ' hadoop_ha is required parameter and it should be either enabled|disabled'
+        puts '[Error]:'.red + " 'hadoop_ha' is required parameter and it should be either enabled|disabled"
         exit 1
       elsif ! %w(enabled disabled).include?(hadoop_ha)
-        puts '[Error]:'.red ' invalid value for hadoop_ha, valid values are enabled|disabled'
+        puts '[Error]:'.red " invalid value for 'hadoop_ha', valid values are enabled|disabled"
         exit 1
       end
 
@@ -253,10 +253,10 @@ module Ankuscli
         #validate slave nodes
         slave_nodes = hash_to_validate['slave_nodes']
         if slave_nodes.nil? or slave_nodes.empty?
-          puts '[Error]:'.red + ' slave_nodes are required in local install_mode'
+          puts '[Error]:'.red + " 'slave_nodes' are required in local install_mode"
           exit 1
         elsif ! slave_nodes.kind_of?(Array)
-          puts '[Error]:'.red + ' Expecting list of slave nodes'
+          puts '[Error]:'.red + " Expecting list(array) representation of 'slave_nodes'"
           exit 1
         end
       else
@@ -264,22 +264,22 @@ module Ankuscli
         slave_nodes_count = hash_to_validate['slave_nodes_count']
         slave_nodes_storage_capacity = hash_to_validate['slave_nodes_storage_capacity']
         if slave_nodes_count.nil?
-          puts '[Error]: '.red + 'number of slave nodes is required for cloud deployment (slave_nodes_count)'
+          puts '[Error]: '.red + "number of slave nodes is required for cloud deployment ('slave_nodes_count')"
           exit 1
         elsif ! slave_nodes_count.is_a?(Numeric)
-          puts '[Error]: '.red + 'expecting numeric value for slave_nodes_count'
+          puts '[Error]: '.red + "expecting numeric value for 'slave_nodes_count'"
           exit 1
         elsif slave_nodes_count == 0
-          puts '[Error]: '.red + 'slave_nodes_count cannot be 0'
+          puts '[Error]: '.red + "'slave_nodes_count' cannot be 0"
           exit 1
         end
         if slave_nodes_storage_capacity.nil?
-          puts '[Debug]:' + ' (Warning) '.yellow + 'if slave_nodes_storage_capacity is not specified no volumes will be created and attached' if @debug
+          puts '[Debug]:' + ' (Warning) '.yellow + "if 'slave_nodes_storage_capacity' is not specified no volumes will be created and attached" if @debug
         elsif ! slave_nodes_storage_capacity.is_a?(Numeric)
-          puts '[Error]: '.red + 'expecting numeric value for slave_nodes_storage_capacity'
+          puts '[Error]: '.red + "expecting numeric value for 'slave_nodes_storage_capacity'"
           exit 1
         elsif slave_nodes_storage_capacity == 0
-          puts '[Debug]:' + ' (Warning) '.yellow + 'slave_nodes_storage_capacity is zero, no volumes will be created and attached to cloud instances' if @debug
+          puts '[Debug]:' + ' (Warning) '.yellow + "'slave_nodes_storage_capacity' is zero, no volumes will be created and attached to cloud instances" if @debug
         end
       end
 
@@ -298,13 +298,22 @@ module Ankuscli
           mapreduce_master = hash_to_validate['mapreduce']['master']
           puts '[Error]:'.red + ' Invalid mapreduce type' unless %w(mr1 mr2).include?(mapreduce_type)
           if mapreduce_master.nil? or mapreduce_master.empty?
-            puts '[Error]:'.red + ' mapreduce_master is required'
+            puts '[Error]:'.red + " 'mapreduce_master' is required"
             exit 1
           end
         end
       else
         if mapreduce.nil? or mapreduce.empty?
           puts '[Error]: '.red + 'mapreduce should be specified'
+          exit 1
+        elsif mapreduce == 'disabled'
+          puts '[Debug]: ' + '(Warning)'.yellow + ' Mapreduce is disabled, no mapreduce daemons will be installed'
+        elsif ! mapreduce.is_a?(Hash)
+          puts '[Error]: '.red + "unrecognized value set for 'mapreduce' : #{mapreduce}"
+          exit 1
+        elsif mapreduce and (mapreduce['type'].nil? or mapreduce['type'].empty?)
+          puts '[Error]: '.red + 'Mapreduce type is not specified, valid values are mr1|mr2'
+          exit 1
         end
       end
 
@@ -312,7 +321,7 @@ module Ankuscli
       if hadoop_ecosystem
         hadoop_ecosystem.each do |tool|
           unless valid_hadoop_ecosystem.include?(tool)
-            puts '[Error]:'.red + "hadoop_ecosystem can support #{valid_hadoop_ecosystem}"
+            puts '[Error]:'.red + "'hadoop_ecosystem' can support #{valid_hadoop_ecosystem}"
             puts "  #{tool} specified cannot be part of deployment yet!"
             exit 1
           end
@@ -321,10 +330,10 @@ module Ankuscli
 
       #security
       if security.nil? or security.empty?
-        puts '[Error]:'.red + ' security is required parameter, valid values: enabled|disabled'
+        puts '[Error]:'.red + " 'security' is required parameter, valid values: enabled|disabled"
         exit 1
       elsif ! %w(simple kerberos).include?(security)
-        puts '[Error]:'.red + ' invalid value for security, valid values: simple|kerberos'
+        puts '[Error]:'.red + " invalid value for 'security', valid values: simple|kerberos"
         exit 1
       end
       if security == 'kerberos'
@@ -332,51 +341,51 @@ module Ankuscli
         realm_name = hash_to_validate['hadoop_kerberos_realm']
         domain_name = hash_to_validate['hadoop_kerberos_domain']
         if realm_name.nil? or realm_name.empty?
-          puts '[Debug]: ' + 'kerberos realm name is not provided, using default realm name' if @debug
+          puts '[Debug]: ' + 'Kerberos realm name is not provided, using default realm name' if @debug
         end
         if domain_name.nil? or domain_name.empty?
-          puts '[Debug]: ' + 'kerberos domain name is not provided, using default domain name' if @debug
+          puts '[Debug]: ' + 'Kerberos domain name is not provided, using default domain name' if @debug
         end
       end
 
       #monitoring
       if monitoring.nil? or monitoring.empty?
-        puts '[Error]:'.red + ' monitoring is required parameter, valid values: enabled|disabled'
+        puts '[Error]:'.red + " 'monitoring' is required parameter, valid values: enabled|disabled"
         exit 1
       elsif ! %w(enabled disabled).include?(monitoring)
-        puts '[Error]:'.red + ' invalid value for monitoring, valid values: enabled|disabled'
+        puts '[Error]:'.red + " invalid value for 'monitoring', valid values: enabled|disabled"
       end
 
       #alerting
       if alerting.nil? or alerting.empty?
-        puts '[Error]:'.red + ' alerting is required parameter, valid values: enabled|disabled'
+        puts '[Error]:'.red + " 'alerting' is required parameter, valid values: enabled|disabled"
         exit 1
       elsif ! %w(enabled disabled).include?(alerting)
-        puts '[Error]:'.red + ' invalid value for alerting, valid values: enabled|disabled'
+        puts '[Error]:'.red + " invalid value for 'alerting', valid values: enabled|disabled"
       end
 
       #admin_email
       if alerting and alerting == 'enabled'
         admin_email = hash_to_validate['admin_email']
         if admin_email.nil? or admin_email.empty?
-          puts '[Error]:'.red + " 'admin_email' is required if altering is enabled"
+          puts '[Error]:'.red + " 'admin_email' is required parameter, valid values: enabled|disabled"
           exit 1
         end
       end
 
       #log_aggregation
       if log_aggregation.nil? or log_aggregation.empty?
-        puts '[Error]:'.red + ' log_aggregation is required parameter, valid values: enabled|disabled'
+        puts '[Error]:'.red + " 'log_aggregation' is required parameter, valid values: enabled|disabled"
       elsif ! %w(enabled disabled).include?(log_aggregation)
-        puts '[Error]:'.red + ' invalid value for log_aggregation, valid values: enabled|disabled'
+        puts '[Error]:'.red + " invalid value for 'log_aggregation', valid values: enabled|disabled"
       end
 
       #hbase_install
       if hbase_install.nil? or hbase_install.empty?
-        puts '[Error]:'.red + ' hbase_install is required parameter, valid values: enabled|disabled'
+        puts '[Error]:'.red + " 'hbase_install' is required parameter, valid values: enabled|disabled"
         exit 1
       elsif ! %w(enabled disabled).include?(hbase_install)
-        puts '[Error]:'.red + ' invalid value for hbase_install, valid values: enabled|disabled'
+        puts '[Error]:'.red + " invalid value for 'hbase_install', valid values: enabled|disabled"
       end
 
       #call hadoop validator
@@ -409,19 +418,19 @@ module Ankuscli
         if hadoop_ha == 'enabled'
           zookeeper_quorum_count = hash_to_validate['zookeeper_quorum_count']
           if zookeeper_quorum_count.nil? or zookeeper_quorum_count == 0
-            puts '[Error]: '.red + 'zookeeper quorum count is required'
+            puts '[Error]: '.red + "'zookeeper_quorum_count' is required"
             exit 1
           end
         end
         if hbase_install == 'enabled'
           hbase_master_count = hash_to_validate['hbase_master_count']
           if hbase_master_count.nil? or hbase_master_count == 0
-            puts '[Error]: '.red + 'hbase master count is required'
+            puts '[Error]: '.red + "'hbase_master_count' is required"
             exit 1
           end
           zookeeper_quorum_count = hash_to_validate['zookeeper_quorum_count']
           if zookeeper_quorum_count.nil? or zookeeper_quorum_count == 0
-            puts '[Error]: '.red + 'zookeeper quorum count is required'
+            puts '[Error]: '.red + "'zookeeper_quorum_count' is required"
             exit 1
           end
 
@@ -444,7 +453,7 @@ module Ankuscli
       if hadoop_ha == 'enabled'
         #### HA Specific
         unless hadoop_namenode.length == 2
-          puts '[Error]:'.red + ' in hadoop ha, two namenode\'s are required'
+          puts '[Error]:'.red + " if 'hadoop_ha' ie enabled, two namenode(s) are required"
           exit 1
         end
         #namenodes and zookeepers cannot co-exist
@@ -570,7 +579,7 @@ module Ankuscli
   #class to parse hadoop configuration
   class HadoopConfigParser
     def initialize(hadoop_conf_file, debug = false)
-      puts "[Debug]: validating hadoop conf" if debug
+      puts "[Debug]: Validating hadoop conf" if debug
       hadoop_conf = YamlUtils.parse_yaml(hadoop_conf_file).keys
       unless HADOOP_CONF_KEYS.all?{|key| hadoop_conf.include?(key)}
         puts "[Error]: Required keys are not present in #{hadoop_conf_file}"
@@ -587,7 +596,7 @@ module Ankuscli
   #parse hbase configuration
   class HBaseConfigParser
     def initialize(hbase_conf_file, debug = false)
-      puts "[Debug]: validating hbase conf" if debug
+      puts "[Debug]: Validating hbase conf" if debug
       hbase_conf = YamlUtils.parse_yaml(hbase_conf_file).keys
       unless HBASE_CONF_KEYS.all?{|key| hbase_conf.include?(key) }
         puts "[Error]: Required keys are not present in #{hbase_conf_file}"
