@@ -26,8 +26,7 @@ cloud_os_type: CentOS
 ########################################################
 # Hadoop Cluster Configuration
 # hadoop high availability configuration:
-#   enabled => hadoop ha is enabled with two namenode(s) but without auto failover using zkfc
-#   auto    => hadoop ha is enabled with two namenode(s) with auto failover of nodes using zkfc
+#   enabled => hadoop ha is enabled with two namenode(s) with auto failover using zkfc
 #   disabled => hadoop ha is not setup and only one namenode will be installed and configured
 # zookeeper_quoram_count => number of zookeeper instances to deploy
 ########################################################

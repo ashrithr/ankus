@@ -25,8 +25,7 @@ controller: 'controller.ops.cw.com'
 ########################################################
 # Hadoop Cluster Configuration
 # hadoop_ha (hadoop high availability configuration):
-#   enabled => hadoop ha is enabled with two namenode(s) but without auto failover using zkfc
-#   auto    => hadoop ha is enabled with two namenode(s) with auto failover of nodes using zkfc
+#   enabled => hadoop ha is enabled with two namenode(s) with auto failover using zkfc
 #   disabled => hadoop ha is not setup and only one namenode will be installed and configured
 # hadoop_namenode:
 #   fqdn of hosts on which namenode should be installed
