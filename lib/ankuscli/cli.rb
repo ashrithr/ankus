@@ -206,8 +206,8 @@ module Ankuscli
           # validate hosts
           SshUtils.sshable? options[:hosts], @parsed_hash[:ssh_user], @parsed_hash[:ssh_key]
           # aggregate the existing slaves with new slaves & add them to conf
-          @parsed_hash['slave_nodes'] = @parsed_hash[:slave_nodes] | options[:hosts]
-          YamlUtils.write_yaml(@parsed_hash, options[:config])
+          @parsed_hash[:slave_nodes] = @parsed_hash[:slave_nodes] | options[:hosts]
+          YamlUtils.write_yaml(@parsed_hash.deep_stringify, options[:config])
         end
       end
       # generate puppet nodes file from configuration
@@ -220,9 +220,9 @@ module Ankuscli
       end
 
       ## create puppet_deploy object which is can install puppet & generate hiera data, enc data
-      puppet_clients =  if options[:add_nodes] and @parsed_hash['install_mode'] == 'cloud'
+      puppet_clients =  if options[:add_nodes] and @parsed_hash[:install_mode] == 'cloud'
                           @new_instances.map { |_,hostnames| hostnames.first }
-                        elsif options[:add_nodes] and @parsed_hash['install_mode'] == 'local'
+                        elsif options[:add_nodes] and @parsed_hash[:install_mode] == 'local'
                           options[:hosts]
                         else
                           YamlUtils.parse_yaml(NODES_FILE)[:puppet_clients]
@@ -231,10 +231,10 @@ module Ankuscli
       puppet = Deploy::Puppet.new(
                 puppet_master,                # puppet server
                 puppet_clients,               # nodes to install puppet client on
-                @parsed_hash['ssh_key'],      # ssh_key to use
+                @parsed_hash[:ssh_key],       # ssh_key to use
                 @parsed_hash,                 # parsed config hash
                 options[:thread_pool_size],   # number of threads to use
-                @parsed_hash['ssh_user'],     # ssh_user
+                @parsed_hash[:ssh_user],      # ssh_user
                 options[:debug],              # enabled debud mode
                 options[:mock],               # enable mocking
                 hosts_file_path               # hostfile path if cloud_provider is rackspace
@@ -247,17 +247,17 @@ module Ankuscli
           # install master and clients
           puppet.install_puppet
         end
-        @parsed_hash['install_mode'] == 'cloud' ?
+        @parsed_hash[:install_mode] == 'cloud' ?
             puppet.generate_hiera(@parsed_hash_with_internal_ips) :
             puppet.generate_hiera(@parsed_hash)
-        @parsed_hash['install_mode'] == 'cloud' ?
+        @parsed_hash[:install_mode] == 'cloud' ?
             puppet.generate_enc(@parsed_hash_with_internal_ips, NODES_FILE_CLOUD) :
             puppet.generate_enc(@parsed_hash, NODES_FILE)
       rescue SocketError
         puts '[Error]:'.red + " Problem doing ssh into servers: #{$!}"
       ensure
         # make sure to remove the temp hosts file generated if cloud provider is rackspace
-        hosts_file.unlink if @parsed_hash['cloud_platform'] == 'rackspace'
+        hosts_file.unlink if @parsed_hash[:cloud_platform] == 'rackspace'
       end
       if options[:add_nodes]
         puppet.run_puppet_set puppet_clients
@@ -278,26 +278,26 @@ module Ankuscli
       end
       parse_config if @parsed_hash.nil? or @parsed_hash.empty?
       puts 'Reloading Configurations ...'
-      if @parsed_hash['install_mode'] == 'cloud'
+      if @parsed_hash[:install_mode] == 'cloud'
         cloud = create_cloud_obj(@parsed_hash)
         @parsed_hash, @parsed_hash_with_internal_ips = cloud.modify_config_hash(@parsed_hash, YamlUtils.parse_yaml(CLOUD_INSTANCES))
       end
-      puppet_server = YamlUtils.parse_yaml(NODES_FILE)['puppet_server']
-      puppet_clients = YamlUtils.parse_yaml(NODES_FILE)['puppet_clients']
+      puppet_server = YamlUtils.parse_yaml(NODES_FILE)[:puppet_server]
+      puppet_clients = YamlUtils.parse_yaml(NODES_FILE)[:puppet_clients]
       puppet = Deploy::Puppet.new(
           puppet_server,
           puppet_clients,
-          @parsed_hash['ssh_key'],
+          @parsed_hash[:ssh_key],
           @parsed_hash,
           options[:thread_pool_size],
-          @parsed_hash['ssh_user'],
+          @parsed_hash[:ssh_user],
           options[:debug],
           options[:mock]
       )
-      @parsed_hash['install_mode'] == 'cloud' ?
+      @parsed_hash[:install_mode] == 'cloud' ?
           puppet.generate_hiera(@parsed_hash_with_internal_ips) :
           puppet.generate_hiera(@parsed_hash)
-      @parsed_hash['install_mode'] == 'cloud' ?
+      @parsed_hash[:install_mode] == 'cloud' ?
           puppet.generate_enc(@parsed_hash_with_internal_ips, NODES_FILE_CLOUD) :
           puppet.generate_enc(@parsed_hash, NODES_FILE)
       puts 'Initializing Refresh across cluster'.blue
