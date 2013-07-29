@@ -12,5 +12,6 @@ module Ankuscli
     end
     class NotImplemented < Ankuscli::Errors::Error; end
     class ParseError < Ankuscli::Errors::Error; end
+    class ParseError::NoKey < Ankuscli::Errors::Error; end
   end
 end

@@ -25,6 +25,7 @@ rescue LoadError
 end
 
 module Ankuscli
+  require 'ankuscli/settings'
   require 'ankuscli/version'
   require 'ankuscli/helper'
   require 'ankuscli/config_parser'

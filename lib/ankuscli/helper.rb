@@ -22,6 +22,17 @@ module Ankuscli
 
   HOSTNAME_REGEX = /^(([a-zA-Z]|[a-zA-Z][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z]|[A-Za-z][A-Za-z0-9\-]*[A-Za-z0-9])$/
 
+  ANKUS_CONF_MAIN_KEYS = [
+    :install_mode,
+    :hadoop_deploy,
+    :hbase_deploy,
+    :cassandra_deploy,
+    :security,
+    :monitoring,
+    :alerting,
+    :log_aggregation,
+  ]
+
   HADOOP_CONF_KEYS = %w{
     hadoop_heap_size
     hadoop_namenode_opts
@@ -128,8 +139,29 @@ module Ankuscli
   }
 end
 
+# Monkey Patch some methods to ruby core classes
 class String
   def undent
     gsub(/^.{#{slice(/^ +/).length}}/, '')
+  end
+end
+
+class Hash
+  def deep_symbolize
+    target = dup
+    target.inject({}) do |memo, (key, value)|
+      value = value.deep_symbolize if value.is_a?(Hash)
+      memo[(key.to_sym rescue key) || key] = value
+      memo
+    end
+  end
+
+  def deep_stringify
+    target = dup
+    target.inject({}) do |memo, (key, value)|
+      value = value.deep_stringify if value.is_a?(Hash)
+      memo[(key.to_s rescue key) || key] = value
+      memo
+    end
   end
 end

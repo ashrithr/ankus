@@ -15,10 +15,10 @@ module Ankuscli
     # @param [Boolean] debug => if enabled will print more info to stdout
     # @param [Boolean] mock => if enabled will mock fog, instead of creating actual instances
     def initialize(provider, parsed_config, cloud_credentials, thread_pool_size = 10, debug = false, mock = false)
-      @provider = provider || parsed_config['cloud_platform']
-      @cloud_os = parsed_config['cloud_os_type'] || 'CentOS'
+      @provider = provider || parsed_config[:cloud_platform]
+      @cloud_os = parsed_config[:cloud_os_type] || 'CentOS'
       @parsed_hash = parsed_config
-      @credentials = cloud_credentials
+      @credentials = cloud_credentials || parsed_config[:cloud_credentials]
       @debug = debug
       @thread_pool_size = thread_pool_size
       @mock = mock
@@ -28,13 +28,13 @@ module Ankuscli
     # Create a connection object to aws
     # @return [Ankuscli::Aws]
     def create_aws_connection
-      Ankuscli::Aws.new(@credentials['aws_access_id'], @credentials['aws_secret_key'], @credentials['aws_region'], @mock)
+      Ankuscli::Aws.new @credentials[:aws_access_id], @credentials[:aws_secret_key], @credentials[:aws_region], @mock
     end
 
     # Create a connection object to rackspace
     # @return [Ankuscli::Rackspace]
     def create_rackspace_connection
-      Ankuscli::Rackspace.new(@credentials['rackspace_api_key'], @credentials['rackspace_username'], @mock)
+      Ankuscli::Rackspace.new @credentials[:rackspace_api_key], @credentials[:rackspace_username], @mock
     end
 
     # Parse cloud_configuration; create instances and return instance mappings
@@ -42,8 +42,8 @@ module Ankuscli
     #   for aws cloud, nodes: { 'tag' => [public_dns_name, private_dns_name], 'tag' => [public_dns_name, private_dns_name], ... }
     #   for rackspace, nodes: { 'tag(fqdn)' => [public_ip_address, private_ip_address], ... }
     def create_instances
-      num_of_slaves = @parsed_hash['slave_nodes_count']
-      num_of_zks = @parsed_hash['zookeeper_quorum_count']
+      num_of_slaves = @parsed_hash[:slave_nodes_count]
+      num_of_zks = @parsed_hash[:zookeeper_quorum_count]
       nodes_created = {}
       nodes_to_create = {}
       volume_count, volume_size = calculate_disks
@@ -51,69 +51,73 @@ module Ankuscli
       if @provider == 'aws'
         #create nodes to create on aws
         nodes_to_create['controller'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-        if @parsed_hash['hadoop_ha'] == 'enabled'
-          nodes_to_create['namenode1'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-          nodes_to_create['namenode2'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-          nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-          num_of_zks.times do |i|
-            nodes_to_create["zookeeper#{i+1}"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-          end
-          num_of_slaves.times do |i|
-            nodes_to_create["slaves#{i+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
-          end
-        else
-          nodes_to_create['namenode'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-          num_of_slaves.times do |i|
-            nodes_to_create["slaves#{i+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
-          end
-        end
-        if @parsed_hash['mapreduce'] != 'disabled'
-          nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } #JT and SNN
-        elsif @parsed_hash['mapreduce'] and @parsed_hash['hadoop_ha'] == 'disabled'
-          nodes_to_create['snn'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } #SNN
-        end
-        if @parsed_hash['hbase_install'] == 'enabled'
-          @parsed_hash['hbase_master_count'].times do |hm|
-            nodes_to_create["hbasemaster#{hm+1}"] =  { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-          end
-          unless nodes_to_create.keys.find { |e| /zookeeper/ =~ e }
+        if @parsed_hash[:hadoop_deploy] != 'disabled'
+          if @parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
+            nodes_to_create['namenode1'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+            nodes_to_create['namenode2'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+            nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
             num_of_zks.times do |i|
               nodes_to_create["zookeeper#{i+1}"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+            end
+            num_of_slaves.times do |i|
+              nodes_to_create["slaves#{i+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
+            end
+          else
+            nodes_to_create['namenode'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+            num_of_slaves.times do |i|
+              nodes_to_create["slaves#{i+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
+            end
+          end
+          if @parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
+            nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } #JT and SNN
+          elsif @parsed_hash[:hadoop_deploy][:mapreduce] == 'disabled' and @parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
+            nodes_to_create['snn'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } #SNN
+          end
+          if @parsed_hash[:hbase_deploy] != 'disabled'
+            @parsed_hash[:hbase_deploy][:hbase_master_count].times do |hm|
+              nodes_to_create["hbasemaster#{hm+1}"] =  { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+            end
+            unless nodes_to_create.keys.find { |e| /zookeeper/ =~ e }
+              num_of_zks.times do |i|
+                nodes_to_create["zookeeper#{i+1}"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+              end
             end
           end
         end
         nodes_created = create_on_aws(nodes_to_create, @credentials, @thread_pool_size)
 
       elsif @provider == 'rackspace'
-        domain_name = "#{@parsed_hash['rackspace_cluster_identifier']}.ankus.com"
+        domain_name = "#{@parsed_hash[:cloud_credentials][:rackspace_cluster_identifier]}.ankus.com"
         nodes_to_create['controller'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-        if @parsed_hash['hadoop_ha'] == 'enabled'
-          nodes_to_create['namenode1'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-          nodes_to_create['namenode2'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-          nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } if @parsed_hash['mapreduce'] != disabled
-          num_of_zks.times do |i|
-            nodes_to_create["zookeeper#{i+1}"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-          end
-        else
-          nodes_to_create['namenode'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-          if @parsed_hash['mapreduce'] != 'disabled'
-            nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } #JT and SNN
-          elsif @parsed_hash['mapreduce'] and @parsed_hash['hadoop_ha'] == 'disabled'
-            nodes_to_create['snn'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } #SNN
-          end
-        end
-        if @parsed_hash['hbase_install'] == 'enabled'
-          @parsed_hash['hbase_master_count'].times do |hm|
-            nodes_to_create["hbasemaster#{hm+1}"] =  { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-          end
-          unless nodes_to_create.keys.find { |e| /zookeeper/ =~ e }
+        if @parsed_hash[:hadoop_deploy] != 'disabled'
+          if @parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
+            nodes_to_create['namenode1'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+            nodes_to_create['namenode2'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+            nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } if @parsed_hash[:hadoop_deploy][:mapreduce] != disabled
             num_of_zks.times do |i|
               nodes_to_create["zookeeper#{i+1}"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
             end
+          else
+            nodes_to_create['namenode'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+            if @parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
+              nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } #JT and SNN
+            elsif @parsed_hash[:hadoop_deploy][:mapreduce] and @parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
+              nodes_to_create['snn'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } #SNN
+            end
           end
-        end
-        num_of_slaves.times do |i|
-          nodes_to_create["slaves#{i+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
+          if @parsed_hash[:hbase_deploy] != 'disabled'
+            @parsed_hash[:hbase_deploy][:hbase_master_count].times do |hm|
+              nodes_to_create["hbasemaster#{hm+1}"] =  { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+            end
+            unless nodes_to_create.keys.find { |e| /zookeeper/ =~ e }
+              num_of_zks.times do |i|
+                nodes_to_create["zookeeper#{i+1}"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+              end
+            end
+          end
+          num_of_slaves.times do |i|
+            nodes_to_create["slaves#{i+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
+          end
         end
         # add domain name to roles to form fqdn
         nodes_to_create_fqdn = {}
@@ -148,14 +152,14 @@ module Ankuscli
     # @param [Hash] nodes_hash => hash containing info about instances (as returned by Cloud#create_instances)
     # @param [Boolean] delete_volumes => specifies whether to delete volumes attached to instances as well
     def delete_instances(nodes_hash, delete_volumes = false)
-      if @parsed_hash['cloud_platform'] == 'aws'
+      if @parsed_hash[:cloud_platform] == 'aws'
         aws = create_aws_connection
         conn = aws.create_connection
         nodes_hash.each do |_, nodes_dns_map|
           server_dns_name = nodes_dns_map.first
           aws.delete_server_with_dns_name(conn, server_dns_name, delete_volumes)
         end
-      elsif @parsed_hash['cloud_platform'] == 'rackspace'
+      elsif @parsed_hash[:cloud_platform] == 'rackspace'
         rackspace = create_rackspace_connection
         conn = rackspace.create_connection
         nodes_hash.each do |fqdn, _|
@@ -181,55 +185,57 @@ module Ankuscli
       # mapreduce['master']:
       # slave_nodes: []
       # hbase_master: [] if hbase_install == enabled
-      parsed_hash['ssh_key'] =  if @provider == 'aws'
-                                  File.expand_path('~/.ssh') + '/' + @credentials['aws_key']
+      parsed_hash[:ssh_key] =  if @provider == 'aws'
+                                  File.expand_path('~/.ssh') + '/' + @credentials[:aws_key]
                                 elsif @provider == 'rackspace'
-                                  File.split(File.expand_path(@credentials['rackspace_ssh_key'])).first + '/' +
-                                  File.basename(File.expand_path(@credentials['rackspace_ssh_key']), '.pub')
+                                  File.split(File.expand_path(@credentials[:rackspace_ssh_key])).first + '/' +
+                                  File.basename(File.expand_path(@credentials[:rackspace_ssh_key]), '.pub')
                                 end
-      parsed_hash['controller'] = nodes_hash.map { |k,v| v.first if k =~ /controller/ }.compact.first
-      parsed_hash['hadoop_namenode'] = nodes_hash.map { |k,v| v.first if k =~ /namenode/ }.compact
-      parsed_hash['mapreduce']['master'] = nodes_hash.map { |k,v| v.first if k =~ /jobtracker/ }.compact.first if parsed_hash['mapreduce'] != 'disabled'
-      if parsed_hash['mapreduce'] == 'disabled' and parsed_hash['hadoop_ha'] == 'disabled'
-        parsed_hash['hadoop_secondarynamenode'] = nodes_hash.map { |k,v| v.first if k =~ /snn/ }.compact.first
-      elsif parsed_hash['mapreduce'] == 'disabled' and parsed_hash['hadoop_ha'] == 'disabled'
-        parsed_hash['hadoop_secondarynamenode'] = nodes_hash.map { |k,v| v.first if k =~ /jobtracker/ }.compact.first
+      parsed_hash[:controller] = nodes_hash.map { |k,v| v.first if k =~ /controller/ }.compact.first
+      if parsed_hash[:hadoop_deploy] != 'disabled'
+        parsed_hash[:hadoop_deploy][:hadoop_namenode] = nodes_hash.map { |k,v| v.first if k =~ /namenode/ }.compact
+        parsed_hash[:hadoop_deploy][:mapreduce][:master] = nodes_hash.map { |k,v| v.first if k =~ /jobtracker/ }.compact.first if parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
+        if parsed_hash[:hadoop_deploy][:mapreduce] == 'disabled' and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
+          parsed_hash[:hadoop_deploy][:hadoop_secondarynamenode] = nodes_hash.map { |k,v| v.first if k =~ /snn/ }.compact.first
+        elsif parsed_hash[:hadoop_deploy][:mapreduce] == 'disabled' and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
+          parsed_hash[:hadoop_deploy][:hadoop_secondarynamenode] = nodes_hash.map { |k,v| v.first if k =~ /jobtracker/ }.compact.first
+        end
+        parsed_hash[:slave_nodes] = nodes_hash.map { |k,v| v.first if k =~ /slaves/ }.compact
+        parsed_hash[:zookeeper_quorum] = nodes_hash.map { |k,v| v.first if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled' or parsed_hash[:hbase_deploy] != 'disabled'
+        parsed_hash[:hadoop_deploy][:journal_quorum] = nodes_hash.map { |k,v| v.first if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
+        parsed_hash[:hbase_deploy][:hbase_master] = nodes_hash.map { |k,v| v.first if k =~ /hbasemaster/ }.compact if parsed_hash[:hbase_deploy] != 'disabled'
       end
-      parsed_hash['slave_nodes'] = nodes_hash.map { |k,v| v.first if k =~ /slaves/ }.compact
-      parsed_hash['zookeeper_quorum'] = nodes_hash.map { |k,v| v.first if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled' or parsed_hash['hbase_install'] == 'enabled'
-      parsed_hash['journal_quorum'] = nodes_hash.map { |k,v| v.first if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled'
-      parsed_hash['hbase_master'] = nodes_hash.map { |k,v| v.first if k =~ /hbasemaster/ }.compact if parsed_hash['hbase_install'] == 'enabled'
 
       #hash with internal ips
       if @provider == 'aws' # internal_ips
-        parsed_hash_internal_ips['ssh_key'] = File.expand_path('~/.ssh') + '/' + @parsed_hash['cloud_credentials']['aws_key']
-        parsed_hash_internal_ips['controller'] = nodes_hash.map { |k,v| v.last if k =~ /controller/ }.compact.first
-        parsed_hash_internal_ips['hadoop_namenode'] = nodes_hash.map { |k,v| v.last if k =~ /namenode/ }.compact
-        parsed_hash_internal_ips['mapreduce']['master'] = nodes_hash.map { |k,v| v.last if k =~ /jobtracker/ }.compact.first if parsed_hash['mapreduce'] != 'disabled'
-        if parsed_hash['mapreduce'] == 'disabled' and parsed_hash['hadoop_ha'] == 'disabled'
-          parsed_hash_internal_ips['hadoop_secondarynamenode'] = nodes_hash.map { |k,v| v.last if k =~ /snn/ }.compact.first
-        elsif parsed_hash['mapreduce'] == 'disabled' and parsed_hash['hadoop_ha'] == 'disabled'
-          parsed_hash_internal_ips['hadoop_secondarynamenode'] = nodes_hash.map { |k,v| v.last if k =~ /jobtracker/ }.compact.first
+        parsed_hash_internal_ips[:ssh_key] = File.expand_path('~/.ssh') + '/' + @parsed_hash[:cloud_credentials][:aws_key]
+        parsed_hash_internal_ips[:controller] = nodes_hash.map { |k,v| v.last if k =~ /controller/ }.compact.first
+        parsed_hash_internal_ips[:hadoop_deploy][:hadoop_namenode] = nodes_hash.map { |k,v| v.last if k =~ /namenode/ }.compact
+        parsed_hash_internal_ips[:hadoop_deploy][:mapreduce][:master] = nodes_hash.map { |k,v| v.last if k =~ /jobtracker/ }.compact.first if parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
+        if parsed_hash[:hadoop_deploy][:mapreduce] == 'disabled' and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
+          parsed_hash_internal_ips[:hadoop_deploy][:hadoop_secondarynamenode] = nodes_hash.map { |k,v| v.last if k =~ /snn/ }.compact.first
+        elsif parsed_hash[:hadoop_deploy][:mapreduce] == 'disabled' and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
+          parsed_hash_internal_ips[:hadoop_deploy][:hadoop_secondarynamenode] = nodes_hash.map { |k,v| v.last if k =~ /jobtracker/ }.compact.first
         end
-        parsed_hash_internal_ips['slave_nodes'] = nodes_hash.map { |k,v| v.last if k =~ /slaves/ }.compact
-        parsed_hash_internal_ips['zookeeper_quorum'] = nodes_hash.map { |k,v| v.last if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled' or parsed_hash['hbase_install'] == 'enabled'
-        parsed_hash_internal_ips['journal_quorum'] = nodes_hash.map { |k,v| v.last if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled'
-        parsed_hash_internal_ips['hbase_master'] = nodes_hash.map { |k,v| v.last if k =~ /hbasemaster/ }.compact if parsed_hash['hbase_install'] == 'enabled'
+        parsed_hash_internal_ips[:slave_nodes] = nodes_hash.map { |k,v| v.last if k =~ /slaves/ }.compact
+        parsed_hash_internal_ips[:zookeeper_quorum] = nodes_hash.map { |k,v| v.last if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled' or parsed_hash[:hbase_deploy] != 'disabled'
+        parsed_hash_internal_ips[:hadoop_deploy][:journal_quorum] = nodes_hash.map { |k,v| v.last if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
+        parsed_hash_internal_ips[:hbase_deploy] = nodes_hash.map { |k,v| v.last if k =~ /hbasemaster/ }.compact if parsed_hash[:hbase_deploy] != 'disabled'
       elsif @provider == 'rackspace' # fqdn
-        parsed_hash_internal_ips['ssh_key'] = File.split(File.expand_path(@credentials['rackspace_ssh_key'])).first + '/' +
-                                                        File.basename(File.expand_path(@credentials['rackspace_ssh_key']), '.pub')
-        parsed_hash_internal_ips['controller'] = nodes_hash.map { |k,_| k if k =~ /controller/ }.compact.first
-        parsed_hash_internal_ips['hadoop_namenode'] = nodes_hash.map { |k,_| k if k =~ /namenode/ }.compact
-        parsed_hash_internal_ips['mapreduce']['master'] = nodes_hash.map { |k,_| k if k =~ /jobtracker/ }.compact.first if parsed_hash['mapreduce'] != 'disabled'
-        if parsed_hash['mapreduce'] == 'disabled' and parsed_hash['hadoop_ha'] == 'disabled'
-          parsed_hash_internal_ips['hadoop_secondarynamenode'] = nodes_hash.map { |k,_| k if k =~ /snn/ }.compact.first
-        elsif parsed_hash['mapreduce'] == 'disabled' and parsed_hash['hadoop_ha'] == 'disabled'
-          parsed_hash_internal_ips['hadoop_secondarynamenode'] = nodes_hash.map { |k,_| k if k =~ /jobtracker/ }.compact.first
+        parsed_hash_internal_ips[:ssh_key] = File.split(File.expand_path(@credentials[:rackspace_ssh_key])).first + '/' +
+                                                        File.basename(File.expand_path(@credentials[:rackspace_ssh_key]), '.pub')
+        parsed_hash_internal_ips[:controller] = nodes_hash.map { |k,_| k if k =~ /controller/ }.compact.first
+        parsed_hash_internal_ips[:hadoop_deploy][:hadoop_namenode] = nodes_hash.map { |k,_| k if k =~ /namenode/ }.compact
+        parsed_hash_internal_ips[:hadoop_deploy][:mapreduce][:master] = nodes_hash.map { |k,_| k if k =~ /jobtracker/ }.compact.first if parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
+        if parsed_hash[:hadoop_deploy][:mapreduce] == 'disabled' and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
+          parsed_hash_internal_ips[:hadoop_deploy][:hadoop_secondarynamenode] = nodes_hash.map { |k,_| k if k =~ /snn/ }.compact.first
+        elsif parsed_hash[:hadoop_deploy][:mapreduce] == 'disabled' and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
+          parsed_hash_internal_ips[:hadoop_deploy][:hadoop_secondarynamenode] = nodes_hash.map { |k,_| k if k =~ /jobtracker/ }.compact.first
         end
-        parsed_hash_internal_ips['slave_nodes'] = nodes_hash.map { |k,_| k if k =~ /slaves/ }.compact
-        parsed_hash_internal_ips['zookeeper_quorum'] = nodes_hash.map { |k,_| k if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled' or parsed_hash['hbase_install'] == 'enabled'
-        parsed_hash_internal_ips['journal_quorum'] = nodes_hash.map { |k,_| k if k =~ /zookeeper/ }.compact if parsed_hash['hadoop_ha'] == 'enabled'
-        parsed_hash_internal_ips['hbase_master'] = nodes_hash.map { |k,_| k if k =~ /hbasemaster/ }.compact if parsed_hash['hbase_install'] == 'enabled'
+        parsed_hash_internal_ips[:slave_nodes] = nodes_hash.map { |k,_| k if k =~ /slaves/ }.compact
+        parsed_hash_internal_ips[:zookeeper_quorum] = nodes_hash.map { |k,_| k if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled' or parsed_hash[:hbase_install] != 'disabled'
+        parsed_hash_internal_ips[:hadoop_deploy][:journal_quorum] = nodes_hash.map { |k,_| k if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
+        parsed_hash_internal_ips[:hbase_deploy][:hbase_master] = nodes_hash.map { |k,_| k if k =~ /hbasemaster/ }.compact if parsed_hash[:hbase_deploy] != 'disabled'
       end
       return parsed_hash, parsed_hash_internal_ips
     end
@@ -243,9 +249,9 @@ module Ankuscli
     def create_on_aws(nodes_to_create, credentials, thread_pool_size)
       #defaults
       threads_pool = Ankuscli::ThreadPool.new(thread_pool_size)
-      key = credentials['aws_key'] || 'ankuscli'
-      groups = credentials['aws_sec_groups'] || %w(ankuscli)
-      flavor_id = credentials['aws_machine_type'] || 'm1.large'
+      key = credentials[:aws_key] || 'ankuscli'
+      groups = credentials[:aws_sec_groups] || %w(ankuscli)
+      flavor_id = credentials[:aws_machine_type] || 'm1.large'
       aws = create_aws_connection
       conn = aws.create_connection
       results = {}
@@ -373,10 +379,10 @@ module Ankuscli
     # @return [Hash] results => { 'instance_tag(fqdn)' => [public_ip_address, private_ip_address], ... }
     def create_on_rackspace(nodes_to_create, credentials, thread_pool_size)
       threads_pool = Ankuscli::ThreadPool.new(thread_pool_size)
-      api_key = credentials['rackspace_api_key']
-      username = credentials['rackspace_username']
-      machine_type = credentials['rackspace_instance_type'] || 4
-      public_ssh_key_path = credentials['rackspace_ssh_key'] || '~/.ssh/id_rsa.pub'
+      api_key = credentials[:rackspace_api_key]
+      username = credentials[:rackspace_username]
+      machine_type = credentials[:rackspace_instance_type] || 4
+      public_ssh_key_path = credentials[:rackspace_ssh_key] || '~/.ssh/id_rsa.pub'
       ssh_key_path = File.split(public_ssh_key_path).first + '/' + File.basename(public_ssh_key_path, '.pub')
 
       puts "\r[Debug]: Using ssh_key #{ssh_key_path}" if @debug
@@ -391,7 +397,6 @@ module Ankuscli
         server_objects[tag] = rackspace.create_server!(conn, tag, public_ssh_key_path, machine_type, info[:os_type])
       end
       puts "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')} ".blue + '[DONE]'.cyan
-
 
       #wait for servers to get created (:state => ACTIVE)
       begin
@@ -537,7 +542,7 @@ module Ankuscli
     # configuration
     # @return [Fixnum, Fixnum] number of volumes to create and size of each volume
     def calculate_disks
-      slave_nodes_disk_size = @parsed_hash['slave_nodes_storage_capacity'] || 0
+      slave_nodes_disk_size = @parsed_hash[:slave_nodes_storage_capacity] || 0
       if @provider == 'aws'
         volume_count =  if slave_nodes_disk_size.nil? or slave_nodes_disk_size.to_i == 0
                           # assume user do not want any extra volumes
