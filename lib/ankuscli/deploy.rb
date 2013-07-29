@@ -46,16 +46,16 @@ module Ankuscli
           puts "\rChecking if instances are ssh'able ..."
           SshUtils.sshable? @nodes, @ssh_user, @ssh_key
           # if puppet master is not localhost check if the instance is sshable?
-          SshUtils.sshable? @puppet_master, @ssh_user, @ssh_key if @parsed_hash['install_mode'] == 'local'
+          SshUtils.sshable? @puppet_master, @ssh_user, @ssh_key if @parsed_hash[:install_mode] == 'local'
           puts "\rChecking if instances are ssh'able ... " + '[OK]'.green.bold
           #get the puppet server hostname this is required for cloud, for aws to get internal_dns_name of host for accurate communication
-          if @parsed_hash['install_mode'] == 'cloud'
+          if @parsed_hash[:install_mode] == 'cloud'
             result = SshUtils.execute_ssh!('hostname --fqdn', @puppet_master, @ssh_user, @ssh_key)
             @puppet_server_cloud_fqdn = result[@puppet_master][0].chomp # result[host][0]
             remote_puppet_client_cmd = "chmod +x #{remote_puppet_installer_loc}/#{@puppet_installer} && sudo sh -c '#{remote_puppet_installer_loc}/#{@puppet_installer} -c -H #{@puppet_server_cloud_fqdn} | tee #{REMOTE_LOG_DIR}/install.log'"
           end
           #perform preq's
-          if @parsed_hash['cloud_platform'] == 'rackspace'
+          if @parsed_hash[:cloud_platform] == 'rackspace'
             preq(all_nodes, remote_puppet_installer_loc, @hosts_file)
           else
             preq(all_nodes, remote_puppet_installer_loc)
@@ -72,7 +72,7 @@ module Ankuscli
             puts "\r[Debug]: Found puppet installer script at #{PUPPET_INSTALLER}" if @debug
           #if controller is on same machine, install puppet master locally else send the script to controller and install
           #puppet
-          if @parsed_hash['controller'] == 'localhost'
+          if @parsed_hash[:controller] == 'localhost'
             status = ShellUtils.run_cmd_with_log!(
                 "chmod +x #{PUPPET_INSTALLER} && sudo sh -c '#{PUPPET_INSTALLER} -s'",
                 "#{REMOTE_LOG_DIR}/install.log"
@@ -161,13 +161,13 @@ module Ankuscli
           SshUtils.sshable? @nodes, @ssh_user, @ssh_key
           puts "\rChecking if instances are ssh'able ... " + '[OK]'.green.bold
 
-          if @parsed_hash['install_mode'] == 'cloud'
+          if @parsed_hash[:install_mode] == 'cloud'
             result = SshUtils.execute_ssh!('hostname --fqdn', @puppet_master, @ssh_user, @ssh_key)
             @puppet_server_cloud_fqdn = result[@puppet_master][0].chomp # result[host][0]
             remote_puppet_client_cmd = "chmod +x #{remote_puppet_installer_loc}/#{@puppet_installer} && sudo sh -c '#{remote_puppet_installer_loc}/#{@puppet_installer} -c -H #{@puppet_server_cloud_fqdn} | tee #{REMOTE_LOG_DIR}/install.log'"
           end
 
-          if @parsed_hash['cloud_platform'] == 'rackspace'
+          if @parsed_hash[:cloud_platform] == 'rackspace'
             preq(@nodes, remote_puppet_installer_loc, @hosts_file)
           else
             preq(@nodes, remote_puppet_installer_loc)
@@ -212,38 +212,38 @@ module Ankuscli
         #generate hiera data to local data folder first
         puts "\rGenerating hiera data required for puppet".blue
         #aggregate hadoop, hbase, all other related configurations in here into a common hash before writing out
-        hiera_hash.merge!(parsed_hash)
+        hiera_hash.merge!(parsed_hash.deep_stringify)
         hiera_hash.merge!(YamlUtils.parse_yaml(HADOOP_CONF))
         hiera_hash.merge!(YamlUtils.parse_yaml(HBASE_CONF))
         #TODO add more configs
         #parse zookeeper ensemble
-        if parsed_hash['zookeeper_quorum']
-          hiera_hash['zookeeper_ensemble'] = parsed_hash['zookeeper_quorum'].map { |zk| zk += ":2181" }.join(",")
-          hiera_hash['zookeeper_class_ensemble'] = parsed_hash['zookeeper_quorum'].map { |zk| zk+=":2888:3888" }
+        if parsed_hash[:zookeeper_quorum]
+          hiera_hash['zookeeper_ensemble'] = parsed_hash[:zookeeper_quorum].map { |zk| zk += ":2181" }.join(",")
+          hiera_hash['zookeeper_class_ensemble'] = parsed_hash[:zookeeper_quorum].map { |zk| zk+=":2888:3888" }
         end
         #parse journal quorum
-        if parsed_hash['journal_quorum']
-          hiera_hash['journal_quorum'] = parsed_hash['journal_quorum'].map { |jn| jn += ":8485" }.join(",")
+        if parsed_hash[:hadoop_deploy][:journal_quorum]
+          hiera_hash['journal_quorum'] = parsed_hash[:hadoop_deploy][:journal_quorum].map { |jn| jn += ":8485" }.join(",")
         end
         #parse num_of_workers
-        hiera_hash['number_of_nodes'] = parsed_hash['slave_nodes'].length
+        hiera_hash['number_of_nodes'] = parsed_hash[:slave_nodes].length
         #parse nagios & ganglia
-        if parsed_hash['monitoring'] == 'enabled'
-          hiera_hash['ganglia_server'] = parsed_hash['controller']
+        if parsed_hash[:monitoring] == 'enabled'
+          hiera_hash['ganglia_server'] = parsed_hash[:controller]
         end
         #log_aggregation
-        if parsed_hash['log_aggregation'] == 'enabled'
-          hiera_hash['logstash_server'] = parsed_hash['controller']
+        if parsed_hash[:log_aggregation] == 'enabled'
+          hiera_hash['logstash_server'] = parsed_hash[:controller]
         end
         #nagios server os_type is required
-        if parsed_hash['install_mode'] == 'cloud'
-          hiera_hash['nagios_server'] = parsed_hash['controller']
-          hiera_hash['nagios_server_ostype'] = parsed_hash['cloud_os_type'].downcase =~ /centos/ ? 'CentOS' : 'Ubuntu'
+        if parsed_hash[:install_mode] == 'cloud'
+          hiera_hash['nagios_server'] = parsed_hash[:controller]
+          hiera_hash['nagios_server_ostype'] = parsed_hash[:cloud_os_type].downcase =~ /centos/ ? 'CentOS' : 'Ubuntu'
         else
-          if parsed_hash['alerting'] == 'enabled'
-            hiera_hash['nagios_server'] = parsed_hash['controller']
+          if parsed_hash[:alerting] == 'enabled'
+            hiera_hash['nagios_server'] = parsed_hash[:controller]
             begin #gather info of system
-              if parsed_hash['controller'] == 'localhost'
+              if parsed_hash[:controller] == 'localhost'
                 @osinfo = `chmod +x #{GETOSINFO_SCRIPT} && #{GETOSINFO_SCRIPT}`.chomp
                 if $?.success?
                   @ostype = @osinfo =~ /centos/ ? 'CentOS' : 'Ubuntu'
@@ -272,13 +272,13 @@ module Ankuscli
           end
         end
         #security
-        if parsed_hash['security'] == 'kerberos'
+        if parsed_hash[:security] == 'kerberos'
           hiera_hash['kerberos_kdc_server'] = @puppet_master
-          hiera_hash['kerberos_realm'] = @parsed_hash['realm_name'] if @parsed_hash['realm_name']
-          hiera_hash['kerberos_domain'] = @parsed_hash['domain_name'] if @parsed_hash['domain_name']
+          hiera_hash['kerberos_realm'] = @parsed_hash[:hadoop_kerberos_realm] if @parsed_hash[:hadoop_kerberos_realm]
+          hiera_hash['kerberos_domain'] = @parsed_hash[:hadoop_kerberos_domain] if @parsed_hash[:hadoop_kerberos_domain]
         end
           #hadoop_eco_system
-        hadoop_ecosystem = parsed_hash['hadoop_ecosystem']
+        hadoop_ecosystem = parsed_hash[:hadoop_deploy][:hadoop_ecosystem]
         if hadoop_ecosystem
           hadoop_ecosystem.each do |tool|
             hiera_hash[tool] = 'enabled'
@@ -328,9 +328,9 @@ module Ankuscli
         #initialize puppet run in order
           #1. puppet server
           #2. master nodes and parallel on worker nodes
-        controller    = @parsed_hash['controller']
-        hadoop_ha     = @parsed_hash['hadoop_ha']
-        hbase_install = @parsed_hash['hbase_install']
+        controller    = @parsed_hash[:controller]
+        hadoop_ha     = @parsed_hash[:hadoop_deploy][:hadoop_ha]
+        hbase_install = @parsed_hash[:hbase_deploy]
 
         if controller == 'localhost'
           puts "\rInitializing puppet run on controller".blue
@@ -349,24 +349,24 @@ module Ankuscli
           # init puppet agent on zookeepers
         if hadoop_ha == 'enabled' or hbase_install == 'enabled'
           #parallel puppet run on zks
-          puppet_parallel_run(@parsed_hash['zookeeper_quorum'], puppet_run_cmd, 'zookeepers')
+          puppet_parallel_run(@parsed_hash[:zookeeper_quorum], puppet_run_cmd, 'zookeepers')
         end
         if hadoop_ha == 'enabled'
-          if @parsed_hash['journal_quorum']
+          if @parsed_hash[:hadoop_deploy][:journal_quorum]
             #parallel puppet run on jns
-            puppet_parallel_run(@parsed_hash['journal_quorum'], puppet_run_cmd, 'journalnodes')
+            puppet_parallel_run(@parsed_hash[:hadoop_deploy][:journal_quorum], puppet_run_cmd, 'journalnodes')
           end
           # puppet run on nns
-          puppet_single_run(@parsed_hash['hadoop_namenode'].first, puppet_run_cmd, 'active_namenode')
-          puppet_single_run(@parsed_hash['hadoop_namenode'].last, puppet_run_cmd, 'standby_namenode')
+          puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_namenode].first, puppet_run_cmd, 'active_namenode')
+          puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_namenode].last, puppet_run_cmd, 'standby_namenode')
           # parallel run breaks beacuse namenode2 should copy namenode1 dfs.name.dir contents which only happens after
           # namenode1 is bootstrapped, caused beacuse of Bug 'HDFS-3752'
           # puppet_parallel_run(@parsed_hash['hadoop_namenode'], puppet_run_cmd, 'namenodes')
         else
-          puppet_single_run(@parsed_hash['hadoop_namenode'].first, puppet_run_cmd, 'namenode')
+          puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_namenode].first, puppet_run_cmd, 'namenode')
         end
         if hbase_install == 'enabled'
-          hbase_master = @parsed_hash['hbase_master']
+          hbase_master = @parsed_hash[:hbase_deploy][:hbase_master]
           if hbase_master.length == 1
             puts "\rInitializing hbase master"
             puppet_single_run(hbase_master.join, puppet_run_cmd, 'hbasemaster')
@@ -376,18 +376,18 @@ module Ankuscli
         end
 
         # init puppet agent on mapreduce master
-        if @parsed_hash['mapreduce'] != 'disabled'
-          puppet_single_run(@parsed_hash['mapreduce']['master'], puppet_run_cmd, 'mapreduce_master')
+        if @parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
+          puppet_single_run(@parsed_hash[:hadoop_deploy][:mapreduce][:master], puppet_run_cmd, 'mapreduce_master')
         else
           #mapreduce is disabled for cloud_deployments, snn will be on diff machine
-          puppet_single_run(@parsed_hash['hadoop_secondarynamenode'], puppet_run_cmd, 'secondary_namenode') unless hadoop_ha == 'enabled'
+          puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_secondarynamenode], puppet_run_cmd, 'secondary_namenode') unless hadoop_ha == 'enabled'
         end
 
         # init puppet agent on slave nodes
-        puppet_parallel_run(@parsed_hash['slave_nodes'], puppet_run_cmd, 'slaves')
+        puppet_parallel_run(@parsed_hash[:slave_nodes], puppet_run_cmd, 'slaves')
 
         # finalize puppet run on controller to refresh nagios
-        if @parsed_hash['alerting'] == 'enabled'
+        if @parsed_hash[:alerting] == 'enabled'
           puts "\r[Info]: Triggering refresh on controller ..."
           if controller == 'localhost'
             unless @mock
@@ -402,9 +402,9 @@ module Ankuscli
           end
         end
         # hbasemasters need service refresh after datanodes came online
-        if @parsed_hash['hbase_install'] == 'enabled'
+        if @parsed_hash[:hbase_deploy] == 'enabled'
           puts "\r[Info]: Triggering refresh on hbase master(s) ..."
-          hbase_master = @parsed_hash['hbase_master']
+          hbase_master = @parsed_hash[:hbase_deploy][:hbase_master]
           if hbase_master.length == 1
             puts "\rInitializing hbase master"
             puppet_single_run(hbase_master.join, puppet_run_cmd, 'hbasemaster')
@@ -418,7 +418,7 @@ module Ankuscli
       def run_puppet_set(nodes)
         puppet_run_cmd = "sudo sh -c 'puppet agent --server #{@puppet_master} --onetime --verbose --no-daemonize --no-splay --ignorecache --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log'"
         unless @mock
-          if @parsed_hash['install_mode'] == 'cloud'
+          if @parsed_hash[:install_mode] == 'cloud'
             result = SshUtils.execute_ssh!('hostname --fqdn', @puppet_master, @ssh_user, @ssh_key)
             @puppet_server_cloud_fqdn = result[@puppet_master][0].chomp
             puppet_run_cmd = "sudo sh -c 'puppet agent --server #{@puppet_server_cloud_fqdn} --onetime --verbose --no-daemonize --no-splay --ignorecache --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log'"
@@ -436,7 +436,7 @@ module Ankuscli
           puts "\rInitializing puppet run on node(s) #{nodes.inspect}" if @debug
           puppet_parallel_run(nodes, puppet_run_cmd, 'refresh')
           #refresh master
-          if @parsed_hash['controller'] == 'localhost'
+          if @parsed_hash[:controller] == 'localhost'
             status = ShellUtils.run_cmd!(puppet_run_cmd)
             unless status.success?
               puts "\r[Error]:".red + ' Failed to finalize puppet run'
