@@ -528,7 +528,7 @@ module Ankuscli
         hosts_string << "fe00::0\tip6-localnet\nff00::0\tip6-mcastprefix\nff02::1\tip6-allnodes\nff02::2\tip6-allrouters" << "\n"
       end
       nodes_ips_map.each do |fqdn, ip_map|
-        hosts_string << "#{ip_map.last}\t#{fqdn}\t#{fqdn.split('.').first}" << "\n"
+        hosts_string << "#{ip_map.first}\t#{fqdn}\t#{fqdn.split('.').first}" << "\n"
       end
       hosts_string
     end

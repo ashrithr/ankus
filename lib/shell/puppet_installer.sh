@@ -13,7 +13,7 @@ DOMAIN_NAME=`echo ${PUPPET_SERVER} | cut -d "." -f 2-`
 IP=`ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | grep 'Bcast' | awk '{print $1}'`
 GIT_REPO="https://github.com/ashrithr/ankus-cli-modules.git"
 PUPPET_MODULES_PATH="/etc/puppet/modules"
-PUPPET_MODULES_DOWNLOAD="https://github.com/ashrithr/ankus-cli-modules/archive/v1.2.tar.gz"
+PUPPET_MODULES_DOWNLOAD="https://github.com/ashrithr/ankus-cli-modules/archive/v1.3.tar.gz"
 
 # => OS specific
 OS=''
@@ -506,8 +506,10 @@ sed -i "s/PUPPET_SERVER_PH/${PUPPET_SERVER}/g" ${PASSENGER_CONF_PATH}
   printclr "Restarting httpd and verifying puppet run using passenger"
   if [[ ${OS} =~ ubuntu ]]; then
     a2ensite puppetmasterd  #enable the site puppetmasted
+    service ${APACHE_PKG} restart
+  else
+    service ${APACHE_PKG} start
   fi
-  service ${APACHE_PKG} restart
 
   netstat -plunt | grep 8140 &> /dev/null
   if [ $? -eq 0 ]; then

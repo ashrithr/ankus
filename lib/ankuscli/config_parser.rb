@@ -307,7 +307,7 @@ module Ankuscli
           puts '[Error]: '.red + 'mapreduce should be specified'
           exit 1
         elsif mapreduce == 'disabled'
-          puts '[Debug]: ' + '(Warning)'.yellow + ' Mapreduce is disabled, no mapreduce daemons will be installed'
+          puts '[Debug]: ' + '(Warning)'.yellow + ' Mapreduce is disabled, no mapreduce daemons will be installed' if @debug
         elsif ! mapreduce.is_a?(Hash)
           puts '[Error]: '.red + "unrecognized value set for 'mapreduce' : #{mapreduce}"
           exit 1
