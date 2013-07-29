@@ -433,7 +433,7 @@ module Ankuscli
             puts '[Error]: '.red + "'zookeeper_quorum_count' is required"
             exit 1
           end
-
+          puts '[Debug]: ' + '(Warning) '.yellow + 'Failover is not possible with even number of zookeepers' if zookeeper_quorum_count % 2 == 0
         end
       end
 
