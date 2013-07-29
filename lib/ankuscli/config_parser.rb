@@ -106,6 +106,11 @@ module Ankuscli
         puts '[Debug]: \'ssh_user\' is not specified assuming ssh_user as \'root\'' if @debug
         hash_to_validate[:ssh_user] = 'root'
       end
+
+      # call common validator which inturn will call other validators and gets back to check
+      # if hosts are up or not
+      common_validator(hash_to_validate)
+
       # force user to enter hostname instead of ipaddress
       nodes = Inventory::Generator.new(@config_file, @parsed_hash).generate
       ( all_nodes ||= [] ) << nodes[:puppet_server]
@@ -122,7 +127,6 @@ module Ankuscli
           @errors_count += 1
         end
       end
-      common_validator(hash_to_validate)
     end
 
     # Validations specific to cloud install_mode
@@ -247,25 +251,97 @@ module Ankuscli
     # Validates params which are common for both local and cloud install_modes
     # @param [Hash] hash_to_validate => hash to validate
     def common_validator(hash_to_validate)
-      #hadoop_deploy:
-      #    hadoop_ha: 'disabled'
-      #mapreduce:
-      #    type: mr1
-      #hadoop_ecosystem:
-      #    - hive
-      #- sqoop
-      #- pig
       puts '[Debug]: Calling common validator' if @debug
       install_mode = hash_to_validate[:install_mode]
+      security = hash_to_validate[:security]
+      monitoring = hash_to_validate[:monitoring]
+      alerting = hash_to_validate[:alerting]
+      log_aggregation = hash_to_validate[:log_aggregation]
+
+      #security
+      if security.nil? or security.empty?
+        puts '[Error]:'.red + " 'security' is required parameter, valid values: enabled|disabled"
+        @errors_count += 1
+      elsif ! %w(simple kerberos).include?(security)
+        puts '[Error]:'.red + " invalid value for 'security', valid values: simple|kerberos"
+        @errors_count += 1
+      end
+      if security == 'kerberos'
+        #if security is enabled
+        realm_name = hash_to_validate[:hadoop_kerberos_realm]
+        domain_name = hash_to_validate[:hadoop_kerberos_domain]
+        if realm_name.nil? or realm_name.empty?
+          puts '[Debug]: ' + 'Kerberos realm name is not provided, using default realm name' if @debug
+        end
+        if domain_name.nil? or domain_name.empty?
+          puts '[Debug]: ' + 'Kerberos domain name is not provided, using default domain name' if @debug
+        end
+      end
+
+      #monitoring
+      if monitoring.nil? or monitoring.empty?
+        puts '[Error]:'.red + " 'monitoring' is required parameter, valid values: enabled|disabled"
+        @errors_count += 1
+      elsif ! %w(enabled disabled).include?(monitoring)
+        puts '[Error]:'.red + " invalid value for 'monitoring', valid values: enabled|disabled"
+      end
+
+      #alerting
+      if alerting.nil? or alerting.empty?
+        puts '[Error]:'.red + " 'alerting' is required parameter, valid values: enabled|disabled"
+        @errors_count += 1
+      elsif ! %w(enabled disabled).include?(alerting)
+        puts '[Error]:'.red + " invalid value for 'alerting', valid values: enabled|disabled"
+      end
+
+      #admin_email
+      if alerting and alerting == 'enabled'
+        admin_email = hash_to_validate[:admin_email]
+        if admin_email.nil? or admin_email.empty?
+          puts '[Error]:'.red + " 'admin_email' is required parameter, valid values: enabled|disabled"
+          @errors_count += 1
+        end
+      end
+
+      #log_aggregation
+      if log_aggregation.nil? or log_aggregation.empty?
+        puts '[Error]:'.red + " 'log_aggregation' is required parameter, valid values: enabled|disabled"
+      elsif ! %w(enabled disabled).include?(log_aggregation)
+        puts '[Error]:'.red + " invalid value for 'log_aggregation', valid values: enabled|disabled"
+      end
+
+      #call hadoop validator
+      if hash_to_validate[:hadoop_deploy] != 'disabled'
+        # call hadoop_validator
+        hadoop_validator hash_to_validate
+        if hash_to_validate[:hbase_deploy] != 'disabled'
+          hbase_validator hash_to_validate
+        end
+      end
+      # call cassandra validator
+      if hash_to_validate[:cassandra_deploy] != 'disabled'
+        cassandra_validator hash_to_validate
+      end
+    end
+
+    # Validates hadoop related conf params for local install_mode
+    # @param [String] hash_to_validate
+    def hadoop_validator(hash_to_validate)
+      puts '[Debug]: calling hadoop validator' if @debug
+
       hadoop_ha = hash_to_validate[:hadoop_deploy][:hadoop_ha]
       hbase_install = hash_to_validate[:hbase_deploy]
       hadoop_ecosystem = hash_to_validate[:hadoop_deploy][:hadoop_ecosystem]
       mapreduce = hash_to_validate[:hadoop_deploy][:mapreduce]
       valid_hadoop_ecosystem = %w(hive pig sqoop oozie hue flume)
-      security = hash_to_validate[:security]
-      monitoring = hash_to_validate[:monitoring]
-      alerting = hash_to_validate[:alerting]
-      log_aggregation = hash_to_validate[:log_aggregation]
+      hadoop_namenode = hash_to_validate[:hadoop_deploy][:hadoop_namenode]
+      zookeeper_quorum = hash_to_validate[:zookeeper_quorum]
+      journal_quorum = hash_to_validate[:hadoop_deploy][:journal_quorum]
+      hadoop_snn = hash_to_validate[:hadoop_deploy][:hadoop_secondarynamenode]
+      mapreduce_type = hash_to_validate[:hadoop_deploy][:mapreduce][:type]
+      mapreduce_master = hash_to_validate[:hadoop_deploy][:mapreduce][:master]
+      slave_nodes = hash_to_validate[:slave_nodes]
+      install_mode = hash_to_validate[:install_mode]
 
       if hadoop_ha.nil? or hadoop_ha.empty?
         puts '[Error]:'.red + " 'hadoop_ha' is required parameter and it should be either enabled|disabled"
@@ -347,66 +423,103 @@ module Ankuscli
         end
       end
 
-      #security
-      if security.nil? or security.empty?
-        puts '[Error]:'.red + " 'security' is required parameter, valid values: enabled|disabled"
-        @errors_count += 1
-      elsif ! %w(simple kerberos).include?(security)
-        puts '[Error]:'.red + " invalid value for 'security', valid values: simple|kerberos"
-        @errors_count += 1
-      end
-      if security == 'kerberos'
-        #if security is enabled
-        realm_name = hash_to_validate[:hadoop_kerberos_realm]
-        domain_name = hash_to_validate[:hadoop_kerberos_domain]
-        if realm_name.nil? or realm_name.empty?
-          puts '[Debug]: ' + 'Kerberos realm name is not provided, using default realm name' if @debug
-        end
-        if domain_name.nil? or domain_name.empty?
-          puts '[Debug]: ' + 'Kerberos domain name is not provided, using default domain name' if @debug
-        end
-      end
-
-      #monitoring
-      if monitoring.nil? or monitoring.empty?
-        puts '[Error]:'.red + " 'monitoring' is required parameter, valid values: enabled|disabled"
-        @errors_count += 1
-      elsif ! %w(enabled disabled).include?(monitoring)
-        puts '[Error]:'.red + " invalid value for 'monitoring', valid values: enabled|disabled"
-      end
-
-      #alerting
-      if alerting.nil? or alerting.empty?
-        puts '[Error]:'.red + " 'alerting' is required parameter, valid values: enabled|disabled"
-        @errors_count += 1
-      elsif ! %w(enabled disabled).include?(alerting)
-        puts '[Error]:'.red + " invalid value for 'alerting', valid values: enabled|disabled"
-      end
-
-      #admin_email
-      if alerting and alerting == 'enabled'
-        admin_email = hash_to_validate[:admin_email]
-        if admin_email.nil? or admin_email.empty?
-          puts '[Error]:'.red + " 'admin_email' is required parameter, valid values: enabled|disabled"
+      if hadoop_ha == 'enabled'
+        zookeeper_quorum = hash_to_validate[:zookeeper_quorum]
+        if zookeeper_quorum.nil? or zookeeper_quorum.empty?
+          puts '[Error]: '.red + "'zookeeper_quorum' is required for hadoop_ha deployment"
           @errors_count += 1
         end
       end
 
-      #log_aggregation
-      if log_aggregation.nil? or log_aggregation.empty?
-        puts '[Error]:'.red + " 'log_aggregation' is required parameter, valid values: enabled|disabled"
-      elsif ! %w(enabled disabled).include?(log_aggregation)
-        puts '[Error]:'.red + " invalid value for 'log_aggregation', valid values: enabled|disabled"
+      if install_mode == 'local'
+        if hadoop_ha == 'enabled'
+          #### HA Specific
+          unless hadoop_namenode.length == 2
+            puts '[Error]:'.red + " if 'hadoop_ha' ie enabled, two namenode(s) are required"
+            @errors_count += 1
+          end
+          #namenodes and zookeepers cannot co-exist
+          zookeeper_quorum.each do |zk|
+            if hadoop_namenode.include?(zk)
+              puts '[Error]:'.red + ' zookeeper and namenode cannot co-exist on same machine'
+              @errors_count += 1
+            end
+            if slave_nodes.include?(zk)
+              puts '[Error]:'.red + ' zookeeper and datanode cannot co-exist on same machine'
+              @errors_count += 1
+            end
+          end
+          #journal nodes and zookeepers cannot coexist as well
+          journal_quorum.each do |jn|
+            if hadoop_namenode.include?(jn)
+              puts '[Error]:'.red + ' journalnode and namenode cannot co-exist'
+              @errors_count += 1
+            end
+            if slave_nodes.include?(jn)
+              puts '[Error]:'.red + ' journalnode and datanode cannot co-exist on same machine'
+              @errors_count += 1
+            end
+          end
+          #namenodes cannot be same
+          if hadoop_namenode.uniq.length != hadoop_namenode.length
+            puts '[Error]:'.red + ' namenode\'s cannot be the same in ha deployment mode'
+            @errors_count += 1
+          end
+          #check zookeepers and journal_nodes for oddity
+          puts '[Warn]:'.yellow + 'zookeepers should be odd number to handle failover\'s, please update when possible' unless zookeeper_quorum.length % 2 == 1
+          puts '[Warn]:'.yellow + 'journal nodes should be odd number to handle failover\'s, please update when possible' unless journal_quorum.length % 2 == 1
+          #zookeepers cannot be same
+          if zookeeper_quorum.uniq.length != zookeeper_quorum.length
+            puts '[Error]:'.red + ' zookeeper\'s cannot be the same'
+            @errors_count += 1
+          end
+          #journal nodes cannot be same
+          if journal_quorum.uniq.length != journal_quorum.length
+            puts '[Error]:'.red + ' journal node\'s cannot be the same'
+            @errors_count += 1
+          end
+        else
+          #### NON-HA Specific
+          #check for one namenode
+          unless hadoop_namenode.length == 1
+            puts '[Warn]:'.yellow + ' Expecting one namenode for non-ha deployment mode'
+          end
+          namenode = if hadoop_namenode.kind_of?(Array)
+                       hadoop_namenode.first
+                     else
+                       hadoop_namenode
+                     end
+          if hadoop_snn.nil? or hadoop_snn.empty?
+            puts '[Warn]:'.yellow + ' No secondary namenode host found, its recommended to use one'
+          end
+        end
+      else
+        if hadoop_ha == 'enabled'
+          zookeeper_quorum_count = hash_to_validate[:zookeeper_quorum_count]
+          if zookeeper_quorum_count.nil? or zookeeper_quorum_count == 0
+            puts '[Error]: '.red + "'zookeeper_quorum_count' is required"
+            @errors_count += 1
+          end
+        end
       end
+    end
 
+    # Validates hbase related conf params for local install_mode
+    # @param [Hash] hash_to_validate
+    def hbase_validator(hash_to_validate)
+      install_mode = hash_to_validate[:install_mode]
+      hadoop_ha = hash_to_validate[:hadoop_deploy][:hadoop_ha]
+      hbase_install = hash_to_validate[:hbase_deploy]
+      hbase_master = hash_to_validate[:hbase_deploy][:hbase_master]
+      zookeeper_quorum = hash_to_validate[:zookeeper_quorum]
       #hbase_install
       if hbase_install.nil? or hbase_install.empty?
-        puts '[Error]:'.red + " 'hbase_install' is required parameter, valid values: enabled|disabled"
+        puts '[Error]:'.red + " 'hbase_deploy' is required parameter, valid values: hash|disabled"
         @errors_count += 1
       elsif hbase_install == 'disabled'
         puts '[Debug]: HBase deploy is disabled'
       elsif ! hbase_install.is_a? Hash
-        puts '[Error]: '.red + "unrecognized value set for 'hbase_install' : #{hbase_install}"
+        puts '[Error]: '.red + "unrecognized value set for 'hbase_deploy' : #{hbase_install}"
         @errors_count += 1
       end
 
@@ -415,48 +528,24 @@ module Ankuscli
           puts '[Error]:'.red + " invalid value for 'hbase_master_count'"
           @errors_count += 1
         end
+        zookeeper_quorum = hash_to_validate[:zookeeper_quorum_count]
+        if zookeeper_quorum.nil?
+          puts '[Error]: '.red + "'zookeeper_quorum' is required for hbase install"
+          @errors_count += 1
+        end
+        puts "[Warn]: zookeepers should be odd number to handle failover's, please update when possible" unless zookeeper_quorum % 2 == 1
       else
+        zookeeper_quorum = hash_to_validate[:zookeeper_quorum]
+        if zookeeper_quorum.nil? or zookeeper_quorum.empty?
+          puts '[Error]: '.red + "'zookeeper_quorum' is required for hbase install"
+          @errors_count += 1
+        end
+        puts "[Warn]: zookeepers should be odd number to handle failover's, please update when possible" unless zookeeper_quorum.length % 2 == 1
         if hbase_install and (hbase_install[:hbase_master].nil? or hbase_install[:hbase_master].empty?)
           puts '[Error]:'.red + " invalid value for 'hbase_master'"
           @errors_count += 1
         end
-      end
-
-      #call hadoop validator
-      if install_mode == 'local'
-        hadoop_namenode = hash_to_validate[:hadoop_deploy][:hadoop_namenode]
-        zookeeper_quorum = hash_to_validate[:zookeeper_quorum]
-        journal_quorum = hash_to_validate[:hadoop_deploy][:journal_quorum]
-        hadoop_snn = hash_to_validate[:hadoop_deploy][:hadoop_secondarynamenode]
-        mapreduce_type = hash_to_validate[:hadoop_deploy][:mapreduce][:type]
-        mapreduce_master = hash_to_validate[:hadoop_deploy][:mapreduce][:master]
-        slave_nodes = hash_to_validate[:slave_nodes]
-        # required: if hadoop_ha is enabled - zookeepers_quorum should be present
-        #           if hbase is enabled - zookeepers_quorum should be present
-        if hadoop_ha == 'enabled' or hbase_install == 'enabled'
-          zookeeper_quorum = hash_to_validate[:zookeeper_quorum]
-          if zookeeper_quorum.nil? or zookeeper_quorum.empty?
-            puts '[Error]: '.red + "'zookeeper_quorum' is required for hbase or hadoop_ha install"
-            @errors_count += 1
-          end
-        end
-        # call hadoop_validator
-        hadoop_validator(hadoop_ha, hadoop_namenode, hadoop_snn, mapreduce_type, mapreduce_master, zookeeper_quorum, journal_quorum, slave_nodes)
         if hbase_install != 'disabled'
-          hbase_master = hash_to_validate[:hbase_deploy][:hbase_master]
-          hbase_validator(hbase_master, zookeeper_quorum)
-        end
-      else # CLOUD
-        # required: if hadoop_ha enabled - zookeeper_quorum count
-        #           if hbase enabled - hbase_master_count
-        if hadoop_ha == 'enabled'
-          zookeeper_quorum_count = hash_to_validate[:zookeeper_quorum_count]
-          if zookeeper_quorum_count.nil? or zookeeper_quorum_count == 0
-            puts '[Error]: '.red + "'zookeeper_quorum_count' is required"
-            @errors_count += 1
-          end
-        end
-        if hbase_install == 'enabled'
           hbase_master_count = hash_to_validate['hbase_master_count']
           if hbase_master_count.nil? or hbase_master_count == 0
             puts '[Error]: '.red + "'hbase_master_count' is required"
@@ -467,92 +556,57 @@ module Ankuscli
             puts '[Error]: '.red + "'zookeeper_quorum_count' is required"
             @errors_count += 1
           end
-
         end
       end
-
     end
 
-    # Validates hadoop related conf params for local install_mode
-    # @param [String] hadoop_ha => enabled|disabled
-    # @param [Array] hadoop_namenode
-    # @param [String] hadoop_snn
-    # @param [String] mapreduce_type
-    # @param [String] mapreduce_master
-    # @param [Array] zookeeper_quorum
-    # @param [Array] journal_quorum
-    # @param [Array] slave_nodes
-    def hadoop_validator(hadoop_ha, hadoop_namenode, hadoop_snn, mapreduce_type, mapreduce_master, zookeeper_quorum, journal_quorum, slave_nodes)
-      puts '[Debug]: calling hadoop validator' if @debug
-      if hadoop_ha == 'enabled'
-        #### HA Specific
-        unless hadoop_namenode.length == 2
-          puts '[Error]:'.red + " if 'hadoop_ha' ie enabled, two namenode(s) are required"
-          @errors_count += 1
-        end
-        #namenodes and zookeepers cannot co-exist
-        zookeeper_quorum.each do |zk|
-          if hadoop_namenode.include?(zk)
-            puts '[Error]:'.red + ' zookeeper and namenode cannot co-exist on same machine'
+    # Validate cassandra realted conf params
+    # @param [Hash] hash_to_validate
+    def cassandra_validator(hash_to_validate)
+      cassandra_deploy = hash_to_validate[:cassandra_deploy]
+      if cassandra_deploy.nil? or cassandra_deploy.empty?
+        puts '[Error]:'.red + " 'cassandra_deploy' is required parameter, valid values: hash|disabled"
+        @errors_count += 1
+      elsif cassandra_deploy == 'disabled'
+        puts '[Debug]: cassandra deploymeny is disabled' if @debug
+      elsif ! cassandra_deploy.is_a? Hash
+        puts '[Error]: '.red + "unrecognized value set for 'cassandra_deploy' : #{cassandra_deploy}"
+        @errors_count += 1
+      end
+
+      if hash_to_validate[:install_mode] == 'local'
+        if cassandra_deploy != 'disabled'
+          cassandra_nodes = cassandra_deploy[:cassandra_nodes]
+          if cassandra_nodes.nil? or cassandra_nodes.empty?
+            puts '[Error]: '.red + "'cassandra_nodes' should contain list of fqdn(s) on which to deploy cassandra"
+            @errors_count += 1
+          elsif ! cassandra_nodes.is_a? Array
+            puts '[Error]: '.red + "Excepting list (array) of nodes for 'cassandra_nodes'"
             @errors_count += 1
           end
-          if slave_nodes.include?(zk)
-            puts '[Error]:'.red + ' zookeeper and datanode cannot co-exist on same machine'
-            @errors_count += 1
-          end
-        end
-        #journal nodes and zookeepers cannot coexist as well
-        journal_quorum.each do |jn|
-          if hadoop_namenode.include?(jn)
-            puts '[Error]:'.red + ' journalnode and namenode cannot co-exist'
-            @errors_count += 1
-          end
-          if slave_nodes.include?(jn)
-            puts '[Error]:'.red + ' journalnode and datanode cannot co-exist on same machine'
-            @errors_count += 1
-          end
-        end
-        #namenodes cannot be same
-        if hadoop_namenode.uniq.length != hadoop_namenode.length
-          puts '[Error]:'.red + ' namenode\'s cannot be the same in ha deployment mode'
-          @errors_count += 1
-        end
-        #check zookeepers and journal_nodes for oddity
-        puts '[Warn]:'.yellow + 'zookeepers should be odd number to handle failover\'s, please update when possible' unless zookeeper_quorum.length % 2 == 1
-        puts '[Warn]:'.yellow + 'journal nodes should be odd number to handle failover\'s, please update when possible' unless journal_quorum.length % 2 == 1
-        #zookeepers cannot be same
-        if zookeeper_quorum.uniq.length != zookeeper_quorum.length
-          puts '[Error]:'.red + ' zookeeper\'s cannot be the same'
-          @errors_count += 1
-        end
-        #journal nodes cannot be same
-        if journal_quorum.uniq.length != journal_quorum.length
-          puts '[Error]:'.red + ' journal node\'s cannot be the same'
-          @errors_count += 1
         end
       else
-        #### NON-HA Specific
-        #check for one namenode
-        unless hadoop_namenode.length == 1
-          puts '[Warn]:'.yellow + ' Expecting one namenode for non-ha deployment mode'
-        end
-        namenode = if hadoop_namenode.kind_of?(Array)
-                     hadoop_namenode.first
-                   else
-                     hadoop_namenode
-                   end
-        if hadoop_snn.nil? or hadoop_snn.empty?
-          puts '[Warn]:'.yellow + ' No secondary namenode host found, its recommended to use one'
+        if cassandra_deploy != 'disabled'
+          hadoop_colocation = cassandra_deploy[:hadoop_colocation]
+          if hadoop_colocation.nil?
+            puts '[Error]: '.red + "'hadoop_colocation' is required param, valid values are yes|no"
+            @errors_count += 1
+          elsif ! (hadoop_colocation.is_a? TrueClass or hadoop_colocation.is_a? FalseClass)
+            puts '[Error]: '.red + "invalid value found for 'hadoop_colocation', valid values are yes|no"
+            @errors_count += 1
+          end
+          if hadoop_colocation == 'no'
+            number_of_instances = cassandra_deploy[:number_of_instances]
+            if number_of_instances.empty? or number_of_instances.nil?
+              puts '[Error]: '.red + "'number_of_instances' is a required param for cassandra_deploy"
+              @errors_count += 1
+            elsif ! number_of_instances.is_a? Numeric
+              puts '[Error]: '.red + "expecting numeric value for 'number_of_instances' in cassandra_deploy"
+              @errors_count += 1
+            end
+          end
         end
       end
-    end
-
-    # Validates hbase related conf params for local install_mode
-    # @param [Array] hbase_master
-    # @param [Array] zookeeper_quorum
-    def hbase_validator(hbase_master, zookeeper_quorum)
-      #zookeeper_quorum
-      puts "[Warn]: zookeepers should be odd number to handle failover's, please update when possible" unless zookeeper_quorum.length % 2 == 1
     end
   end
 

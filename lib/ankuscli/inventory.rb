@@ -52,6 +52,9 @@ module Ankuscli
           #worker nodes
           nodes.push(*@parsed_hash[:slave_nodes])
         end
+        if @parsed_hash[:cassandra_deploy] != 'disabled'
+          nodes.push(*@parsed_hash[:cassandra_deploy][:cassandra_nodes])
+        end
         #remove duplicates
         nodes.uniq!
         nodes.compact!  #remove nil if any

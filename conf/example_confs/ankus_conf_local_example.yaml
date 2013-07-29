@@ -167,16 +167,6 @@ security: simple
 #  hadoop_collocation: whether to collocate hadoop slave daemons and cassandra daemons
 #  number_of_instances: number of cassandra instances to launch(not required when
 #                       collocation instances)
-# Ex: 1. To not to deploy cassandra
-#        cassandra_deploy: disabled
-#     2. To deploy and collocate hadoop and cassandra daemons
-#        cassandra_deploy:
-#           hadoop_collocation: yes
-#     3. To deploy and not to collocate hadoop and cassandra (this will create new instances
-#         specified by number_of_instances)
-#        cassandra_deploy:
-#           hadoop_collocation: no
-#           number_of_instances: 5
 # (NOTE: cassandra_nodes and hadoop_slave_nodes can co-exist if willing to sacrifice performance)
 #
 # Example Configurations:
