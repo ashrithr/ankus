@@ -28,7 +28,7 @@ cloud_os_type: CentOS
 # hadoop high availability configuration:
 #   enabled => hadoop ha is enabled with two namenode(s) with auto failover using zkfc
 #   disabled => hadoop ha is not setup and only one namenode will be installed and configured
-# zookeeper_quoram_count => number of zookeeper instances to deploy
+# zookeeper_quorum_count => number of zookeeper instances to deploy
 ########################################################
 hadoop_ha: 'enabled'
 zookeeper_quorum_count: 3
