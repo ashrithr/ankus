@@ -192,7 +192,7 @@ module Ankuscli
       parsed_hash['mapreduce']['master'] = nodes_hash.map { |k,v| v.first if k =~ /jobtracker/ }.compact.first if parsed_hash['mapreduce'] != 'disabled'
       if parsed_hash['mapreduce'] == 'disabled' and parsed_hash['hadoop_ha'] == 'disabled'
         parsed_hash['hadoop_secondarynamenode'] = nodes_hash.map { |k,v| v.first if k =~ /snn/ }.compact.first
-      elsif parsed_hash['mapreduce'] == 'disabled' and parsed_hash['hadoop_ha'] == 'disabled'
+      elsif parsed_hash['mapreduce'] != 'disabled' and parsed_hash['hadoop_ha'] == 'disabled'
         parsed_hash['hadoop_secondarynamenode'] = nodes_hash.map { |k,v| v.first if k =~ /jobtracker/ }.compact.first
       end
       parsed_hash['slave_nodes'] = nodes_hash.map { |k,v| v.first if k =~ /slaves/ }.compact
@@ -208,7 +208,7 @@ module Ankuscli
         parsed_hash_internal_ips['mapreduce']['master'] = nodes_hash.map { |k,v| v.last if k =~ /jobtracker/ }.compact.first if parsed_hash['mapreduce'] != 'disabled'
         if parsed_hash['mapreduce'] == 'disabled' and parsed_hash['hadoop_ha'] == 'disabled'
           parsed_hash_internal_ips['hadoop_secondarynamenode'] = nodes_hash.map { |k,v| v.last if k =~ /snn/ }.compact.first
-        elsif parsed_hash['mapreduce'] == 'disabled' and parsed_hash['hadoop_ha'] == 'disabled'
+        elsif parsed_hash['mapreduce'] != 'disabled' and parsed_hash['hadoop_ha'] == 'disabled'
           parsed_hash_internal_ips['hadoop_secondarynamenode'] = nodes_hash.map { |k,v| v.last if k =~ /jobtracker/ }.compact.first
         end
         parsed_hash_internal_ips['slave_nodes'] = nodes_hash.map { |k,v| v.last if k =~ /slaves/ }.compact
@@ -223,7 +223,7 @@ module Ankuscli
         parsed_hash_internal_ips['mapreduce']['master'] = nodes_hash.map { |k,_| k if k =~ /jobtracker/ }.compact.first if parsed_hash['mapreduce'] != 'disabled'
         if parsed_hash['mapreduce'] == 'disabled' and parsed_hash['hadoop_ha'] == 'disabled'
           parsed_hash_internal_ips['hadoop_secondarynamenode'] = nodes_hash.map { |k,_| k if k =~ /snn/ }.compact.first
-        elsif parsed_hash['mapreduce'] == 'disabled' and parsed_hash['hadoop_ha'] == 'disabled'
+        elsif parsed_hash['mapreduce'] != 'disabled' and parsed_hash['hadoop_ha'] == 'disabled'
           parsed_hash_internal_ips['hadoop_secondarynamenode'] = nodes_hash.map { |k,_| k if k =~ /jobtracker/ }.compact.first
         end
         parsed_hash_internal_ips['slave_nodes'] = nodes_hash.map { |k,_| k if k =~ /slaves/ }.compact
