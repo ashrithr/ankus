@@ -159,7 +159,7 @@ module Ankuscli
                       "slaves#{existing_clients_count}"
                     elsif @parsed_hash['cloud_platform'] == 'rackspace'
                       existing_clients_count += 1
-                      "slaves#{existing_clients_count}.ankus.com"
+                      "slaves#{existing_clients_count}.#{@parsed_hash['cloud_credentials']['rackspace_cluster_identifier']}ankus.com"
                     end
           end
           @new_instances = cloud.create_instances_on_count tags #this only contains currently created instances
