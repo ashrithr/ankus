@@ -24,53 +24,99 @@ cloud_os_type: CentOS
 
 ########################################################
 # Hadoop Cluster Configuration
-# hadoop high availability configuration:
-#   enabled => hadoop ha is enabled with two namenode(s) with auto failover using zkfc
-#   disabled => hadoop ha is not setup and only one namenode will be installed and configured
-# zookeeper_quoram_count => number of zookeeper instances to deploy
+# hadoop_deploy: specifies whether to deploy hadoop or not
+#   hadoop_ha: specifies whether to deploy highly available hadoop cluster or not
+#   mapreduce: specifies whether to deploy mapreduce framework or not
+#     type: specifies mapreduce framework type to deploy (mr1 or mr2)
+#   hadoop_ecosystem: specifies list of tools to deploy (hive, pig, oozie, sqoop)
+# Example Configurations:
+# 1. To Disable hadoop (Warning: this will not deploy hadoop)
+#       hadoop_deploy: disabled
+# 2. To deploy hadoop with ha and mapreduce
+#       hadoop_deploy:
+#         hadoop_ha: 'enabled'
+#         mapreduce:
+#           type: mr1
+#         hadoop_ecosystem:
+#           - hive
+#           - sqoop
+#           - oozie
+#           - pig
+# 3. To deploy hadoop (hdfs) and not mapreduce (in scenarios like hbase)
+#       hadoop_deploy:
+#         hadoop_ha: 'enabled'
+#         mapreduce: 'disabled'
+#       (or)
+#       hadoop_deploy:
+#         hadoop_ha: 'disabled'
+#         mapreduce: 'disabled'
 ########################################################
-hadoop_ha: 'enabled'
-zookeeper_quorum_count: 3
+hadoop_deploy:
+  hadoop_ha: 'disabled'
+  mapreduce:
+    type: mr1
+  hadoop_ecosystem:
+    - hive
+    - sqoop
+    - pig
 
-########################################################
-# MapReduce Configuration
-#   type => type of mapreduce framework to setup,
-#           supported values mr1 (regular mapreduce) or mr2 (yarn)
-# Disabling mapreduce is possible, but not recommended
-# Ex: mapreduce: 'disabled'
-########################################################
-mapreduce:
-  type: 'mr1'
 
 ########################################################
 # HBase configuration
-# hbase_install => Specify whether to deploy hbase or not
-#  if enabled will install hbase
-#  if disabled hbase will not be deployed
-# hbase_master_count => if hbase_install is enabled, specify number of hbase masters to deploy
+# hbase_deploy: specifies whether to deploy a hbase cluster or not
+#   hbase_master_count: number of hbase master(s) nodes to deploy
+# Ex: 1. To disable hbase deployments
+#         hbase_deploy: disabled
+#     2. To enabled hbase deployments
+#         hbase_deploy:
+#           hbase_master_count: 2
 ########################################################
-hbase_install: disabled
-#hbase_master_count: 2
+hbase_deploy:
+  hbase_master_count: 1
 
 ########################################################
-# Worker Nodes Configuration
-#  list of slave nodes on which datanode and tasktracker daemons will be installed. If hbase is enabled
-#  region servers are also installed on same instances.
-#  slave_nodes_count => number of worker nodes to deploy
-#  slave_nodes_storage_capacity => disk size on slave_nodes in GB, min is 100 & max is 1024. If ignored no additional
-#                                  disks are created. Note: Slave Instances get 250GB by default for root
+# Zookeeper Quorum Configuration
+# Required when hadoop_ha or hbase is enabled
+# zookeeper_quoram_count: specifies the number of zookeeper(s) to launch to coordinate
+#   services
 ########################################################
-slave_nodes_count: 5
+zookeeper_quorum_count: 1
+
+########################################################
+# Slaves specifications (required for hadoop or hbase deployments)
+########################################################
+# list of slave nodes on which datanode and tasktracker daemons will be installed. If hbase is enabled
+# region servers are also installed on same instances.
+slave_nodes_count: 3
+
+########################################################
+# Cassandra Cluster Configuration
+#  cassandra_deploy: specifies the deployment of cassandra cluster
+#                    possible values: Hash (or) disabled
+#  hadoop_collocation: whether to collocate hadoop slave daemons and cassandra daemons
+#  number_of_instances: number of cassandra instances to launch(not required when
+#                       collocation instances)
+# Ex: 1. To not to deploy cassandra
+#        cassandra_deploy: disabled
+#     2. To deploy and collocate hadoop and cassandra daemons
+#        cassandra_deploy:
+#           hadoop_collocation: yes
+#     3. To deploy and not to collocate hadoop and cassandra (this will create new instances
+#         specified by number_of_instances)
+#        cassandra_deploy:
+#           hadoop_collocation: no
+#           number_of_instances: 5
+########################################################
+cassandra_deploy:
+  hadoop_collocation: no
+  number_of_instances: 5
+
+########################################################
+# General Instance Settings
+# slaves_nodes_storage_capacity: specifies disk size on slave_nodes in GB, min is 100 & max is 1024.
+#     If ignored no additional disks are created
+########################################################
 slave_nodes_storage_capacity: 0
-
-########################################################
-# Additional tools - hadoop ecosystem tools to install
-########################################################
-hadoop_ecosystem:
-  - hive
-  - sqoop
-  - pig
-  - oozie
 
 ########################################################
 # Security Config
