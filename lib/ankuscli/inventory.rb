@@ -46,7 +46,7 @@ module Ankuscli
             nodes << @parsed_hash[:hadoop_deploy][:hadoop_secondarynamenode] unless @parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
           end
           #hbase
-          if @parsed_hash[:hbase_deploy]
+          if @parsed_hash[:hbase_deploy] != 'disabled'
             nodes.push(*@parsed_hash[:hbase_deploy][:hbase_master])
           end
           #worker nodes
@@ -91,9 +91,10 @@ module Ankuscli
       # Create hash of nodes to roles mapping using @parsed_hash
       def create_enc_roles
         roles_hash = Hash.new
+        puppet_nodes = YamlUtils.parse_yaml(@nodes_file)
         #puppet server
-        @ps  = YamlUtils.parse_yaml(@nodes_file)[:puppet_server]   # puppet server
-        @pcs = YamlUtils.parse_yaml(@nodes_file)[:puppet_clients]  # puppet clients
+        @ps  = puppet_nodes[:puppet_server]   # puppet server
+        @pcs = puppet_nodes[:puppet_clients]  # puppet clients
         roles_hash[@ps]                     = {}
         roles_hash[@ps]['java']             = nil
         roles_hash[@ps]['nagios::server']   = nil if @parsed_hash[:alerting] == 'enabled'
@@ -102,75 +103,83 @@ module Ankuscli
         roles_hash[@ps]['logstash']         = { 'role' => 'indexer' } if @parsed_hash[:log_aggregation] == 'enabled'
 
         #puppet clients
-        namenode            = @parsed_hash[:hadoop_deploy][:hadoop_namenode]
-        secondary_namenode  = @parsed_hash[:hadoop_deploy][:hadoop_secondarynamenode]
-        mapreduce           = @parsed_hash[:hadoop_deploy][:mapreduce]
-        mapreduce_type      = @parsed_hash[:hadoop_deploy][:mapreduce][:type] if mapreduce != 'disabled'
-        mapreduce_master    = @parsed_hash[:hadoop_deploy][:mapreduce][:master] if mapreduce != 'disabled'
-        hadoop_ecosystem    = @parsed_hash[:hadoop_deploy][:hadoop_ecosystem]
-        slave_nodes         = @parsed_hash[:slave_nodes]
-        hbase_install       = @parsed_hash[:hbase_deploy]
-        hbase_master        = @parsed_hash[:hbase_deploy][:hbase_master]
+        hadoop_install      = @parsed_hash[:hadoop_deploy]
+        if hadoop_install != 'disabled'
+          namenode            = @parsed_hash[:hadoop_deploy][:hadoop_namenode]
+          secondary_namenode  = @parsed_hash[:hadoop_deploy][:hadoop_secondarynamenode]
+          mapreduce           = @parsed_hash[:hadoop_deploy][:mapreduce]
+          mapreduce_type      = @parsed_hash[:hadoop_deploy][:mapreduce][:type] if mapreduce != 'disabled'
+          mapreduce_master    = @parsed_hash[:hadoop_deploy][:mapreduce][:master] if mapreduce != 'disabled'
+          hadoop_ecosystem    = @parsed_hash[:hadoop_deploy][:hadoop_ecosystem]
+          slave_nodes         = @parsed_hash[:slave_nodes]
+          hbase_install       = @parsed_hash[:hbase_deploy]
+          hbase_master        = @parsed_hash[:hbase_deploy][:hbase_master] if hbase_install != 'disabled'
+        end
+        cassandra_install   = @parsed_hash[:cassandra_deploy]
+        cassandra_nodes     = @parsed_hash[:cassandra_deploy][:cassandra_nodes] if cassandra_install != 'disabled'
         @pcs.each do |pc|
           roles_hash[pc] = {}
           #java
           roles_hash[pc]['java'] = nil
-          #namenode
-          roles_hash[pc]['hadoop::namenode'] = nil if namenode.include?(pc)
-          #zookeepers
-          if @parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled' or @parsed_hash[:hbase_deploy] != 'disabled'
-            zookeepers = @parsed_hash[:zookeeper_quorum]
-            #convert zookeepers array into hash with id as zookeeper and value as its id
-            zookeepers_id_hash = Hash[zookeepers.map.each_with_index.to_a]
-            if zookeepers.include?(pc)
-              roles_hash[pc]['zookeeper::server'] = { 'myid' => zookeepers_id_hash[pc] }
-            end
-          end
-          #journal nodes
-          if @parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
-            journal_nodes = @parsed_hash[:hadoop_deploy][:journal_quorum]
-            roles_hash[pc]['hadoop::journalnode'] = nil if journal_nodes.include?(pc)
-          else
-            #snn
-            roles_hash[pc]['hadoop::secondarynamenode'] = nil if secondary_namenode == pc
-          end
-          #mapreduce
-          if mapreduce != 'disabled'
-            if mapreduce_type == 'mr1'
-              roles_hash[pc]['hadoop::jobtracker'] = nil if mapreduce_master == pc
-              roles_hash[pc]['hadoop::tasktracker'] = nil if slave_nodes.include?(pc)
-            elsif mapreduce_type == 'mr2'
-              if mapreduce_master == pc
-                roles_hash[pc]['hadoop::resourcemanager'] = nil
-                roles_hash[pc]['hadoop::jobhistoryproxyserver'] = nil
+          if hadoop_install != 'disabled'
+            #namenode
+            roles_hash[pc]['hadoop::namenode'] = nil if namenode.include? pc
+            #zookeepers
+            if @parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled' or @parsed_hash[:hbase_deploy] != 'disabled'
+              zookeepers = @parsed_hash[:zookeeper_quorum]
+              #convert zookeepers array into hash with id as zookeeper and value as its id
+              zookeepers_id_hash = Hash[zookeepers.map.each_with_index.to_a]
+              if zookeepers.include? pc
+                roles_hash[pc]['zookeeper::server'] = { 'myid' => zookeepers_id_hash[pc] }
               end
-              roles_hash[pc]['hadoop::nodemanager'] = nil if slave_nodes.include?(pc)
             end
-          end
-          #ecosystem
-          if mapreduce_master == pc
-            if hadoop_ecosystem
-              #eco-system
-              roles_hash[pc]['hadoop-hive'] = nil           if hadoop_ecosystem.include?('hive')
-              roles_hash[pc]['hadoop-pig'] = nil            if hadoop_ecosystem.include?('pig')
-              roles_hash[pc]['hadoop-sqoop::server'] = nil  if hadoop_ecosystem.include?('sqoop')
-              roles_hash[pc]['hadoop-sqoop::client'] = nil  if hadoop_ecosystem.include?('sqoop')
-              roles_hash[pc]['hadoop-pig'] = nil            if hadoop_ecosystem.include?('pig')
-              roles_hash[pc]['hadoop-oozie::server'] = nil  if hadoop_ecosystem.include?('oozie')
-              roles_hash[pc]['hadoop-oozie::client'] = nil  if hadoop_ecosystem.include?('oozie')
+            #journal nodes
+            if @parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
+              journal_nodes = @parsed_hash[:hadoop_deploy][:journal_quorum]
+              roles_hash[pc]['hadoop::journalnode'] = nil if journal_nodes.include? pc
+            else
+              #snn
+              roles_hash[pc]['hadoop::secondarynamenode'] = nil if secondary_namenode == pc
             end
+            #mapreduce
+            if mapreduce != 'disabled'
+              if mapreduce_type == 'mr1'
+                roles_hash[pc]['hadoop::jobtracker'] = nil if mapreduce_master == pc
+                roles_hash[pc]['hadoop::tasktracker'] = nil if slave_nodes.include? pc
+              elsif mapreduce_type == 'mr2'
+                if mapreduce_master == pc
+                  roles_hash[pc]['hadoop::resourcemanager'] = nil
+                  roles_hash[pc]['hadoop::jobhistoryproxyserver'] = nil
+                end
+                roles_hash[pc]['hadoop::nodemanager'] = nil if slave_nodes.include? pc
+              end
+            end
+            #ecosystem
+            if mapreduce_master == pc
+              if hadoop_ecosystem
+                #eco-system
+                roles_hash[pc]['hadoop-hive'] = nil           if hadoop_ecosystem.include? 'hive'
+                roles_hash[pc]['hadoop-pig'] = nil            if hadoop_ecosystem.include? 'pig'
+                roles_hash[pc]['hadoop-sqoop::server'] = nil  if hadoop_ecosystem.include? 'sqoop'
+                roles_hash[pc]['hadoop-sqoop::client'] = nil  if hadoop_ecosystem.include? 'sqoop'
+                roles_hash[pc]['hadoop-pig'] = nil            if hadoop_ecosystem.include? 'pig'
+                roles_hash[pc]['hadoop-oozie::server'] = nil  if hadoop_ecosystem.include? 'oozie'
+                roles_hash[pc]['hadoop-oozie::client'] = nil  if hadoop_ecosystem.include? 'oozie'
+              end
+            end
+            #hdfs
+            roles_hash[pc]['hadoop::datanode'] = nil if slave_nodes.include? pc
+            #hbase
+            if hbase_install != 'disabled'
+              roles_hash[pc]['hbase::master'] = nil if hbase_master.include? pc
+              roles_hash[pc]['hbase::regionserver'] = nil if slave_nodes.include? pc
+            end
+            #security only for hadoop & hbase deployments
+            roles_hash[pc]['kerberos::client'] = nil if @parsed_hash[:security] == 'kerberos'
           end
-          #hdfs
-          roles_hash[pc]['hadoop::datanode'] = nil if slave_nodes.include?(pc)
-          #hbase
-          if hbase_install != 'disabled'
-            roles_hash[pc]['hbase::master'] = nil if hbase_master.include?(pc)
-            roles_hash[pc]['hbase::regionserver'] = nil if slave_nodes.include?(pc)
-          end
-          #monitoring, alerting & security
+          #monitoring, alerting
           roles_hash[pc]['nagios::nrpe'] = nil if @parsed_hash[:alerting] == 'enabled'
           roles_hash[pc]['ganglia::client'] = nil if @parsed_hash[:monitoring] == 'enabled'
-          roles_hash[pc]['kerberos::client'] = nil if @parsed_hash[:security] == 'kerberos'
           ##log aggregation
           #if @parsed_hash['log_aggregation'] == 'enabled'
           #  roles_hash[pc]['logstash::lumberjack'] = {
@@ -180,6 +189,10 @@ module Ankuscli
           #    'field' => "general_#{pc}"
           #  }
           #end
+          #cassandra
+          if cassandra_install != 'disabled'
+            roles_hash[pc]['cassandra'] = nil if cassandra_nodes.include? pc
+          end
         end
         roles_hash
       end

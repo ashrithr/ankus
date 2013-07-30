@@ -332,14 +332,16 @@ module Ankuscli
       hadoop_ha = hash_to_validate[:hadoop_deploy][:hadoop_ha]
       hbase_install = hash_to_validate[:hbase_deploy]
       hadoop_ecosystem = hash_to_validate[:hadoop_deploy][:hadoop_ecosystem]
-      mapreduce = hash_to_validate[:hadoop_deploy][:mapreduce]
       valid_hadoop_ecosystem = %w(hive pig sqoop oozie hue flume)
       hadoop_namenode = hash_to_validate[:hadoop_deploy][:hadoop_namenode]
       zookeeper_quorum = hash_to_validate[:zookeeper_quorum]
       journal_quorum = hash_to_validate[:hadoop_deploy][:journal_quorum]
       hadoop_snn = hash_to_validate[:hadoop_deploy][:hadoop_secondarynamenode]
-      mapreduce_type = hash_to_validate[:hadoop_deploy][:mapreduce][:type]
-      mapreduce_master = hash_to_validate[:hadoop_deploy][:mapreduce][:master]
+      mapreduce = hash_to_validate[:hadoop_deploy][:mapreduce]
+      if mapreduce != 'disabled'
+        mapreduce_type = hash_to_validate[:hadoop_deploy][:mapreduce][:type]
+        mapreduce_master = hash_to_validate[:hadoop_deploy][:mapreduce][:master]
+      end
       slave_nodes = hash_to_validate[:slave_nodes]
       install_mode = hash_to_validate[:install_mode]
 
@@ -360,6 +362,13 @@ module Ankuscli
         elsif ! slave_nodes.kind_of?(Array)
           puts '[Error]:'.red + " Expecting list(array) representation of 'slave_nodes'"
           @errors_count += 1
+        end
+        if hadoop_ha == 'enabled'
+          zookeeper_quorum = hash_to_validate[:zookeeper_quorum]
+          if zookeeper_quorum.nil? or zookeeper_quorum.empty?
+            puts '[Error]: '.red + "'zookeeper_quorum' is required for hadoop_ha deployment"
+            @errors_count += 1
+          end
         end
       else
         #if cloud, validate slave_nodes_count and slave_nodes_disk_size
@@ -382,6 +391,12 @@ module Ankuscli
           @errors_count += 1
         elsif slave_nodes_storage_capacity == 0
           puts '[Debug]:' + ' (Warning) '.yellow + "'slave_nodes_storage_capacity' is zero, no volumes will be created and attached to cloud instances" if @debug
+        end
+        if hadoop_ha == 'enabled'
+          if hash_to_validate[:zookeeper_quorum_count].nil?
+            puts '[Error]: '.red + "'zookeeper_quorum_count' is required for hadoop_ha deployment"
+            @errors_count += 1
+          end
         end
       end
 
@@ -420,14 +435,6 @@ module Ankuscli
             puts "  #{tool} specified cannot be part of deployment yet!"
             @errors_count += 1
           end
-        end
-      end
-
-      if hadoop_ha == 'enabled'
-        zookeeper_quorum = hash_to_validate[:zookeeper_quorum]
-        if zookeeper_quorum.nil? or zookeeper_quorum.empty?
-          puts '[Error]: '.red + "'zookeeper_quorum' is required for hadoop_ha deployment"
-          @errors_count += 1
         end
       end
 

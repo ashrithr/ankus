@@ -211,7 +211,7 @@ module Ankuscli
         end
       end
       # generate puppet nodes file from configuration
-      if @parsed_hash['install_mode'] == 'cloud'
+      if @parsed_hash[:install_mode] == 'cloud'
         Inventory::Generator.new(options[:config], @parsed_hash_with_internal_ips).generate! NODES_FILE_CLOUD #for enc generate
         Inventory::Generator.new(options[:config], @parsed_hash).generate! NODES_FILE # for puppet install/runs
       else

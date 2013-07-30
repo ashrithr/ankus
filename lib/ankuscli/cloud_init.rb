@@ -530,14 +530,14 @@ module Ankuscli
     def wait_for_servers(servers)
       if servers.is_a?(Array)
         servers.each do |server|
-          # check every 5 seconds to see if the server is in the active state for 1200 seconds if not exception
+          # check every 5 seconds to see if the server is in the active state for 1600 seconds if not exception
           # will be raised Fog::Errors::TimeoutError
-          server.wait_for(1200, 5) do
+          server.wait_for(1600, 5) do
             ready?
           end
         end
       else
-        server.wait_for(1200, 5) do
+        server.wait_for(1600, 5) do
           print '.'
           STDOUT.flush
           ready?

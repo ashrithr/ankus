@@ -328,9 +328,11 @@ module Ankuscli
         #initialize puppet run in order
           #1. puppet server
           #2. master nodes and parallel on worker nodes
-        controller    = @parsed_hash[:controller]
-        hadoop_ha     = @parsed_hash[:hadoop_deploy][:hadoop_ha]
-        hbase_install = @parsed_hash[:hbase_deploy]
+        controller        = @parsed_hash[:controller]
+        hadoop_install    = @parsed_hash[:hadoop_deploy]
+        hadoop_ha         = @parsed_hash[:hadoop_deploy][:hadoop_ha]
+        hbase_install     = @parsed_hash[:hbase_deploy]
+        cassandra_install = @parsed_hash[:cassandra_deploy]
 
         if controller == 'localhost'
           puts "\rInitializing puppet run on controller".blue
@@ -345,46 +347,64 @@ module Ankuscli
           puppet_single_run(@puppet_master, puppet_run_cmd, 'controller')
         end
 
-        # if ha or hbase,
-          # init puppet agent on zookeepers
-        if hadoop_ha == 'enabled' or hbase_install == 'enabled'
-          #parallel puppet run on zks
-          puppet_parallel_run(@parsed_hash[:zookeeper_quorum], puppet_run_cmd, 'zookeepers')
-        end
-        if hadoop_ha == 'enabled'
-          if @parsed_hash[:hadoop_deploy][:journal_quorum]
-            #parallel puppet run on jns
-            puppet_parallel_run(@parsed_hash[:hadoop_deploy][:journal_quorum], puppet_run_cmd, 'journalnodes')
+        if hadoop_install != 'disabled'
+          # if ha or hbase,
+            # init puppet agent on zookeepers
+          if hadoop_ha == 'enabled' or hbase_install == 'enabled'
+            #parallel puppet run on zks
+            puppet_parallel_run(@parsed_hash[:zookeeper_quorum], puppet_run_cmd, 'zookeepers')
           end
-          # puppet run on nns
-          puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_namenode].first, puppet_run_cmd, 'active_namenode')
-          puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_namenode].last, puppet_run_cmd, 'standby_namenode')
-          # parallel run breaks beacuse namenode2 should copy namenode1 dfs.name.dir contents which only happens after
-          # namenode1 is bootstrapped, caused beacuse of Bug 'HDFS-3752'
-          # puppet_parallel_run(@parsed_hash['hadoop_namenode'], puppet_run_cmd, 'namenodes')
-        else
-          puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_namenode].first, puppet_run_cmd, 'namenode')
-        end
-        if hbase_install == 'enabled'
-          hbase_master = @parsed_hash[:hbase_deploy][:hbase_master]
-          if hbase_master.length == 1
-            puts "\rInitializing hbase master"
-            puppet_single_run(hbase_master.join, puppet_run_cmd, 'hbasemaster')
+          if hadoop_ha == 'enabled'
+            if @parsed_hash[:hadoop_deploy][:journal_quorum]
+              #parallel puppet run on jns
+              puppet_parallel_run(@parsed_hash[:hadoop_deploy][:journal_quorum], puppet_run_cmd, 'journalnodes')
+            end
+            # puppet run on nns
+            puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_namenode].first, puppet_run_cmd, 'active_namenode')
+            puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_namenode].last, puppet_run_cmd, 'standby_namenode')
+            # parallel run breaks beacuse namenode2 should copy namenode1 dfs.name.dir contents which only happens after
+            # namenode1 is bootstrapped, caused beacuse of Bug 'HDFS-3752'
+            # puppet_parallel_run(@parsed_hash['hadoop_namenode'], puppet_run_cmd, 'namenodes')
           else
-            puppet_parallel_run(hbase_master, puppet_run_cmd, 'hbasemasters')
+            puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_namenode].first, puppet_run_cmd, 'namenode')
+          end
+          if hbase_install == 'enabled'
+            hbase_master = @parsed_hash[:hbase_deploy][:hbase_master]
+            if hbase_master.length == 1
+              puts "\rInitializing hbase master"
+              puppet_single_run(hbase_master.join, puppet_run_cmd, 'hbasemaster')
+            else
+              puppet_parallel_run(hbase_master, puppet_run_cmd, 'hbasemasters')
+            end
+          end
+
+          # init puppet agent on mapreduce master
+          if @parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
+            puppet_single_run(@parsed_hash[:hadoop_deploy][:mapreduce][:master], puppet_run_cmd, 'mapreduce_master')
+          else
+            #mapreduce is disabled for cloud_deployments, snn will be on diff machine
+            puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_secondarynamenode], puppet_run_cmd, 'secondary_namenode') unless hadoop_ha == 'enabled'
+          end
+
+          # init puppet agent on slave nodes
+          puppet_parallel_run(@parsed_hash[:slave_nodes], puppet_run_cmd, 'slaves')
+
+          # hbasemasters need service refresh after region servers came online
+          if @parsed_hash[:hbase_deploy] != 'disabled'
+            puts "\r[Info]: Triggering refresh on hbase master(s) ..."
+            hbase_master = @parsed_hash[:hbase_deploy][:hbase_master]
+            if hbase_master.length == 1
+              puts "\rInitializing hbase master"
+              puppet_single_run(hbase_master.join, puppet_run_cmd, 'hbasemaster')
+            else
+              puppet_parallel_run(hbase_master, puppet_run_cmd, 'hbasemasters')
+            end
           end
         end
 
-        # init puppet agent on mapreduce master
-        if @parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
-          puppet_single_run(@parsed_hash[:hadoop_deploy][:mapreduce][:master], puppet_run_cmd, 'mapreduce_master')
-        else
-          #mapreduce is disabled for cloud_deployments, snn will be on diff machine
-          puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_secondarynamenode], puppet_run_cmd, 'secondary_namenode') unless hadoop_ha == 'enabled'
+        if cassandra_install != 'disabled' and ! @parsed_hash[:cassandra_deploy][:hadoop_colocation]
+          puppet_parallel_run(@parsed_hash[:cassandra_deploy][:cassandra_nodes], puppet_run_cmd, 'cassandra_nodes')
         end
-
-        # init puppet agent on slave nodes
-        puppet_parallel_run(@parsed_hash[:slave_nodes], puppet_run_cmd, 'slaves')
 
         # finalize puppet run on controller to refresh nagios
         if @parsed_hash[:alerting] == 'enabled'
@@ -399,17 +419,6 @@ module Ankuscli
             end
           else
             puppet_single_run(@puppet_master, puppet_run_cmd, 'controller')
-          end
-        end
-        # hbasemasters need service refresh after datanodes came online
-        if @parsed_hash[:hbase_deploy] == 'enabled'
-          puts "\r[Info]: Triggering refresh on hbase master(s) ..."
-          hbase_master = @parsed_hash[:hbase_deploy][:hbase_master]
-          if hbase_master.length == 1
-            puts "\rInitializing hbase master"
-            puppet_single_run(hbase_master.join, puppet_run_cmd, 'hbasemaster')
-          else
-            puppet_parallel_run(hbase_master, puppet_run_cmd, 'hbasemasters')
           end
         end
       end
