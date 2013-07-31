@@ -506,8 +506,10 @@ sed -i "s/PUPPET_SERVER_PH/${PUPPET_SERVER}/g" ${PASSENGER_CONF_PATH}
   printclr "Restarting httpd and verifying puppet run using passenger"
   if [[ ${OS} =~ ubuntu ]]; then
     a2ensite puppetmasterd  #enable the site puppetmasted
+    service ${APACHE_PKG} restart
+  else
+    service ${APACHE_PKG} start
   fi
-  service ${APACHE_PKG} restart
 
   netstat -plunt | grep 8140 &> /dev/null
   if [ $? -eq 0 ]; then
