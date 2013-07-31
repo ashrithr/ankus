@@ -106,6 +106,23 @@ module Ankuscli
         puts '[Debug]: \'ssh_user\' is not specified assuming ssh_user as \'root\'' if @debug
         hash_to_validate[:ssh_user] = 'root'
       end
+      #volumes
+      if hash_to_validate[:storage_dirs].nil? or hash_to_validate[:storage_dirs].empty?
+        puts '[Error]: '.red + "''storage_dirs' is a required property"
+        @errors_count += 1
+      elsif ! hash_to_validate[:storage_dirs].is_a? Array
+        puts '[Error]: '.red + "expecting list(array) of 'storage_dirs'"
+        @errors_count += 1
+      else
+        #validate absolute path
+        require 'pathname'
+        hash_to_validate[:storage_dirs].each do |dir|
+          unless Pathname.new(dir).absolute?
+            puts '[Error]: '.red "Invalid absolute path found in 'storage_dirs' (#{dir})"
+            @errors_count += 1
+          end
+        end
+      end
 
       # call common validator which inturn will call other validators and gets back to check
       # if hosts are up or not
@@ -136,7 +153,9 @@ module Ankuscli
       cloud_platform = hash_to_validate[:cloud_platform]
       cloud_credentials = hash_to_validate[:cloud_credentials]
       cloud_os_type = hash_to_validate[:cloud_os_type]
+      volumes = hash_to_validate[:volumes]
 
+      # cloud platform => aws, rackspace
       if cloud_platform.nil? or cloud_platform.empty?
         puts '[Error]:'.red + " 'cloud_platform' is required for cloud install_mode"
         @errors_count += 1
@@ -145,6 +164,7 @@ module Ankuscli
         @errors_count += 1
       end
 
+      # cloud credentials => Hash of credentials
       if cloud_credentials.nil? or cloud_credentials.empty?
         puts '[Error]:'.red + " 'cloud_credentials' is required for cloud install_mode"
         @errors_count += 1
@@ -152,7 +172,6 @@ module Ankuscli
         puts '[Error]:'.red + " 'cloud_credentials' is malformed, look sample cloud config for example"
         @errors_count += 1
       end
-
       if cloud_platform == 'aws'
         valid_credentials = { :aws_access_id => '',
                               :aws_secret_key => '',
@@ -177,7 +196,8 @@ module Ankuscli
             @errors_count += 1
           end
         end
-        #validate connection
+
+        # validate aws connection
         puts '[Debug]: Validating aws connection' if @debug
         aws = Aws.new(cloud_credentials[:aws_access_id], cloud_credentials[:aws_secret_key], cloud_credentials[:aws_region])
         unless aws.valid_connection?(aws.create_connection)
@@ -214,26 +234,104 @@ module Ankuscli
             @errors_count += 1
           end
         end
-        #validate cluster identifier
+        # validate cluster identifier
         if cloud_credentials[:rackspace_cluster_identifier].length == 0
           puts '[Debug]: rackspace_cluster_identifier is not set, using the default: \'ops\''
           hash_to_validate[:rackspace_cluster_identifier] = 'ops'
         else
           hash_to_validate[:rackspace_cluster_identifier] = cloud_credentials[:rackspace_cluster_identifier]
         end
-        #validate connection
+        # validate connection
         rackspace = Rackspace.new(cloud_credentials[:rackspace_api_key], cloud_credentials[:rackspace_username])
         unless rackspace.valid_connection?(rackspace.create_connection)
           puts '[Error]:'.red + ' failed establishing connection to rackspace, check your credentials'
         end
       end
 
+      # cloud os type to boot
       if cloud_os_type.nil? or cloud_os_type.empty?
         puts '[Error]:'.red + " 'cloud_os_type' is required for cloud install_mode"
         @errors_count += 1
       elsif ! %w(centos ubuntu).include?(cloud_os_type.downcase)
         puts '[Error]:'.red + " supported 'cloud_os_type' values are centos|ubuntu"
         @errors_count += 1
+      end
+
+      # volumes => Hash of volumes count and size
+      if volumes.nil? or volumes.empty?
+        puts '[Error]: '.red + 'volumes should be specified'
+        @errors_count += 1
+      elsif volumes == 'disabled'
+        puts '[Debug]: ' + '(Warning)'.yellow + ' No volumes will be created and attached to instances' if @debug
+      elsif ! volumes.is_a? Hash
+        puts '[Error]: '.red + "unrecognized value set for 'volumes' : #{volumes}"
+        @errors_count += 1
+      end
+      if volumes and volumes != 'disabled' and volumes.is_a? Hash
+        if cloud_platform == 'aws'
+          #volumes type
+          if volumes[:type].nil? or volumes[:type].empty?
+            puts '[Error]: '.red + "type of the volumes is required 'type'"
+            @errors_count += 1
+          elsif ! %w(ebs instancestore).include? volumes[:type]
+            puts '[Error]: '.red + "invalid value found for volume type (#{volumes[:type]}, valid values are 'ebs' or 'instancestore')"
+            @errors_count += 1
+          end
+          #volumes count
+          if volumes[:count].nil?
+            puts '[Error]: '.red + "count of the volumes is required 'count'"
+            @errors_count += 1
+          elsif ! volumes[:count].is_a? Numeric
+            puts '[Error]: '.red + "count of the volumes should be of type numeric 'count'"
+            @errors_count += 1
+          elsif volumes[:count] == 0
+            puts '[Error]: '.red + "volumes count should be > 0, if you dont want volumes to be mounted use 'volumes: disabled'"
+            @errors_count += 1
+          end
+          #volumes size
+          if volumes[:size].nil?
+            puts '[Error]: '.red + "size of the volumes is required 'size'"
+            @errors_count += 1
+          elsif ! volumes[:size].is_a? Numeric
+            puts '[Error]: '.red + "'size' of the volumes should be of type numeric"
+            @errors_count += 1
+          elsif volumes[:size] == 0
+            puts '[Error]: '.red + "volumes size should be > 0, if you dont want volumes to be mounted use 'volumes: disabled'"
+            @errors_count += 1
+          end
+        elsif cloud_platform == 'rackspace'
+          #volumes type
+          if volumes[:type].nil? or volumes[:type].empty?
+            puts '[Error]: '.red + "type of the volumes is required 'type'"
+            @errors_count += 1
+          elsif ! %w(blockstore).include? volumes[:type]
+            puts '[Error]: '.red + "invalid value found for volume type (#{volumes[:type]}, valid value is 'blockstore')"
+            @errors_count += 1
+          end
+          #volumes count
+          if volumes[:count].nil?
+            puts '[Error]: '.red + "count of the volumes is required 'count'"
+            @errors_count += 1
+          elsif ! volumes[:count].is_a? Numeric
+            puts '[Error]: '.red + "count of the volumes should be of type numeric 'count'"
+            @errors_count += 1
+          elsif volumes[:count] == 0
+            puts '[Error]: '.red + "volumes count should be > 0, if you dont want volumes to be mounted use 'volumes: disabled'"
+            @errors_count += 1
+          end
+          #volumes size
+          if volumes[:size].nil?
+            puts '[Error]: '.red + "size of the volumes is required 'size'"
+            @errors_count += 1
+          elsif ! volumes[:size].is_a? Numeric
+            puts '[Error]: '.red + "'size' of the volumes should be of type numeric"
+            @errors_count += 1
+          elsif volumes[:size] == 0
+            puts '[Error]: '.red + "volumes size should be > 0, if you dont want volumes to be mounted use 'volumes: disabled'"
+            @errors_count += 1
+          end
+        end
+        puts "\r[Debug]: Instances will be booted with '#{volumes[:count]}' volumes of type(#{volumes[:type]}) each with size(#{volumes[:size]}GB)" if @debug
       end
 
       #add ssh_user to hash
@@ -371,9 +469,8 @@ module Ankuscli
           end
         end
       else
-        #if cloud, validate slave_nodes_count and slave_nodes_disk_size
+        #if cloud, validate slave_nodes_count
         slave_nodes_count = hash_to_validate[:slave_nodes_count]
-        slave_nodes_storage_capacity = hash_to_validate[:slave_nodes_storage_capacity]
         if slave_nodes_count.nil?
           puts '[Error]: '.red + "number of slave nodes is required for cloud deployment ('slave_nodes_count')"
           @errors_count += 1
@@ -383,14 +480,6 @@ module Ankuscli
         elsif slave_nodes_count == 0
           puts '[Error]: '.red + "'slave_nodes_count' cannot be 0"
           @errors_count += 1
-        end
-        if slave_nodes_storage_capacity.nil?
-          puts '[Debug]:' + ' (Warning) '.yellow + "if 'slave_nodes_storage_capacity' is not specified no volumes will be created and attached" if @debug
-        elsif ! slave_nodes_storage_capacity.is_a?(Numeric)
-          puts '[Error]: '.red + "expecting numeric value for 'slave_nodes_storage_capacity'"
-          @errors_count += 1
-        elsif slave_nodes_storage_capacity == 0
-          puts '[Debug]:' + ' (Warning) '.yellow + "'slave_nodes_storage_capacity' is zero, no volumes will be created and attached to cloud instances" if @debug
         end
         if hadoop_ha == 'enabled'
           if hash_to_validate[:zookeeper_quorum_count].nil?

@@ -33,13 +33,6 @@ hadoop_ha_nameservice_id: 'ha-nn-uri'
 ########################################################
 # HDFS properties
 ########################################################
-# Directories path where, hadoop will write data to. Its recommended to mount these
-# dir(s) on separate volumes for higher throughput
-hadoop_data_dirs:
-  - /data/1
-  - /data/2
-  - /data/3
-  - /data/4
 # Replication - HDFS blocks are by default reproduced (replicated) to this many
 # machines
 hadoop_config_dfs_replication: 3

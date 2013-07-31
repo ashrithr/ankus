@@ -48,7 +48,9 @@ module Ankuscli
       num_of_zks      = @parsed_hash[:zookeeper_quorum_count]
       nodes_created   = {}
       nodes_to_create = {}
-      volume_count, volume_size = calculate_disks
+      #volume_count, volume_size = calculate_disks
+      volume_count    = @parsed_hash[:volumes][:count]
+      volume_size     = @parsed_hash[:volumes][:size]
 
       #create nodes to create
       nodes_to_create['controller'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
@@ -162,6 +164,7 @@ module Ankuscli
       # journal_quorum: []
       # mapreduce['master']:
       # slave_nodes: []
+      # storage_dirs: []
       # hbase_master: [] if hbase_install == enabled
       parsed_hash[:ssh_key] =  if @provider == 'aws'
                                   File.expand_path('~/.ssh') + '/' + @credentials[:aws_key]
@@ -169,6 +172,11 @@ module Ankuscli
                                   File.split(File.expand_path(@credentials[:rackspace_ssh_key])).first + '/' +
                                   File.basename(File.expand_path(@credentials[:rackspace_ssh_key]), '.pub')
                                 end
+      parsed_hash[:storage_dirs] =  if parsed_hash[:volumes] != 'disabled'
+                                      Array.new(parsed_hash[:volumes][:count] + 1){ |i| "/data/#{i}" }
+                                    else
+                                      ['/data/0']
+                                    end
       parsed_hash[:controller] = nodes_hash.map { |k,v| v.first if k =~ /controller/ }.compact.first
       if parsed_hash[:hadoop_deploy] != 'disabled'
         parsed_hash[:hadoop_deploy][:hadoop_namenode]    = nodes_hash.map { |k,v| v.first if k =~ /namenode/ }.compact
@@ -234,6 +242,7 @@ module Ankuscli
           parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes] = nodes_hash.map { |k,_| k if k =~ /slaves/ }.compact
         end
       end
+      parsed_hash_internal_ips[:storage_dirs] = parsed_hash[:storage_dirs]
       return parsed_hash, parsed_hash_internal_ips
     end
 
@@ -317,7 +326,7 @@ module Ankuscli
         nodes_to_create.each do |tag, info|
           threads_pool.schedule do
             if info[:volumes] > 0
-              puts "\r[Debug]: Formatting attached volumes on instance #{server_objects[tag].dns_name}" if @debug
+              printf "\r[Debug]: Formatting attached volumes on instance #{server_objects[tag].dns_name}\n" if @debug
               #build partition script
               partition_script = gen_partition_script(info[:volumes], true)
               tempfile = Tempfile.new('partition')
@@ -344,11 +353,11 @@ module Ankuscli
                   @debug)
               tempfile.unlink # delete the tempfile
               if @debug
-                puts "\r[Debug]: Stdout on #{server_objects[tag].dns_name}"
-                puts "\r#{output[server_objects[tag].dns_name][0]}"
-                puts "\r[Debug]: Stderr on #{server_objects[tag].dns_name}"
-                puts "\r#{output[server_objects[tag].dns_name][1]}"
-                puts "\r[Debug]: Exit code from #{server_objects[tag].dns_name}: #{output[server_objects[tag].dns_name][2]}"
+                printf "\r[Debug]: Stdout on #{server_objects[tag].dns_name}\n"
+                printf "\r#{output[server_objects[tag].dns_name][0]}\n"
+                prinft "\r[Debug]: Stderr on #{server_objects[tag].dns_name}\n"
+                printf "\r#{output[server_objects[tag].dns_name][1]}\n"
+                printf "\r[Debug]: Exit code from #{server_objects[tag].dns_name}: #{output[server_objects[tag].dns_name][2]}\n"
               end
             else
               # if not waiting for mounting volumes, wait for instances to become sshable
@@ -365,10 +374,10 @@ module Ankuscli
         nodes_to_create.each do |tag, info|
           threads_pool.schedule do
             if info[:volumes] > 0
-              puts "\r[Debug]: Preping attached volumes on instance #{server_objects[tag].dns_name}"
+              printf "\r[Debug]: Preping attached volumes on instance #{server_objects[tag].dns_name}\n"
               sleep 5
             else
-              puts "\r[Debug]: Waiting for instance to become ssh'able #{server_objects[tag].dns_name} with ssh_user: #{ssh_user} and ssh_key: #{ssh_key}"
+              printf "\r[Debug]: Waiting for instance to become ssh'able #{server_objects[tag].dns_name} with ssh_user: #{ssh_user} and ssh_key: #{ssh_key}\n"
             end
           end
         end
@@ -429,7 +438,7 @@ module Ankuscli
         nodes_to_create.each do |tag, info|
           threads_pool.schedule do
             if info[:volumes] > 0
-              puts "\r[Debug]: Preping attached volumes on instnace #{server_objects[tag]}" if @debug
+              printf "\r[Debug]: Preping attached volumes on instnace #{server_objects[tag]}\n" if @debug
               # attach specified volumes to server
               rackspace.attach_volumes!(server_objects[tag], info[:volumes], info[:volume_size])
               # build partition script
@@ -458,11 +467,11 @@ module Ankuscli
                   @debug)
               tempfile.unlink # delete the tempfile
               if @debug
-                puts "\r[Debug]: Stdout on #{server_objects[tag].public_ip_address}"
-                puts "\r#{output[server_objects[tag].public_ip_address][0]}"
-                puts "\r[Debug]: Stdout on #{server_objects[tag].public_ip_address}"
-                puts "\r#{output[server_objects[tag].public_ip_address][1]}"
-                puts "\r[Debug]: Exit code from #{server_objects[tag].public_ip_address}: #{output[server_objects[tag].public_ip_address][2]}"
+                printf "\r[Debug]: Stdout on #{server_objects[tag].public_ip_address}\n"
+                printf "\r#{output[server_objects[tag].public_ip_address][0]}\n"
+                printf "\r[Debug]: Stdout on #{server_objects[tag].public_ip_address}\n"
+                printf "\r#{output[server_objects[tag].public_ip_address][1]}\n"
+                printf "\r[Debug]: Exit code from #{server_objects[tag].public_ip_address}: #{output[server_objects[tag].public_ip_address][2]}\n"
               end
             else
               # if not mounting volumes wait for instances to become available
@@ -476,9 +485,14 @@ module Ankuscli
         #MOCKING
         # pretend doing some work while mocking
         puts "\rPartitioning|Formatting attached volumes".blue
-        nodes_to_create.each do |_, info|
+        nodes_to_create.each do |tag, info|
           threads_pool.schedule do
-            sleep 5 if info[:volumes] > 0 and @debug
+            if info[:volumes] > 0
+              printf "\r[Debug]: Preping attached volumes on instance #{server_objects[tag].public_ip_address}\n"
+              sleep 5
+            else
+              printf "\r[Debug]: Waiting for instance to become ssh'able #{server_objects[tag].public_ip_address} with ssh_user: #{ssh_user} and ssh_key: #{File.expand_path(ssh_key_path)}\n"
+            end
           end
         end
         threads_pool.shutdown
