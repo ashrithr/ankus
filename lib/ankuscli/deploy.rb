@@ -215,6 +215,7 @@ module Ankuscli
         hiera_hash.merge!(parsed_hash.deep_stringify)
         hiera_hash.merge!(YamlUtils.parse_yaml(HADOOP_CONF))
         hiera_hash.merge!(YamlUtils.parse_yaml(HBASE_CONF))
+        hiera_hash.merge!(YamlUtils.parse_yaml(CASSANDRA_CONF))
         #TODO add more configs
         #parse zookeeper ensemble
         if parsed_hash[:zookeeper_quorum]
