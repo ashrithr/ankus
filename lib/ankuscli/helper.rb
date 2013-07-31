@@ -46,7 +46,6 @@ module Ankuscli
     hadoop_config_io_file_buffer_size
     hadoop_config_hadoop_tmp_dir
     hadoop_ha_nameservice_id
-    hadoop_data_dirs
     hadoop_config_dfs_replication
     hadoop_config_dfs_block_size
     hadoop_config_io_bytes_per_checksum

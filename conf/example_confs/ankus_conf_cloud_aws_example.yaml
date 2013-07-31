@@ -112,11 +112,24 @@ cassandra_deploy:
   number_of_instances: 5
 
 ########################################################
-# General Instance Settings
-# slaves_nodes_storage_capacity: specifies disk size on slave_nodes in GB, min is 100 & max is 1024.
-#     If ignored no additional disks are created
+# Cloud Instances volumes configuration
+# volumes: configure extra volumes that are attached to worker instances
+#   type: type of the volumes to create, for aws: valid values are instancestore|ebs
+#                                        for rackspace valid value is blockstore
+#   count: number of volumes to attach to a instance
+#   size: size of each volume in GB
+# NOTE: ankus aws instances comes pre-built with 250GB of root partition
+#
+# Ex:
+# 1. To create and attach 4 volumes to each worker node in the cluster
+#   volumes:
+#     type: ebs
+#     count: 4
+#     size: 100
+# 2. To disable creating new volumes
+#   volumes: disabled
 ########################################################
-slave_nodes_storage_capacity: 0
+volumes: disabled
 
 ########################################################
 # Security Config
