@@ -32,8 +32,8 @@ module Ankuscli
       def install_puppet
         #helper variables
         remote_puppet_installer_loc = '/tmp'
-        remote_puppet_server_cmd = "chmod +x #{remote_puppet_installer_loc}/#{@puppet_installer} && sudo sh -c '#{remote_puppet_installer_loc}/#{@puppet_installer} -s | tee #{REMOTE_LOG_DIR}/install.log'"
-        remote_puppet_client_cmd = "chmod +x #{remote_puppet_installer_loc}/#{@puppet_installer} && sudo sh -c '#{remote_puppet_installer_loc}/#{@puppet_installer} -c -H #{@puppet_master} | tee #{REMOTE_LOG_DIR}/install.log'"
+        remote_puppet_server_cmd    = "chmod +x #{remote_puppet_installer_loc}/#{@puppet_installer} && sudo sh -c '#{remote_puppet_installer_loc}/#{@puppet_installer} -s | tee #{REMOTE_LOG_DIR}/install.log'"
+        remote_puppet_client_cmd    = "chmod +x #{remote_puppet_installer_loc}/#{@puppet_installer} && sudo sh -c '#{remote_puppet_installer_loc}/#{@puppet_installer} -c -H #{@puppet_master} | tee #{REMOTE_LOG_DIR}/install.log'"
         if ! @mock
           #check if instances are up
           validate_instances @nodes
@@ -153,7 +153,7 @@ module Ankuscli
       # Install only puppet client(s)
       def install_puppet_clients
         remote_puppet_installer_loc = "/tmp"
-        remote_puppet_client_cmd = "chmod +x #{remote_puppet_installer_loc}/#{@puppet_installer} && sudo sh -c '#{remote_puppet_installer_loc}/#{@puppet_installer} -c -H #{@puppet_master} | tee #{REMOTE_LOG_DIR}/install.log'"
+        remote_puppet_client_cmd    = "chmod +x #{remote_puppet_installer_loc}/#{@puppet_installer} && sudo sh -c '#{remote_puppet_installer_loc}/#{@puppet_installer} -c -H #{@puppet_master} | tee #{REMOTE_LOG_DIR}/install.log'"
         if ! @mock
           validate_instances @nodes
 
@@ -164,7 +164,7 @@ module Ankuscli
           if @parsed_hash[:install_mode] == 'cloud'
             result = SshUtils.execute_ssh!('hostname --fqdn', @puppet_master, @ssh_user, @ssh_key)
             @puppet_server_cloud_fqdn = result[@puppet_master][0].chomp # result[host][0]
-            remote_puppet_client_cmd = "chmod +x #{remote_puppet_installer_loc}/#{@puppet_installer} && sudo sh -c '#{remote_puppet_installer_loc}/#{@puppet_installer} -c -H #{@puppet_server_cloud_fqdn} | tee #{REMOTE_LOG_DIR}/install.log'"
+            remote_puppet_client_cmd  = "chmod +x #{remote_puppet_installer_loc}/#{@puppet_installer} && sudo sh -c '#{remote_puppet_installer_loc}/#{@puppet_installer} -c -H #{@puppet_server_cloud_fqdn} | tee #{REMOTE_LOG_DIR}/install.log'"
           end
 
           if @parsed_hash[:cloud_platform] == 'rackspace'
@@ -304,13 +304,14 @@ module Ankuscli
 
       # Kick off puppet run on all instances orchestrate runs based on configuration
       def run_puppet
-        puppet_run_cmd = "sudo sh -c 'puppet agent --server #{@puppet_master} --onetime --verbose --no-daemonize --no-splay --ignorecache --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log'"
+        #puppet_run_cmd = "sudo sh -c 'puppet agent --server #{@puppet_master} --onetime --verbose --no-daemonize --no-splay --ignorecache --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log'"
+        puppet_run_cmd = "sudo sh -c 'puppet agent --onetime --verbose --no-daemonize --no-splay --ignorecache --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log'"
         if ! @mock
-          if @parsed_hash['install_mode'] == 'cloud'
-            result = SshUtils.execute_ssh!('hostname --fqdn', @puppet_master, @ssh_user, @ssh_key)
-            @puppet_server_cloud_fqdn = result[@puppet_master][0].chomp
-            puppet_run_cmd = "sudo sh -c 'puppet agent --server #{@puppet_server_cloud_fqdn} --onetime --verbose --no-daemonize --no-splay --ignorecache --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log'"
-          end
+          #if @parsed_hash['install_mode'] == 'cloud'
+          #  result = SshUtils.execute_ssh!('hostname --fqdn', @puppet_master, @ssh_user, @ssh_key)
+          #  @puppet_server_cloud_fqdn = result[@puppet_master][0].chomp
+          #  puppet_run_cmd = "sudo sh -c 'puppet agent --server #{@puppet_server_cloud_fqdn} --onetime --verbose --no-daemonize --no-splay --ignorecache --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log'"
+          #end
           output = []
           #send enc_data and enc_script to puppet server
           SshUtils.upload!(ENC_ROLES_FILE, '/tmp', @puppet_master, @ssh_user, @ssh_key, 22)
@@ -425,13 +426,8 @@ module Ankuscli
 
       # Kick off puppet run when a new node(s) are being commissioned to the cluster, this includes refreshing puppet master
       def run_puppet_set(nodes)
-        puppet_run_cmd = "sudo sh -c 'puppet agent --server #{@puppet_master} --onetime --verbose --no-daemonize --no-splay --ignorecache --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log'"
+        puppet_run_cmd = "sudo sh -c 'puppet agent --onetime --verbose --no-daemonize --no-splay --ignorecache --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log'"
         unless @mock
-          if @parsed_hash[:install_mode] == 'cloud'
-            result = SshUtils.execute_ssh!('hostname --fqdn', @puppet_master, @ssh_user, @ssh_key)
-            @puppet_server_cloud_fqdn = result[@puppet_master][0].chomp
-            puppet_run_cmd = "sudo sh -c 'puppet agent --server #{@puppet_server_cloud_fqdn} --onetime --verbose --no-daemonize --no-splay --ignorecache --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log'"
-          end
           # send enc_roles file to puppet master
           SshUtils.upload!(ENC_ROLES_FILE, '/tmp', @puppet_master, @ssh_user, @ssh_key, 22, @debug)
           SshUtils.execute_ssh!(

@@ -1,9 +1,11 @@
 =begin
-  Class to manage cloud instances, create/delete
+  Class to manage cloud instances
+  currently supported cloud platforms are aws and rackspace
 =end
 
 module Ankuscli
   require 'erb'
+
   class Cloud
     # Create a new Cloud class object
     # @param [String] provider => Cloud service provider; aws|rackspace
@@ -15,13 +17,13 @@ module Ankuscli
     # @param [Boolean] debug => if enabled will print more info to stdout
     # @param [Boolean] mock => if enabled will mock fog, instead of creating actual instances
     def initialize(provider, parsed_config, cloud_credentials, thread_pool_size = 10, debug = false, mock = false)
-      @provider = provider || parsed_config[:cloud_platform]
-      @cloud_os = parsed_config[:cloud_os_type] || 'CentOS'
-      @parsed_hash = parsed_config
-      @credentials = cloud_credentials || parsed_config[:cloud_credentials]
-      @debug = debug
+      @provider         = provider || parsed_config[:cloud_platform]
+      @cloud_os         = parsed_config[:cloud_os_type] || 'CentOS'
+      @parsed_hash      = parsed_config
+      @credentials      = cloud_credentials || parsed_config[:cloud_credentials]
+      @debug            = debug
       @thread_pool_size = thread_pool_size
-      @mock = mock
+      @mock             = mock
       raise unless @credentials.is_a?(Hash)
     end
 
@@ -42,9 +44,9 @@ module Ankuscli
     #   for aws cloud, nodes: { 'tag' => [public_dns_name, private_dns_name], 'tag' => [public_dns_name, private_dns_name], ... }
     #   for rackspace, nodes: { 'tag(fqdn)' => [public_ip_address, private_ip_address], ... }
     def create_instances
-      num_of_slaves = @parsed_hash[:slave_nodes_count]
-      num_of_zks = @parsed_hash[:zookeeper_quorum_count]
-      nodes_created = {}
+      num_of_slaves   = @parsed_hash[:slave_nodes_count]
+      num_of_zks      = @parsed_hash[:zookeeper_quorum_count]
+      nodes_created   = {}
       nodes_to_create = {}
       volume_count, volume_size = calculate_disks
 
@@ -52,8 +54,8 @@ module Ankuscli
       nodes_to_create['controller'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
       if @parsed_hash[:hadoop_deploy] != 'disabled'
         if @parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
-          nodes_to_create['namenode1'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-          nodes_to_create['namenode2'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+          nodes_to_create['namenode1']  = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+          nodes_to_create['namenode2']  = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
           nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } if @parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
           num_of_zks.times do |i|
             nodes_to_create["zookeeper#{i+1}"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
@@ -89,6 +91,8 @@ module Ankuscli
         end
       end
 
+      pp nodes_to_create if @mock
+
       if @provider == 'aws'
         nodes_created = create_on_aws(nodes_to_create, @credentials, @thread_pool_size)
       elsif @provider == 'rackspace'
@@ -98,7 +102,7 @@ module Ankuscli
         nodes_to_create.each {|k,v| nodes_to_create_fqdn["#{k}.#{domain_name}"] = v }
         nodes_created = create_on_rackspace(nodes_to_create_fqdn, @credentials, @thread_pool_size)
       end
-      #returns parse nodes hash
+      # returns parse nodes hash
       nodes_created
     end
 
@@ -127,15 +131,15 @@ module Ankuscli
     # @param [Boolean] delete_volumes => specifies whether to delete volumes attached to instances as well
     def delete_instances(nodes_hash, delete_volumes = false)
       if @parsed_hash[:cloud_platform] == 'aws'
-        aws = create_aws_connection
-        conn = aws.create_connection
+        aws   = create_aws_connection
+        conn  = aws.create_connection
         nodes_hash.each do |_, nodes_dns_map|
           server_dns_name = nodes_dns_map.first
           aws.delete_server_with_dns_name(conn, server_dns_name, delete_volumes)
         end
       elsif @parsed_hash[:cloud_platform] == 'rackspace'
         rackspace = create_rackspace_connection
-        conn = rackspace.create_connection
+        conn      = rackspace.create_connection
         nodes_hash.each do |fqdn, _|
           rackspace.delete_server_with_name(conn, fqdn)
         end
@@ -167,17 +171,17 @@ module Ankuscli
                                 end
       parsed_hash[:controller] = nodes_hash.map { |k,v| v.first if k =~ /controller/ }.compact.first
       if parsed_hash[:hadoop_deploy] != 'disabled'
-        parsed_hash[:hadoop_deploy][:hadoop_namenode] = nodes_hash.map { |k,v| v.first if k =~ /namenode/ }.compact
+        parsed_hash[:hadoop_deploy][:hadoop_namenode]    = nodes_hash.map { |k,v| v.first if k =~ /namenode/ }.compact
         parsed_hash[:hadoop_deploy][:mapreduce][:master] = nodes_hash.map { |k,v| v.first if k =~ /jobtracker/ }.compact.first if parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
         if parsed_hash[:hadoop_deploy][:mapreduce] == 'disabled' and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
           parsed_hash[:hadoop_deploy][:hadoop_secondarynamenode] = nodes_hash.map { |k,v| v.first if k =~ /snn/ }.compact.first
-        elsif parsed_hash[:hadoop_deploy][:mapreduce] == 'disabled' and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
+        elsif parsed_hash[:hadoop_deploy][:mapreduce] and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
           parsed_hash[:hadoop_deploy][:hadoop_secondarynamenode] = nodes_hash.map { |k,v| v.first if k =~ /jobtracker/ }.compact.first
         end
-        parsed_hash[:slave_nodes] = nodes_hash.map { |k,v| v.first if k =~ /slaves/ }.compact
-        parsed_hash[:zookeeper_quorum] = nodes_hash.map { |k,v| v.first if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled' or parsed_hash[:hbase_deploy] != 'disabled'
-        parsed_hash[:hadoop_deploy][:journal_quorum] = nodes_hash.map { |k,v| v.first if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
-        parsed_hash[:hbase_deploy][:hbase_master] = nodes_hash.map { |k,v| v.first if k =~ /hbasemaster/ }.compact if parsed_hash[:hbase_deploy] != 'disabled'
+        parsed_hash[:slave_nodes]                     = nodes_hash.map { |k,v| v.first if k =~ /slaves/ }.compact
+        parsed_hash[:zookeeper_quorum]                = nodes_hash.map { |k,v| v.first if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled' or parsed_hash[:hbase_deploy] != 'disabled'
+        parsed_hash[:hadoop_deploy][:journal_quorum]  = nodes_hash.map { |k,v| v.first if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
+        parsed_hash[:hbase_deploy][:hbase_master]     = nodes_hash.map { |k,v| v.first if k =~ /hbasemaster/ }.compact if parsed_hash[:hbase_deploy] != 'disabled'
       end
       if parsed_hash[:cassandra_deploy] != 'disabled' and ! parsed_hash[:cassandra_deploy][:hadoop_colocation]
         parsed_hash[:cassandra_deploy][:cassandra_nodes] = nodes_hash.map { |k,v| v.first if k =~ /cassandra/ }.compact
@@ -185,22 +189,22 @@ module Ankuscli
         parsed_hash[:cassandra_deploy][:cassandra_nodes] = nodes_hash.map { |k,v| v.first if k =~ /slaves/ }.compact
       end
 
-      #hash with internal ips
+      # hash with internal ips
       if @provider == 'aws' # internal_ips
-        parsed_hash_internal_ips[:ssh_key] = File.expand_path('~/.ssh') + '/' + @parsed_hash[:cloud_credentials][:aws_key]
+        parsed_hash_internal_ips[:ssh_key]    = File.expand_path('~/.ssh') + '/' + @parsed_hash[:cloud_credentials][:aws_key]
         parsed_hash_internal_ips[:controller] = nodes_hash.map { |k,v| v.last if k =~ /controller/ }.compact.first
         if parsed_hash[:hadoop_deploy] != 'disabled'
           parsed_hash_internal_ips[:hadoop_deploy][:hadoop_namenode] = nodes_hash.map { |k,v| v.last if k =~ /namenode/ }.compact
           parsed_hash_internal_ips[:hadoop_deploy][:mapreduce][:master] = nodes_hash.map { |k,v| v.last if k =~ /jobtracker/ }.compact.first if parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
           if parsed_hash[:hadoop_deploy][:mapreduce] == 'disabled' and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
             parsed_hash_internal_ips[:hadoop_deploy][:hadoop_secondarynamenode] = nodes_hash.map { |k,v| v.last if k =~ /snn/ }.compact.first
-          elsif parsed_hash[:hadoop_deploy][:mapreduce] == 'disabled' and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
+          elsif parsed_hash[:hadoop_deploy][:mapreduce] and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
             parsed_hash_internal_ips[:hadoop_deploy][:hadoop_secondarynamenode] = nodes_hash.map { |k,v| v.last if k =~ /jobtracker/ }.compact.first
           end
-          parsed_hash_internal_ips[:slave_nodes] = nodes_hash.map { |k,v| v.last if k =~ /slaves/ }.compact
-          parsed_hash_internal_ips[:zookeeper_quorum] = nodes_hash.map { |k,v| v.last if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled' or parsed_hash[:hbase_deploy] != 'disabled'
+          parsed_hash_internal_ips[:slave_nodes]                    = nodes_hash.map { |k,v| v.last if k =~ /slaves/ }.compact
+          parsed_hash_internal_ips[:zookeeper_quorum]               = nodes_hash.map { |k,v| v.last if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled' or parsed_hash[:hbase_deploy] != 'disabled'
           parsed_hash_internal_ips[:hadoop_deploy][:journal_quorum] = nodes_hash.map { |k,v| v.last if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
-          parsed_hash_internal_ips[:hbase_deploy][:hbase_master] = nodes_hash.map { |k,v| v.last if k =~ /hbasemaster/ }.compact if parsed_hash[:hbase_deploy] != 'disabled'
+          parsed_hash_internal_ips[:hbase_deploy][:hbase_master]    = nodes_hash.map { |k,v| v.last if k =~ /hbasemaster/ }.compact if parsed_hash[:hbase_deploy] != 'disabled'
         end
         if parsed_hash[:cassandra_deploy] != 'disabled' and ! parsed_hash[:cassandra_deploy][:hadoop_colocation]
           parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes] = nodes_hash.map { |k,v| v.last if k =~ /cassandra/ }.compact
@@ -212,17 +216,17 @@ module Ankuscli
                                                         File.basename(File.expand_path(@credentials[:rackspace_ssh_key]), '.pub')
         parsed_hash_internal_ips[:controller] = nodes_hash.map { |k,_| k if k =~ /controller/ }.compact.first
         if parsed_hash[:hadoop_deploy] != 'disabled'
-          parsed_hash_internal_ips[:hadoop_deploy][:hadoop_namenode] = nodes_hash.map { |k,_| k if k =~ /namenode/ }.compact
+          parsed_hash_internal_ips[:hadoop_deploy][:hadoop_namenode]    = nodes_hash.map { |k,_| k if k =~ /namenode/ }.compact
           parsed_hash_internal_ips[:hadoop_deploy][:mapreduce][:master] = nodes_hash.map { |k,_| k if k =~ /jobtracker/ }.compact.first if parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
           if parsed_hash[:hadoop_deploy][:mapreduce] == 'disabled' and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
             parsed_hash_internal_ips[:hadoop_deploy][:hadoop_secondarynamenode] = nodes_hash.map { |k,_| k if k =~ /snn/ }.compact.first
-          elsif parsed_hash[:hadoop_deploy][:mapreduce] == 'disabled' and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
+          elsif parsed_hash[:hadoop_deploy][:mapreduce] and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
             parsed_hash_internal_ips[:hadoop_deploy][:hadoop_secondarynamenode] = nodes_hash.map { |k,_| k if k =~ /jobtracker/ }.compact.first
           end
-          parsed_hash_internal_ips[:slave_nodes] = nodes_hash.map { |k,_| k if k =~ /slaves/ }.compact
-          parsed_hash_internal_ips[:zookeeper_quorum] = nodes_hash.map { |k,_| k if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled' or parsed_hash[:hbase_install] != 'disabled'
+          parsed_hash_internal_ips[:slave_nodes]                    = nodes_hash.map { |k,_| k if k =~ /slaves/ }.compact
+          parsed_hash_internal_ips[:zookeeper_quorum]               = nodes_hash.map { |k,_| k if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled' or parsed_hash[:hbase_install] != 'disabled'
           parsed_hash_internal_ips[:hadoop_deploy][:journal_quorum] = nodes_hash.map { |k,_| k if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
-          parsed_hash_internal_ips[:hbase_deploy][:hbase_master] = nodes_hash.map { |k,_| k if k =~ /hbasemaster/ }.compact if parsed_hash[:hbase_deploy] != 'disabled'
+          parsed_hash_internal_ips[:hbase_deploy][:hbase_master]    = nodes_hash.map { |k,_| k if k =~ /hbasemaster/ }.compact if parsed_hash[:hbase_deploy] != 'disabled'
         end
         if parsed_hash[:cassandra_deploy] != 'disabled' and ! parsed_hash[:cassandra_deploy][:hadoop_colocation]
           parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes] = nodes_hash.map { |k,_| k if k =~ /cassandra/ }.compact
@@ -241,13 +245,16 @@ module Ankuscli
     # @return [Hash] results => { 'instance_tag' => [public_dns_name, private_dns_name], ... }
     def create_on_aws(nodes_to_create, credentials, thread_pool_size)
       #defaults
-      threads_pool = Ankuscli::ThreadPool.new(thread_pool_size)
-      key = credentials[:aws_key] || 'ankuscli'
-      groups = credentials[:aws_sec_groups] || %w(ankuscli)
-      flavor_id = credentials[:aws_machine_type] || 'm1.large'
-      aws = create_aws_connection
-      conn = aws.create_connection
-      results = {}
+      threads_pool    = Ankuscli::ThreadPool.new(thread_pool_size)
+      key             = credentials[:aws_key] || 'ankuscli'
+      groups          = credentials[:aws_sec_groups] || %w(ankuscli)
+      flavor_id       = credentials[:aws_machine_type] || 'm1.large'
+      aws             = create_aws_connection
+      conn            = aws.create_connection
+      ssh_key         = File.expand_path('~/.ssh') + "/#{key}"
+      ssh_user        = @parsed_hash[:ssh_user]
+      results         = {}
+      server_objects  = {} # hash to store server object to tag mapping { tag => server_obj }, used for attaching volumes
 
       if aws.valid_connection?(conn)
         puts "\r[Debug]: successfully authenticated with aws" if @debug
@@ -262,24 +269,24 @@ module Ankuscli
           type :dots
           message "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')}".blue + ' [DONE]'.cyan
         end
-        server_objects = {} #hash to store server object to tag mapping { tag => server_obj }, used for attaching volumes
         nodes_to_create.each do |tag, info|
-          server_objects[tag] = aws.create_server!(conn,
-                                                   tag,
-                                                   :key => key,
-                                                   :groups => groups,
-                                                   :flavor_id => flavor_id,
-                                                   :os_type => info[:os_type],
-                                                   :num_of_vols => info[:volumes],
-                                                   :vol_size => info[:volume_size]
+          server_objects[tag] = aws.create_server!(
+            conn,
+            tag,
+            :key => key,
+            :groups => groups,
+            :flavor_id => flavor_id,
+            :os_type => info[:os_type],
+            :num_of_vols => info[:volumes],
+            :vol_size => info[:volume_size]
           )
         end
         SpinningCursor.stop
       rescue SpinningCursor::CursorNotRunning
-        #silently ignore this for mocking
+        # silently ignore this for mocking
       end
 
-      #wait for servers to get created (:state => running)
+      # wait for servers to get created (:state => running)
       SpinningCursor.start do
         banner "\rWaiting for servers to get created "
         type :dots
@@ -288,7 +295,7 @@ module Ankuscli
         end
         message "\rWaiting for servers to get created " + '[DONE]'.cyan
       end
-      #wait for the boot to complete
+      # wait for the boot to complete
       if ! @mock
         SpinningCursor.start do
           banner "\rWaiting for cloud instances to complete their boot (which includes mounting the volumes) "
@@ -299,42 +306,43 @@ module Ankuscli
           message "\rWaiting for cloud instances to complete their boot " + '[DONE]'.cyan
         end
       end
-      #build the return string
+      # build the return string
       nodes_to_create.each do |tag, _|
         # fill in return hash
         results[tag] = [ server_objects[tag].dns_name, server_objects[tag].private_dns_name ]
       end
       if ! @mock
-        puts "\rPartitioning/Formatting attached volumes".blue
-        #parition and format attached disks using thread pool
+        puts "\rPartitioning|Formatting attached volumes".blue
+        # partition and format attached disks using thread pool
         nodes_to_create.each do |tag, info|
           threads_pool.schedule do
             if info[:volumes] > 0
+              puts "\r[Debug]: Formatting attached volumes on instance #{server_objects[tag].dns_name}" if @debug
               #build partition script
               partition_script = gen_partition_script(info[:volumes], true)
               tempfile = Tempfile.new('partition')
               tempfile.write(partition_script)
               tempfile.close
               # wait for the server to be ssh'able
-              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].dns_name, @parsed_hash['ssh_user'], File.expand_path('~/.ssh') + "/#{key}")
+              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].dns_name, ssh_user, ssh_key)
               # upload and execute the partition script on the remote machine
               SshUtils.upload!(
                   tempfile.path,
                   '/tmp',
                   server_objects[tag].dns_name,
-                  @parsed_hash['ssh_user'],
-                  File.expand_path('~/.ssh') + "/#{key}",
+                  ssh_user,
+                  ssh_key,
                   22,
                   @debug
               )
               output = Ankuscli::SshUtils.execute_ssh!(
                   "chmod +x /tmp/#{File.basename(tempfile.path)} && sudo sh -c '/tmp/#{File.basename(tempfile.path)} | tee /var/log/bootstrap_volumes.log'",
                   server_objects[tag].dns_name,
-                  @parsed_hash['ssh_user'],
-                  File.expand_path('~/.ssh') + "/#{key}",
+                  ssh_user,
+                  ssh_key,
                   22,
                   @debug)
-              tempfile.unlink #delete the tempfile
+              tempfile.unlink # delete the tempfile
               if @debug
                 puts "\r[Debug]: Stdout on #{server_objects[tag].dns_name}"
                 puts "\r#{output[server_objects[tag].dns_name][0]}"
@@ -344,7 +352,7 @@ module Ankuscli
               end
             else
               # if not waiting for mounting volumes, wait for instances to become sshable
-              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].dns_name, @parsed_hash['ssh_user'], File.expand_path('~/.ssh') + "/#{key}")
+              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].dns_name, ssh_user, ssh_key)
             end
           end
         end
@@ -354,9 +362,14 @@ module Ankuscli
       else
         # pretend doing some work while mocking
         puts "\rPartitioning/Formatting attached volumes".blue
-        nodes_to_create.each do |_, info|
+        nodes_to_create.each do |tag, info|
           threads_pool.schedule do
-            sleep 5 if info[:volumes] > 0 and @debug
+            if info[:volumes] > 0
+              puts "\r[Debug]: Preping attached volumes on instance #{server_objects[tag].dns_name}"
+              sleep 5
+            else
+              puts "\r[Debug]: Waiting for instance to become ssh'able #{server_objects[tag].dns_name} with ssh_user: #{ssh_user} and ssh_key: #{ssh_key}"
+            end
           end
         end
         threads_pool.shutdown
@@ -371,27 +384,26 @@ module Ankuscli
     # @param [Integer] thread_pool_size => size of the thread pool
     # @return [Hash] results => { 'instance_tag(fqdn)' => [public_ip_address, private_ip_address], ... }
     def create_on_rackspace(nodes_to_create, credentials, thread_pool_size)
-      threads_pool = Ankuscli::ThreadPool.new(thread_pool_size)
-      api_key = credentials[:rackspace_api_key]
-      username = credentials[:rackspace_username]
-      machine_type = credentials[:rackspace_instance_type] || 4
+      threads_pool        = Ankuscli::ThreadPool.new(thread_pool_size)
+      api_key             = credentials[:rackspace_api_key]
+      username            = credentials[:rackspace_username]
+      machine_type        = credentials[:rackspace_instance_type] || 4
       public_ssh_key_path = credentials[:rackspace_ssh_key] || '~/.ssh/id_rsa.pub'
-      ssh_key_path = File.split(public_ssh_key_path).first + '/' + File.basename(public_ssh_key_path, '.pub')
+      ssh_key_path        = File.split(public_ssh_key_path).first + '/' + File.basename(public_ssh_key_path, '.pub')
+      ssh_user            = @parsed_hash[:ssh_user]
+      rackspace           = create_rackspace_connection
+      conn                = rackspace.create_connection
+      results             = {}
+      server_objects      = {} # hash to store server object to tag mapping { tag => server_obj }, used for attaching volumes
 
       puts "\r[Debug]: Using ssh_key #{ssh_key_path}" if @debug
-
-      rackspace = create_rackspace_connection
-      conn = rackspace.create_connection
-      results = {}
-
       puts "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')} ...".blue
-      server_objects = {} #hash to store server object to tag mapping { tag => server_obj }, used for attaching volumes
       nodes_to_create.each do |tag, info|
         server_objects[tag] = rackspace.create_server!(conn, tag, public_ssh_key_path, machine_type, info[:os_type])
       end
       puts "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')} ".blue + '[DONE]'.cyan
 
-      #wait for servers to get created (:state => ACTIVE)
+      # wait for servers to get created (:state => ACTIVE)
       begin
         SpinningCursor.start do
           banner "\rWaiting for servers to get created "
@@ -402,36 +414,37 @@ module Ankuscli
           message "\rWaiting for servers to get created " + '[DONE]'.cyan
         end
       rescue SpinningCursor::CursorNotRunning
-        #silently ignore this
+        # silently ignore this
       end
 
-      #build the return string
+      # build the return string
       nodes_to_create.each do |tag, info|
         # fill in return hash
         results[tag] = [ server_objects[tag].public_ip_address, server_objects[tag].private_ip_address ]
       end
-      #Attach Volumes
+      # Attach Volumes
       if ! @mock
-        puts "\rPartitioning/Formatting attached volumes".blue
-        #parition and format attached disks using thread pool
+        puts "\rPartitioning|Formatting attached volumes".blue
+        # parition and format attached disks using thread pool
         nodes_to_create.each do |tag, info|
           threads_pool.schedule do
             if info[:volumes] > 0
+              puts "\r[Debug]: Preping attached volumes on instnace #{server_objects[tag]}" if @debug
               # attach specified volumes to server
               rackspace.attach_volumes!(server_objects[tag], info[:volumes], info[:volume_size])
-              #build partition script
+              # build partition script
               partition_script = gen_partition_script(info[:volumes])
               tempfile = Tempfile.new('partition')
               tempfile.write(partition_script)
               tempfile.close
               # wait for the server to be ssh'able
-              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, @parsed_hash['ssh_user'], File.expand_path(ssh_key_path))
+              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, ssh_user, File.expand_path(ssh_key_path))
               # upload and execute the partition script on the remote machine
               SshUtils.upload!(
                   tempfile.path,
                   '/tmp',
                   server_objects[tag].public_ip_address,
-                  @parsed_hash['ssh_user'],
+                  ssh_user,
                   File.expand_path(ssh_key_path),
                   22,
                   @debug
@@ -439,11 +452,11 @@ module Ankuscli
               output = Ankuscli::SshUtils.execute_ssh!(
                   "chmod +x /tmp/#{File.basename(tempfile.path)} && sudo sh -c '/tmp/#{File.basename(tempfile.path)} | tee /var/log/bootstrap_volumes.log'",
                   server_objects[tag].public_ip_address,
-                  @parsed_hash['ssh_user'],
+                  ssh_user,
                   File.expand_path(ssh_key_path),
                   22,
                   @debug)
-              tempfile.unlink #delete the tempfile
+              tempfile.unlink # delete the tempfile
               if @debug
                 puts "\r[Debug]: Stdout on #{server_objects[tag].public_ip_address}"
                 puts "\r#{output[server_objects[tag].public_ip_address][0]}"
@@ -452,8 +465,8 @@ module Ankuscli
                 puts "\r[Debug]: Exit code from #{server_objects[tag].public_ip_address}: #{output[server_objects[tag].public_ip_address][2]}"
               end
             else
-              #if not mounting volumes wait for instances to become available
-              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, @parsed_hash['ssh_user'], File.expand_path(ssh_key_path))
+              # if not mounting volumes wait for instances to become available
+              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, ssh_user, File.expand_path(ssh_key_path))
             end
           end
         end
@@ -462,7 +475,7 @@ module Ankuscli
       else
         #MOCKING
         # pretend doing some work while mocking
-        puts "\rPartitioning/Formatting attached volumes".blue
+        puts "\rPartitioning|Formatting attached volumes".blue
         nodes_to_create.each do |_, info|
           threads_pool.schedule do
             sleep 5 if info[:volumes] > 0 and @debug
@@ -480,7 +493,7 @@ module Ankuscli
     # @return [ERB] build out shell script
     def gen_partition_script(number_of_volumes, resize_root_vol = false)
       resize_root = resize_root_vol ? 0 : 1
-      template = <<-END.gsub(/^ {6}/, '')
+      template    = <<-END.gsub(/^ {6}/, '')
       #!/bin/bash
       RESIZE_ROOT=<%= resize_root %>
       if [ $RESIZE_ROOT -eq 0 ]; then

@@ -220,7 +220,7 @@ module Ankuscli
           end
         end
       rescue Timeout::Error
-        raise 'It took more than 10 mins for the servers to complete boot, this generally does not happen.'
+        raise 'It took more than 10 mins waiting for servers to become ssh\'able. Aborting!!!'
       end
 
       # Execute single command on remote machine over ssh protocol using net-ssh gem
