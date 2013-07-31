@@ -1,12 +1,12 @@
 ---
 # Fine tune cassandra cluster, cassandra specific cluster properties goes into this file
-cluster_name: ankus_cassandra
-data_file_directories:
+cassandra_cluster_name: ankus_cassandra
+cassandra_data_file_directories:
     - /cassandra/data
-commitlog_directory: /cassandra/commitlog
-saved_caches_directory: /cassandra/saved_caches
-num_tokens: 256
-authenticator: AllowAllAuthenticator
-authorizer: AllowAllAuthorizer
-partitioner: org.apache.cassandra.dht.Murmur3Partitioner
-disk_failure_policy: stop
+cassandra_commitlog_directory: /cassandra/commitlog
+cassandra_saved_caches_directory: /cassandra/saved_caches
+cassandra_num_tokens: 256
+cassandra_authenticator: AllowAllAuthenticator
+cassandra_authorizer: AllowAllAuthorizer
+cassandra_partitioner: org.apache.cassandra.dht.Murmur3Partitioner
+cassandra_disk_failure_policy: stop
