@@ -112,9 +112,10 @@ slave_nodes_count: 3
 # Cassandra Cluster Configuration
 #  cassandra_deploy: specifies the deployment of cassandra cluster
 #                    possible values: Hash (or) disabled
-#  hadoop_collocation: whether to collocate hadoop slave daemons and cassandra daemons
+#  hadoop_colocation: whether to colocate hadoop slave daemons and cassandra daemons
 #  number_of_instances: number of cassandra instances to launch(not required when
 #                       collocation instances)
+#  number_of_seeds: number of nodes to use as seeds, choosen randomly (defaults: 1)
 #
 # ===============DEPLOYMENT SCENARIO 1==================
 #  TO DEPLOY CASSANDRA (on same nodes as hadoop workers)
@@ -128,6 +129,7 @@ slave_nodes_count: 3
 #cassandra_deploy:
 # hadoop_colocation: no
 # number_of_instances: 5
+# number_of_seeds: 2
 #
 # ===============DEPLOYMENT SCENARIO 3==================
 #           DISABLE CASSANDRA DEPLOYMENT
