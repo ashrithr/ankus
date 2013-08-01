@@ -191,10 +191,13 @@ module Ankus
         parsed_hash[:hadoop_deploy][:journal_quorum]  = nodes_hash.map { |k,v| v.first if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
         parsed_hash[:hbase_deploy][:hbase_master]     = nodes_hash.map { |k,v| v.first if k =~ /hbasemaster/ }.compact if parsed_hash[:hbase_deploy] != 'disabled'
       end
-      if parsed_hash[:cassandra_deploy] != 'disabled' and ! parsed_hash[:cassandra_deploy][:hadoop_colocation]
-        parsed_hash[:cassandra_deploy][:cassandra_nodes] = nodes_hash.map { |k,v| v.first if k =~ /cassandra/ }.compact
-      elsif parsed_hash[:cassandra_deploy] != 'disabled' and parsed_hash[:cassandra_deploy][:hadoop_colocation]
-        parsed_hash[:cassandra_deploy][:cassandra_nodes] = nodes_hash.map { |k,v| v.first if k =~ /slaves/ }.compact
+      if parsed_hash[:cassandra_deploy] != 'disabled'
+        parsed_hash[:cassandra_deploy][:cassandra_nodes] =  if ! parsed_hash[:cassandra_deploy][:hadoop_colocation]
+                                                              nodes_hash.map { |k,v| v.first if k =~ /cassandra/ }.compact
+                                                            elsif parsed_hash[:cassandra_deploy][:hadoop_colocation]
+                                                              nodes_hash.map { |k,v| v.first if k =~ /slaves/ }.compact
+                                                            end
+        parsed_hash[:cassandra_deploy][:cassandra_seeds] = Array.new(parsed_hash[:cassandra_deploy][:number_of_seeds]){|i| parsed_hash[:cassandra_deploy][:cassandra_nodes][i] }
       end
 
       # hash with internal ips
@@ -214,10 +217,13 @@ module Ankus
           parsed_hash_internal_ips[:hadoop_deploy][:journal_quorum] = nodes_hash.map { |k,v| v.last if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
           parsed_hash_internal_ips[:hbase_deploy][:hbase_master]    = nodes_hash.map { |k,v| v.last if k =~ /hbasemaster/ }.compact if parsed_hash[:hbase_deploy] != 'disabled'
         end
-        if parsed_hash[:cassandra_deploy] != 'disabled' and ! parsed_hash[:cassandra_deploy][:hadoop_colocation]
-          parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes] = nodes_hash.map { |k,v| v.last if k =~ /cassandra/ }.compact
-        elsif parsed_hash[:cassandra_deploy] != 'disabled' and parsed_hash[:cassandra_deploy][:hadoop_colocation]
-          parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes] = nodes_hash.map { |k,v| v.last if k =~ /slaves/ }.compact
+        if parsed_hash[:cassandra_deploy] != 'disabled'
+          parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes] = if ! parsed_hash[:cassandra_deploy][:hadoop_colocation]
+                                                                            nodes_hash.map { |k,v| v.last if k =~ /cassandra/ }.compact
+                                                                          elsif parsed_hash[:cassandra_deploy][:hadoop_colocation]
+                                                                            nodes_hash.map { |k,v| v.last if k =~ /slaves/ }.compact
+                                                                          end
+          parsed_hash_internal_ips[:cassandra_deploy][:cassandra_seeds] = Array.new(parsed_hash[:cassandra_deploy][:number_of_seeds]){|i| parsed_hash[:cassandra_deploy][:cassandra_nodes][i] }
         end
       elsif @provider == 'rackspace' # fqdn
         parsed_hash_internal_ips[:ssh_key] = File.split(File.expand_path(@credentials[:rackspace_ssh_key])).first + '/' +
@@ -236,10 +242,13 @@ module Ankus
           parsed_hash_internal_ips[:hadoop_deploy][:journal_quorum] = nodes_hash.map { |k,_| k if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
           parsed_hash_internal_ips[:hbase_deploy][:hbase_master]    = nodes_hash.map { |k,_| k if k =~ /hbasemaster/ }.compact if parsed_hash[:hbase_deploy] != 'disabled'
         end
-        if parsed_hash[:cassandra_deploy] != 'disabled' and ! parsed_hash[:cassandra_deploy][:hadoop_colocation]
-          parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes] = nodes_hash.map { |k,_| k if k =~ /cassandra/ }.compact
-        elsif parsed_hash[:cassandra_deploy] != 'disabled' and parsed_hash[:cassandra_deploy][:hadoop_colocation]
-          parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes] = nodes_hash.map { |k,_| k if k =~ /slaves/ }.compact
+        if parsed_hash[:cassandra_deploy] != 'disabled'
+          parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes] = if ! parsed_hash[:cassandra_deploy][:hadoop_colocation]
+                                                                            nodes_hash.map { |k,_| k if k =~ /cassandra/ }.compact
+                                                                          elsif parsed_hash[:cassandra_deploy][:hadoop_colocation]
+                                                                            nodes_hash.map { |k,_| k if k =~ /slaves/ }.compact
+                                                                          end
+          parsed_hash_internal_ips[:cassandra_deploy][:cassandra_seeds] = Array.new(parsed_hash[:cassandra_deploy][:number_of_seeds]){|i| parsed_hash[:cassandra_deploy][:cassandra_nodes][i] }
         end
       end
       parsed_hash_internal_ips[:storage_dirs] = parsed_hash[:storage_dirs]
