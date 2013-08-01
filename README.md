@@ -122,7 +122,7 @@ Ankus is a configuration based deployment platform, so deployments should be spe
 	```
 	which will deploy cluster as specified in the configuration. Deployment includes creating instances in the cloud, creating/mounting volumes and installing/configuring respective roles. This might take around *30-45 mins* for the deployment to complete based on the type of deployment.
 
-	Once the deployment is complete, ankuscli will show the overview of cluster
+	Once the deployment is complete, ankus will show the overview of cluster
 5. Once deployment is complete you can see the cluster information using the following command
 
 	```
@@ -151,7 +151,7 @@ Ankus is a configuration based deployment platform, so deployments should be spe
 	```
 	bin/ankus ssh --role namenode
 	```
-9. Also, down the line once you have completed your work with cluster in the cloud, you can tell ankuscli to destroy the cluster using
+9. Also, down the line once you have completed your work with cluster in the cloud, you can tell ankus to destroy the cluster using
 
 	```
 	bin/ankus destroy
