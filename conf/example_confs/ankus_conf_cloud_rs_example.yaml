@@ -1,6 +1,6 @@
 ---
 ########################################################
-#            AnkusCLI Cloud Configuration
+#          Ankus RackSpace Cloud Configuration
 ########################################################
 install_mode: 'cloud'
 

@@ -1,6 +1,6 @@
 ---
 ########################################################
-#          AnkusCLI AWS Cloud Configuration
+#           Ankus AWS Cloud Configuration
 ########################################################
 install_mode: 'cloud'
 
@@ -19,7 +19,7 @@ cloud_credentials:
   aws_secret_key: ''                                    #<<<<<<<<<<<<<< FILL THIS
   aws_machine_type: 'm1.large'
   aws_region: 'us-west-1'
-  aws_key: 'ankuscli'
+  aws_key: 'ankus'
 ##type of os to boot into cloud instances (supported: CentOS|Ubuntu)
 cloud_os_type: CentOS
 

@@ -102,7 +102,7 @@ module Ankus
       HBaseConfigParser.new(HBASE_CONF, options[:debug])
     end
 
-    # Creates a object to interface with ankuscli cloud interactions
+    # Creates a object to interface with ankus cloud interactions
     def create_cloud_obj(parsed_hash)
       Cloud.new(
           parsed_hash[:cloud_platform],
@@ -452,7 +452,7 @@ module Ankus
       end
       cluster_info << "\n"
       (login_info ||= '') << "\r" << 'Login Information'.underline << "\n"
-      login_info << "\r" << ' *'.cyan << " ssh into nodes using: ankuscli ssh <role> \n" << "\r\t Ex: ankuscli ssh controller\n"
+      login_info << "\r" << ' *'.cyan << " ssh into nodes using: ankus ssh <role> \n" << "\r\t Ex: ankus ssh controller\n"
       if parsed_hash[:install_mode] == 'cloud'
         if parsed_hash[:cloud_platform] == 'aws'
           login_info << "\r" << " (or) using `ssh -i ~/.ssh/#{parsed_hash[:cloud_credentials][:aws_key]} username@host`\n"
