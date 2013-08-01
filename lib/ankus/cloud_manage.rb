@@ -254,7 +254,7 @@ module Ankus
     # @return [Hash] results => { 'instance_tag' => [public_dns_name, private_dns_name], ... }
     def create_on_aws(nodes_to_create, credentials, thread_pool_size)
       #defaults
-      threads_pool    = Ankuscli::ThreadPool.new(thread_pool_size)
+      threads_pool    = Ankus::ThreadPool.new(thread_pool_size)
       key             = credentials[:aws_key] || 'ankus'
       groups          = credentials[:aws_sec_groups] || %w(ankus)
       flavor_id       = credentials[:aws_machine_type] || 'm1.large'

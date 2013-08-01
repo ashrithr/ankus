@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # ---
-# Convenience wrapper to install ankuscli
+# Convenience wrapper to install ankus
 # ---
 
 #TODO handle ubuntu as well
