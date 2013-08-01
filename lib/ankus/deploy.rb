@@ -388,8 +388,20 @@ module Ankus
             puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_secondarynamenode], puppet_run_cmd, 'secondary_namenode') unless hadoop_ha == 'enabled'
           end
 
-          # init puppet agent on slave nodes
-          puppet_parallel_run(@parsed_hash[:slave_nodes], puppet_run_cmd, 'slaves')
+          # init puppet agent on slave nodes and cassandra nodes
+            # if hadoop and cassandra nodes are not colocated, initialize cassandra nodes separetly and then slaves
+          if cassandra_install != 'disabled' and ! @parsed_hash[:cassandra_deploy][:hadoop_colocation]
+            puppet_parallel_run(@parsed_hash[:cassandra_deploy][:cassandra_seeds], puppet_run_cmd, 'cassandra seed nodes')
+            puppet_parallel_run(@parsed_hash[:cassandra_deploy][:cassandra_nodes], puppet_run_cmd, 'cassandra nodes')
+            puppet_parallel_run(@parsed_hash[:slave_nodes], puppet_run_cmd, 'slaves')
+          elsif cassandra_install != 'disabled' and @parsed_hash[:cassandra_deploy][:hadoop_colocation]
+            # if hadoop and cassandra nodes are colocated, initialize cassandra seeds and then rest of nodes
+            puppet_parallel_run(@parsed_hash[:cassandra_deploy][:cassandra_seeds], puppet_run_cmd, 'cassandra seed nodes')
+            puppet_parallel_run(@parsed_hash[:slave_nodes], puppet_run_cmd, 'slaves')
+          else
+            # regular hadoop and hbase workers
+            puppet_parallel_run(@parsed_hash[:slave_nodes], puppet_run_cmd, 'slaves')
+          end
 
           # hbasemasters need service refresh after region servers came online
           if @parsed_hash[:hbase_deploy] != 'disabled'
@@ -402,10 +414,6 @@ module Ankus
               puppet_parallel_run(hbase_master, puppet_run_cmd, 'hbasemasters')
             end
           end
-        end
-
-        if cassandra_install != 'disabled' and ! @parsed_hash[:cassandra_deploy][:hadoop_colocation]
-          puppet_parallel_run(@parsed_hash[:cassandra_deploy][:cassandra_nodes], puppet_run_cmd, 'cassandra_nodes')
         end
 
         # finalize puppet run on controller to refresh nagios

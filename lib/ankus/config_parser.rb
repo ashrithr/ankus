@@ -680,6 +680,14 @@ module Ankus
             puts '[Error]: '.red + "Excepting list (array) of nodes for 'cassandra_nodes'"
             @errors_count += 1
           end
+          cassandra_seeds = cassandra_deploy[:cassandra_seeds]
+          if cassandra_seeds.nil? or cassandra_seeds.empty?
+            puts '[Error]: '.red + "'cassandra_seeds' should contain list of fqdn(s) which act as cassandra seed nodes"
+            @errors_count += 1
+          elsif ! cassandra_seeds.is_a? Array
+            puts '[Error]: '.red + "Excepting list (array) of fqdn(s) for 'cassandra_seeds'"
+            @errors_count += 1
+          end
         end
       else
         if cassandra_deploy != 'disabled'
@@ -693,13 +701,21 @@ module Ankus
           end
           if hadoop_colocation == 'no'
             number_of_instances = cassandra_deploy[:number_of_instances]
-            if number_of_instances.empty? or number_of_instances.nil?
+            if number_of_instances.nil?
               puts '[Error]: '.red + "'number_of_instances' is a required param for cassandra_deploy"
               @errors_count += 1
             elsif ! number_of_instances.is_a? Numeric
               puts '[Error]: '.red + "expecting numeric value for 'number_of_instances' in cassandra_deploy"
               @errors_count += 1
             end
+          end
+          cassandra_seeds_count = cassandra_deploy[:number_of_seeds]
+          if cassandra_seeds_count.nil?
+            puts '[Debug]: ' + "'number_of_seeds' is not provided cassandra_deploy defaulting to 1"
+            hash_to_validate[:cassandra_deploy][:number_of_seeds] = 1
+          elsif ! cassandra_seeds_count.is_a? Numeric
+            puts '[Error]: '.red + "expecting numeric value for 'number_of_seeds' in cassandra_deploy"
+            @errors_count += 1
           end
         end
       end

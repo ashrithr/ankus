@@ -327,10 +327,13 @@ module Ankus
                     else
                       'disabled'
                     end
+      cassandra_deploy =  parsed_hash[:cassandra_deploy] != 'disabled' ? 'enabled' : 'disabled'
+
       (cluster_info ||= '') << 'Ankus Cluster Info'.yellow_on_cyan.bold.underline << "\n"
       cluster_info << "\r" << ' #'.green << " Hadoop High Availability Configuration: #{parsed_hash[:hadoop_deploy][:hadoop_ha]} \n"
       cluster_info << "\r" << ' #'.green << " MapReduce Framework: #{mapreduce} \n"
       cluster_info << "\r" << ' #'.green << " HBase Deploy: #{hbase_deploy} \n"
+      cluster_info << "\r" << ' #'.green << " Cassandra Deploy: #{cassandra_deploy} \n"
       cluster_info << "\r" << ' #'.green << " Security: #{parsed_hash[:security]} \n"
       cluster_info << "\r" << ' #'.green << " Monitoring(with ganglia): #{parsed_hash[:monitoring]} \n"
       cluster_info << "\r" << ' #'.green << " Altering(with nagios): #{parsed_hash[:alerting]} \n"
@@ -345,6 +348,7 @@ module Ankus
         #cloud deployment mode
         cloud_instances = YamlUtils.parse_yaml(CLOUD_INSTANCES)
 
+        # controller, nagios, ganglia and logstash
         controller = Hash[cloud_instances.select { |k, _| k.include? 'controller'}].values.first
         cluster_info << "\r" << ' *'.cyan << " Controller: #{controller.first} \n"
         urls << "\r" << ' %'.black << " Ganglia: http://#{controller.first}/ganglia \n" if parsed_hash[:monitoring] == 'enabled'
@@ -405,6 +409,19 @@ module Ankus
           cloud_instances.select { |k, _| k.include? 'slaves' }.each do |k, v|
             cluster_info << "\r" << "\t" << '- '.cyan << "#{k.capitalize}: #{v.first}" << "\n"
           end
+          if cassandra_deploy != 'disabled'
+            cluster_info << "\r" << ' *'.cyan << " Cassandra Nodes: \n"
+            if parsed_hash[:cassandra_deploy][:hadoop_colocation]
+              #if both hadoop and cassandra is colocated, print slaves
+              cloud_instances.select { |k, _| k.include? 'slaves' }.each do |k, v|
+                cluster_info << "\r" << "\t" << '- '.cyan << "#{v.first}" << "\n"
+              end
+            else
+              cloud_instances.select { |k, _| k.include? 'cassandra' }.each do |k, v|
+                cluster_info << "\r" << "\t" << '- '.cyan << "#{v.first}" << "\n"
+              end
+            end
+          end
         end
       else
         #local deployment mode
@@ -447,6 +464,12 @@ module Ankus
           cluster_info << "\r" << ' *'.cyan << " Slaves: \n"
           parsed_hash[:slave_nodes].each do |slave|
             cluster_info << "\r" << "\t" << '- '.cyan << slave << "\n"
+          end
+          if parsed_hash[:cassandra_deploy] != 'disabled'
+            cluster_info << "\r" << ' *'.cyan << " Cassandra Node(s): \n"
+            parsed_hash[:cassandra_deploy][:cassandra_nodes].each do |cn|
+              cluster_info << "\r" << "\t" << '- '.cyan << cn << "\n"
+            end
           end
         end
       end
