@@ -17,8 +17,8 @@ install_mode: 'cloud'
 ########################################################
 cloud_platform: rackspace
 cloud_credentials:
-  rackspace_username: ''
-  rackspace_api_key: ''
+  rackspace_username: ''                         #<<<<<<<<<<<<<< FILL THIS
+  rackspace_api_key: ''                          #<<<<<<<<<<<<<< FILL THIS
   rackspace_instance_type: 5
   rackspace_ssh_key: '~/.ssh/id_rsa.pub'
   rackspace_cluster_identifier: 'ops'
@@ -26,32 +26,43 @@ cloud_os_type: CentOS
 
 ########################################################
 # Hadoop Cluster Configuration
+########################################################
 # hadoop_deploy: specifies whether to deploy hadoop or not
 #   hadoop_ha: specifies whether to deploy highly available hadoop cluster or not
 #   mapreduce: specifies whether to deploy mapreduce framework or not
 #     type: specifies mapreduce framework type to deploy (mr1 or mr2)
 #   hadoop_ecosystem: specifies list of tools to deploy (hive, pig, oozie, sqoop)
-# Example Configurations:
-# 1. To Disable hadoop (Warning: this will not deploy hadoop)
-#       hadoop_deploy: disabled
-# 2. To deploy hadoop with ha and mapreduce
-#       hadoop_deploy:
-#         hadoop_ha: 'enabled'
-#         mapreduce:
-#           type: mr1
-#         hadoop_ecosystem:
-#           - hive
-#           - sqoop
-#           - oozie
-#           - pig
-# 3. To deploy hadoop (hdfs) and not mapreduce (in scenarios like hbase)
-#       hadoop_deploy:
-#         hadoop_ha: 'enabled'
-#         mapreduce: 'disabled'
-#       (or)
-#       hadoop_deploy:
-#         hadoop_ha: 'disabled'
-#         mapreduce: 'disabled'
+#
+# ===============DEPLOYMENT SCENARIO 1==================
+#               TO DEPLOY HADOOP (NON-HA)
+# ======================================================
+#hadoop_deploy:
+#  hadoop_ha: 'disabled'
+#  mapreduce:
+#    type: mr1
+#  hadoop_ecosystem:
+#    - hive
+#    - sqoop
+#    - pig
+#
+# ===============DEPLOYMENT SCENARIO 2==================
+#               TO DEPLOY HADOOP WITH HA
+# ======================================================
+#hadoop_deploy:
+#  hadoop_ha: 'enabled'
+#  mapreduce:
+#    type: mr1
+#  hadoop_ecosystem:
+#    - hive
+#    - sqoop
+#    - pig
+#
+# ===============DEPLOYMENT SCENARIO 3==================
+#         TO DEPLOY HADOOP WITH NO MAPREDUCE
+# ======================================================
+#hadoop_deploy:
+#  hadoop_ha: 'disabled'
+#  mapreduce: 'disabled'
 ########################################################
 hadoop_deploy:
   hadoop_ha: 'disabled'
@@ -62,22 +73,29 @@ hadoop_deploy:
     - sqoop
     - pig
 
-
 ########################################################
 # HBase configuration
+########################################################
 # hbase_deploy: specifies whether to deploy a hbase cluster or not
 #   hbase_master_count: number of hbase master(s) nodes to deploy
-# Ex: 1. To disable hbase deployments
-#         hbase_deploy: disabled
-#     2. To enabled hbase deployments
-#         hbase_deploy:
-#           hbase_master_count: 2
+#
+# ===============DEPLOYMENT SCENARIO 1==================
+#                 TO DEPLOY HBASE
+# ======================================================
+#hbase_deploy:
+# hbase_master_count: 1
+#
+# ===============DEPLOYMENT SCENARIO 2==================
+#               DISABLE HBASE DEPLOYMENT
+# ======================================================
+#hbase_deploy: disabled
+#
 ########################################################
-hbase_deploy:
-  hbase_master_count: 1
+hbase_deploy: disabled
 
 ########################################################
 # Zookeeper Quorum Configuration
+########################################################
 # Required when hadoop_ha or hbase is enabled
 # zookeeper_quoram_count: specifies the number of zookeeper(s) to launch to coordinate
 #   services
@@ -98,68 +116,81 @@ slave_nodes_count: 3
 #  hadoop_collocation: whether to collocate hadoop slave daemons and cassandra daemons
 #  number_of_instances: number of cassandra instances to launch(not required when
 #                       collocation instances)
-# Ex: 1. To not to deploy cassandra
-#        cassandra_deploy: disabled
-#     2. To deploy and collocate hadoop and cassandra daemons
-#        cassandra_deploy:
-#           hadoop_collocation: yes
-#     3. To deploy and not to collocate hadoop and cassandra (this will create new instances
-#         specified by number_of_instances)
-#        cassandra_deploy:
-#           hadoop_collocation: no
-#           number_of_instances: 5
+#
+# ===============DEPLOYMENT SCENARIO 1==================
+#  TO DEPLOY CASSANDRA (on same nodes as hadoop workers)
+# ======================================================
+#cassandra_deploy:
+# hadoop_colocation: yes
+#
+# ===============DEPLOYMENT SCENARIO 2==================
+#           TO DEPLOY CASSANDRA (on new nodes)
+# ======================================================
+#cassandra_deploy:
+# hadoop_colocation: no
+# number_of_instances: 5
+#
+# ===============DEPLOYMENT SCENARIO 3==================
+#           DISABLE CASSANDRA DEPLOYMENT
+# ======================================================
+#cassandra_deploy: disabled
 ########################################################
-cassandra_deploy:
-  hadoop_collocation: no
-  number_of_instances: 5
+cassandra_deploy: disabled
 
-
+########################################################
+# VOLUMES
 ########################################################
 # Cloud Instances volumes configuration
 # volumes: configure extra volumes that are attached to worker instances
-#   type: type of the volumes to create, for aws: valid values are instances|ebs
+#   type: type of the volumes to create, for aws: valid values are instancestore|ebs
 #                                        for rackspace valid value is blockstore
 #   count: number of volumes to attach to a instance
 #   size: size of each volume in GB
-#
-# NOTE: rackspace instances default root partition depends on type of instance being
-#       selected. Following hash shows instance_type to disk size
+# NOTE: rackspace instances comes with prebuilt root partitions based on instance
+#       sizes as follows:
 #       {2=>{20Gb}, 3=>{40GB}, 4=>{80GB}, 5=>{160GB}, 6=>{320GB}, 7=>{620GB}, 8=>{1200GB}}
 #
-# Ex:
-# 1. To create and attach 4 volumes to each worker node in the cluster
-#   volumes:
-#     type: blockstore
-#     count: 4
-#     size: 100
-# 2. To disable creating new volumes
-#   volumes: disabled
+# ===============DEPLOYMENT SCENARIO 1==================
+#     CREATE AND ATTACH 4 VOLUMES TO WORKER NODE
+# ======================================================
+#volumes:
+# type: blockstore
+# count: 4
+# size: 100
+# ===============DEPLOYMENT SCENARIO 2==================
+#           DISABLE CREATING EXTRA VOLUMES
+# ======================================================
+#volumes: disabled
 ########################################################
 volumes: disabled
 
 ########################################################
-# General Instance Settings
-# slaves_nodes_storage_capacity: specifies disk size on slave_nodes in GB, min is 100 & max is 1024.
-#     If ignored no additional disks are created
+# Security
 ########################################################
-slave_nodes_storage_capacity: 0
-
-########################################################
-# Security Config
 # security => if configured sets up kerberos and integrates it with hadoop/hbase and its eco-system
 #   possible_values: simple => will not install kerberos
 #                    kerberos => will install kerberos
 # hadoop_kerberos_realm => if kerberos is enabled, enter a kerberos realm name
 # hadoop_kerberos_domain => if kerberos is enabled, enter a kerberos domain name
 #   (http://web.mit.edu/kerberos/krb5-1.5/krb5-1.5/doc/krb5-admin/domain_realm.html)
+#
+# ===============DEPLOYMENT SCENARIO 1==================
+#                DO NOT USE SECURITY
+# ======================================================
+#security: simple
+#
+# ===============DEPLOYMENT SCENARIO 2==================
+#          ENABLE SECURITY USING KERBEROS
+# ======================================================
+#security: kerberos
+# hadoop_kerberos_realm: ANKUS.COM
+# hadoop_kerberos_domain: ankus.com
 ########################################################
 security: simple
-# if security is kerberos please fill in the below options
-#hadoop_kerberos_realm: CW.COM
-#hadoop_kerberos_domain: cw.com
 
 ########################################################
 # Management Configuration
+########################################################
 # monitoring (enabled|disabled) => if enabled, ganglia will be setup and configured
 # alerting (enabled|disabled) => if enabled, nagios will be setup and configured to monitor
 # admin_email => required (if alerting is enabled), email address to send alters (notifications)
@@ -167,5 +198,5 @@ security: simple
 ########################################################
 monitoring: enabled
 alerting: disabled
-admin_email: 'admin@cw.com'
+admin_email: 'admin@cw.com'                             #<<<<<<<<<<<<<< FILL THIS
 log_aggregation: disabled

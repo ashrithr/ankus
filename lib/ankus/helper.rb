@@ -1,7 +1,7 @@
 =begin
-  Helper module for ankuscli
+  Helper module for ankus
 =end
-module Ankuscli
+module Ankus
   #Constants
   DATA_DIR          = File.expand_path(File.dirname(__FILE__) + '/../../.data')
   DEFAULT_CONFIG    = File.expand_path(File.dirname(__FILE__) + '/../../conf/ankus_conf.yaml')

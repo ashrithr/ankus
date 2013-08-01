@@ -3,7 +3,7 @@
   currently supported cloud platforms are aws and rackspace
 =end
 
-module Ankuscli
+module Ankus
   require 'erb'
 
   class Cloud
@@ -28,15 +28,15 @@ module Ankuscli
     end
 
     # Create a connection object to aws
-    # @return [Ankuscli::Aws]
+    # @return [Ankus::Aws]
     def create_aws_connection
-      Ankuscli::Aws.new @credentials[:aws_access_id], @credentials[:aws_secret_key], @credentials[:aws_region], @mock
+      Ankus::Aws.new @credentials[:aws_access_id], @credentials[:aws_secret_key], @credentials[:aws_region], @mock
     end
 
     # Create a connection object to rackspace
-    # @return [Ankuscli::Rackspace]
+    # @return [Ankus::Rackspace]
     def create_rackspace_connection
-      Ankuscli::Rackspace.new @credentials[:rackspace_api_key], @credentials[:rackspace_username], @mock
+      Ankus::Rackspace.new @credentials[:rackspace_api_key], @credentials[:rackspace_username], @mock
     end
 
     # Parse cloud_configuration; create instances and return instance mappings
@@ -49,8 +49,8 @@ module Ankuscli
       nodes_created   = {}
       nodes_to_create = {}
       #volume_count, volume_size = calculate_disks
-      volume_count    = @parsed_hash[:volumes][:count]
-      volume_size     = @parsed_hash[:volumes][:size]
+      volume_count    = @parsed_hash[:volumes] != 'disabled' ? @parsed_hash[:volumes][:count] : 0
+      volume_size     = @parsed_hash[:volumes] != 'disabled' ? @parsed_hash[:volumes][:size] : 0
 
       #create nodes to create
       nodes_to_create['controller'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
@@ -128,7 +128,7 @@ module Ankuscli
       node_created
     end
 
-    # Delete cloud instances created by ankuscli
+    # Delete cloud instances created by ankus
     # @param [Hash] nodes_hash => hash containing info about instances (as returned by Cloud#create_instances)
     # @param [Boolean] delete_volumes => specifies whether to delete volumes attached to instances as well
     def delete_instances(nodes_hash, delete_volumes = false)
@@ -246,17 +246,17 @@ module Ankuscli
       return parsed_hash, parsed_hash_internal_ips
     end
 
-    # Create servers on aws using Ankuscli::Aws
+    # Create servers on aws using Ankus::Aws
     # @param [Hash] nodes_to_create => hash of nodes to create with their info as shown below
     #      { 'node_tag' => { :os_type => cloud_os_type, :volumes => 2, :volume_size => 50 }, ... }
-    # @param [Hash] credentials: {  aws_access_id: '', aws_secret_key: '', aws_machine_type: 'm1.large', aws_region: 'us-west-1', aws_key: 'ankuscli'}
+    # @param [Hash] credentials: {  aws_access_id: '', aws_secret_key: '', aws_machine_type: 'm1.large', aws_region: 'us-west-1', aws_key: 'ankus'}
     # @param [Integer] thread_pool_size => size of the thread pool
     # @return [Hash] results => { 'instance_tag' => [public_dns_name, private_dns_name], ... }
     def create_on_aws(nodes_to_create, credentials, thread_pool_size)
       #defaults
       threads_pool    = Ankuscli::ThreadPool.new(thread_pool_size)
-      key             = credentials[:aws_key] || 'ankuscli'
-      groups          = credentials[:aws_sec_groups] || %w(ankuscli)
+      key             = credentials[:aws_key] || 'ankus'
+      groups          = credentials[:aws_sec_groups] || %w(ankus)
       flavor_id       = credentials[:aws_machine_type] || 'm1.large'
       aws             = create_aws_connection
       conn            = aws.create_connection
@@ -333,7 +333,7 @@ module Ankuscli
               tempfile.write(partition_script)
               tempfile.close
               # wait for the server to be ssh'able
-              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].dns_name, ssh_user, ssh_key)
+              Ankus::SshUtils.wait_for_ssh(server_objects[tag].dns_name, ssh_user, ssh_key)
               # upload and execute the partition script on the remote machine
               SshUtils.upload!(
                   tempfile.path,
@@ -344,7 +344,7 @@ module Ankuscli
                   22,
                   @debug
               )
-              output = Ankuscli::SshUtils.execute_ssh!(
+              output = Ankus::SshUtils.execute_ssh!(
                   "chmod +x /tmp/#{File.basename(tempfile.path)} && sudo sh -c '/tmp/#{File.basename(tempfile.path)} | tee /var/log/bootstrap_volumes.log'",
                   server_objects[tag].dns_name,
                   ssh_user,
@@ -361,7 +361,7 @@ module Ankuscli
               end
             else
               # if not waiting for mounting volumes, wait for instances to become sshable
-              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].dns_name, ssh_user, ssh_key)
+              Ankus::SshUtils.wait_for_ssh(server_objects[tag].dns_name, ssh_user, ssh_key)
             end
           end
         end
@@ -386,14 +386,14 @@ module Ankuscli
       results
     end
 
-    # Create servers on rackspace using Ankuscli::RackSpace
+    # Create servers on rackspace using Ankus::RackSpace
     # @param [Hash] nodes_to_create => hash of nodes to create with their info as shown below
     #      { 'node_tag' => { :os_type => cloud_os_type, :volumes => 2, :volume_size => 100 }, ... }
     # @param [Hash] #cloud_credentials: { rackspace_username: , rackspace_api_key: , rackspace_instance_type: ,rackspace_ssh_key: '~/.ssh/id_rsa.pub' }
     # @param [Integer] thread_pool_size => size of the thread pool
     # @return [Hash] results => { 'instance_tag(fqdn)' => [public_ip_address, private_ip_address], ... }
     def create_on_rackspace(nodes_to_create, credentials, thread_pool_size)
-      threads_pool        = Ankuscli::ThreadPool.new(thread_pool_size)
+      threads_pool        = Ankus::ThreadPool.new(thread_pool_size)
       api_key             = credentials[:rackspace_api_key]
       username            = credentials[:rackspace_username]
       machine_type        = credentials[:rackspace_instance_type] || 4
@@ -447,7 +447,7 @@ module Ankuscli
               tempfile.write(partition_script)
               tempfile.close
               # wait for the server to be ssh'able
-              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, ssh_user, File.expand_path(ssh_key_path))
+              Ankus::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, ssh_user, File.expand_path(ssh_key_path))
               # upload and execute the partition script on the remote machine
               SshUtils.upload!(
                   tempfile.path,
@@ -458,7 +458,7 @@ module Ankuscli
                   22,
                   @debug
               )
-              output = Ankuscli::SshUtils.execute_ssh!(
+              output = Ankus::SshUtils.execute_ssh!(
                   "chmod +x /tmp/#{File.basename(tempfile.path)} && sudo sh -c '/tmp/#{File.basename(tempfile.path)} | tee /var/log/bootstrap_volumes.log'",
                   server_objects[tag].public_ip_address,
                   ssh_user,
@@ -475,7 +475,7 @@ module Ankuscli
               end
             else
               # if not mounting volumes wait for instances to become available
-              Ankuscli::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, ssh_user, File.expand_path(ssh_key_path))
+              Ankus::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, ssh_user, File.expand_path(ssh_key_path))
             end
           end
         end

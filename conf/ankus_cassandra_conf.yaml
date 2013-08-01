@@ -10,3 +10,6 @@ cassandra_authenticator: AllowAllAuthenticator
 cassandra_authorizer: AllowAllAuthorizer
 cassandra_partitioner: org.apache.cassandra.dht.Murmur3Partitioner
 cassandra_disk_failure_policy: stop
+cassandra_max_heap: 4G
+cassandra_heap_newsize: 800M
+cassandra_jmx_port: 7199

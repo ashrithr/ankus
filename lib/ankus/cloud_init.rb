@@ -2,13 +2,13 @@
   Cloud initializer class to create cloud instances in aws, rackspace
   TODO accommodate for google cloud compute
 =end
-module Ankuscli
+module Ankus
   class Aws
-    # Create a new Ankuscli aws object
+    # Create a new Ankus aws object
     # @param [String] access_id => aws access_id
     # @param [String] secret_key => aws secret_key
     # @param [String] region => aws region to connect to
-    # @return [AnkusCli::Aws] aws connection object
+    # @return [Ankus::Aws] aws connection object
     def initialize(access_id, secret_key, region = 'us-west-1', mock = false)
       @aws_access_id  = access_id
       @aws_secret_key = secret_key
@@ -77,8 +77,8 @@ module Ankuscli
     # @return [Fog::Compute::AWS::Server] server object
     def create_server!(conn, instance_tag, opts = {})
       options = {
-          :key => 'ankuscli',
-          :groups => %w(ankuscli),
+          :key => 'ankus',
+          :groups => %w(ankus),
           :flavor_id => 'm1.medium',
           :os_type => 'CentOS',
           :num_of_vols => 0,
@@ -105,7 +105,7 @@ module Ankuscli
         #validate group, create if does not exist and ingest some basic rules
         options[:groups].each do |group|
           unless conn.security_groups.get(group)
-            conn.security_groups.create(:name => group, :description => 'group managed by ankuscli')
+            conn.security_groups.create(:name => group, :description => 'group managed by ankus')
           end
         end
         options[:groups].each do |group|
@@ -188,7 +188,7 @@ module Ankuscli
           )
           return server
         else
-          puts "\r[Error]: Provided OS not supported with ankuscli"
+          puts "\r[Error]: Provided OS not supported by Ankus yet!"
           exit 2
       end
     end
@@ -213,7 +213,7 @@ module Ankuscli
     end
 
     # Creates and attaches, volumes to instances
-    # @param [AnkusCli::Aws.new] conn => fog aws connection object
+    # @param [Ankus::Aws.new] conn => fog aws connection object
     # @param [Fog::Compute::AWS::Server] server => fog server object to which volumes should be attached to
     # @param [Integer] volumes => number of volumes to create
     # @param [Integer] size => size in GB for each volume
@@ -229,7 +229,7 @@ module Ankuscli
         conn.tags.create(
             :resource_id => volume.id,
             :key => 'Name',
-            :value => 'ankuscli'
+            :value => 'ankus'
         )
         conn.tags.create(
             :resource_id => volume.id,

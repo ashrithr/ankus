@@ -1,4 +1,4 @@
-module Ankuscli
+module Ankus
   require 'timeout'
   require 'net/ssh'
   require 'net/scp'

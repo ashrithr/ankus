@@ -1,9 +1,9 @@
 =begin
   Module to load settings from configuration files
-  Usage: Ankuscli::Settings.load!("config/appdata/example.yml")
-         Ankuscli::Settings.emails[:admin]
+  Usage: Ankus::Settings.load!("config/appdata/example.yml")
+         Ankus::Settings.emails[:admin]
 =end
-module Ankuscli
+module Ankus
   module Settings
 
     extend self
@@ -17,7 +17,7 @@ module Ankuscli
       rescue ArgumentError, Psych::SyntaxError
         puts "Failed parsing config file: #{$!}"
       end
-      raise(Ankuscli::Errors::ParseError.new("\rInvalid Yaml Syntax".red)) if ! loaded_file.is_a? Hash
+      raise(Ankus::Errors::ParseError.new("\rInvalid Yaml Syntax".red)) if ! loaded_file.is_a? Hash
       new_sets = loaded_file.deep_symbolize
       new_sets = new_sets[options[:env].to_sym] if options[:env] && new_sets[options[:env].to_sym]
       deep_merge!(@_settings, new_sets)
@@ -31,7 +31,7 @@ module Ankuscli
 
     # Magic happens here
     def method_missing(name, *args, &block)
-      @_settings[name.to_sym] || raise(Ankuscli::Errors::ParseError::NoKey, "unknown configuration key #{name}", caller)
+      @_settings[name.to_sym] || raise(Ankus::Errors::ParseError::NoKey, "unknown configuration key #{name}", caller)
     end
   end
 end

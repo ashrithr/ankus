@@ -1,9 +1,9 @@
-module Ankuscli
-  # Command line interface for ankuscli
+module Ankus
+  # Command line interface for ankus
   class CLI < Thor
-    require 'ankuscli/helper'
+    require 'ankus/helper'
 
-    include Ankuscli
+    include Ankus
 
     class_option :config,
                  :type => :string,
@@ -25,19 +25,19 @@ module Ankuscli
                  :desc => 'mock the creating of instances in cloud (debug mode)',
                  :default => false
 
-    desc 'parse', 'parse the config file for errors'
+    desc 'parse', 'Parse the config file for errors'
     def parse
       puts "Parsing config file '#{options[:config]}' ... "
       parse_config
       puts 'Parsing config file ... ' + '[OK]'.green.bold
     end
 
-    desc 'version', 'show the version'
+    desc 'version', 'Show the version'
     def version
-      puts "Ankus CLI Deployment Tool - Version: #{Ankuscli::VERSION}"
+      puts "Ankus Deployment Tool - Version: #{Ankus::VERSION}"
     end
 
-    desc 'deploy', 'deploy components specified in config'
+    desc 'deploy', 'Deploy components specified in config'
     method_option :add_nodes,
                   :desc => 'flag to specify whether to add nodes to the existing cluster',
                   :default => false
@@ -55,12 +55,12 @@ module Ankuscli
       initiate_deployment options
     end
 
-    desc 'refresh', 'reload the config files and update the configurations across the cluster'
+    desc 'refresh', 'Reload the config files and update the configurations across the cluster'
     def refresh
       reload_deployment
     end
 
-    desc 'info', 'show the cluster information deployed using ankuscli'
+    desc 'info', 'Show the cluster information deployed using ankus'
     method_option :extended,
                   :desc => 'show more information like slaves in the cluster',
                   :type => :boolean,
@@ -72,7 +72,7 @@ module Ankuscli
       deployment_info(@parsed_hash)
     end
 
-    desc 'ssh', 'ssh into instance'
+    desc 'ssh', 'SSH into instance'
     method_option :role, :required => true, :desc => 'role of the instance to ssh into'
     def ssh
       if @parsed_hash.nil? or @parsed_hash.empty?
@@ -81,7 +81,7 @@ module Ankuscli
       ssh_into_instance options[:role], @parsed_hash
     end
 
-    desc 'destroy', 'destroy the cluster (only valid for cloud deployments)'
+    desc 'destroy', 'Destroy the cluster (only valid for cloud deployments)'
     method_option :delete_volumes,
                   :type => :boolean,
                   :default => false,
@@ -312,7 +312,7 @@ module Ankuscli
       unless YamlUtils.parse_yaml(NODES_FILE).is_a? Hash
         puts 'No cluster details found'.red
         puts <<-EOS.undent
-          Deploy a cluster by running `ankuscli deploy`
+          Deploy a cluster by running `ankus deploy`
         EOS
         abort
       end
@@ -327,7 +327,7 @@ module Ankuscli
                     else
                       'disabled'
                     end
-      (cluster_info ||= '') << 'Ankuscli Cluster Info'.yellow_on_cyan.bold.underline << "\n"
+      (cluster_info ||= '') << 'Ankus Cluster Info'.yellow_on_cyan.bold.underline << "\n"
       cluster_info << "\r" << ' #'.green << " Hadoop High Availability Configuration: #{parsed_hash[:hadoop_deploy][:hadoop_ha]} \n"
       cluster_info << "\r" << ' #'.green << " MapReduce Framework: #{mapreduce} \n"
       cluster_info << "\r" << ' #'.green << " HBase Deploy: #{hbase_deploy} \n"

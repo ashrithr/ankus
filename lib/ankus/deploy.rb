@@ -1,8 +1,8 @@
-module Ankuscli
+module Ankus
   module Deploy
     require 'benchmark'
-    require 'ankuscli/helper'
-    include Ankuscli
+    require 'ankus/helper'
+    include Ankus
 
     # Class to manage puppet deployments
     class Puppet
