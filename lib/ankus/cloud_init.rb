@@ -381,7 +381,7 @@ module Ankus
       conn.tags.create(
           :resource_id  => server.id,
           :key          => 'Name',
-          :value        => "ankuscli-#{tag}"
+          :value        => "ankus-#{tag}"
       )
       conn.tags.create(
           :resource_id  => server.id,

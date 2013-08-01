@@ -18,15 +18,15 @@ install_mode: 'local'
 #             should have password less sudo privileges (you can make a user password-less sudo by adding the user
 #             to /etc/sudoers file like this `ssh_user  ALL = (ALL) NOPASSWD: ALL` )
 ########################################################
-ssh_key: '~/.ssh/id_rsa'                                #<<<<<<<<<<<<<< FILL THIS
-ssh_user: 'root'                                        #<<<<<<<<<<<<<< FILL THIS
+ssh_key: '~/.ssh/id_rsa'                                #<<<<<<<<<<<<<< UPDATE THIS
+ssh_user: 'root'                                        #<<<<<<<<<<<<<< UPDATE THIS
 
 ########################################################
 # Controller
 # * controller: hostname of the server which will host puppet master, kerberos server
 #   if security is enabled, nagios & ganglia servers if monitoring & altering are enabled.
 #   logstash indexer if log_aggregation is enabled this could be local host if running
-#   ankuscli from controller machine.
+#   ankus from controller machine.
 ########################################################
 controller: 'controller.ops.cw.com'
 

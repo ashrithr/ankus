@@ -11,7 +11,7 @@ module Ankus
     # @param [String] provider => Cloud service provider; aws|rackspace
     # @param [Hash] parsed_config => Configuration that has been already parsed from cloud_configuration file
     # @param [Hash] cloud_credentials => Credentials configurations
-    #     if aws: cloud_credentials => { aws_access_id: '', aws_secret_key: '', aws_machine_type: 'm1.large', aws_region: 'us-west-1', aws_key: 'ankuscli' }
+    #     if aws: cloud_credentials => { aws_access_id: '', aws_secret_key: '', aws_machine_type: 'm1.large', aws_region: 'us-west-1', aws_key: 'ankus' }
     #     if rackspace: cloud_credentials => { rackspace_username: '', rackspace_api_key: '', rackspace_instance_type: '', rackspace_ssh_key: '~/.ssh/id_rsa.pub' }
     # @param [Integer] thread_pool_size => number of threads to use to perform instance creation, volume attachements
     # @param [Boolean] debug => if enabled will print more info to stdout
