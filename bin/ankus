@@ -15,7 +15,7 @@ stty_save = `stty -g`.chomp
 #Start the app
 begin
   STDOUT.sync = true
-  Ankuscli::CLI.start
+  Ankus::CLI.start
   system('stty', stty_save) # Restore
 rescue Interrupt
   system('stty', stty_save) # Restore
