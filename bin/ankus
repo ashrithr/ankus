@@ -3,10 +3,10 @@
 $LOAD_PATH.unshift(File.dirname(__FILE__) + '/../lib') unless $LOAD_PATH.include?(File.dirname(__FILE__) + '/../lib')
 
 begin
-  require 'ankuscli'
+  require 'ankus'
 rescue LoadError
   require 'rubygems'
-  require 'ankuscli'
+  require 'ankus'
 end
 
 # Store the state of the terminal
