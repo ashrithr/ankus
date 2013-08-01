@@ -174,9 +174,8 @@ security: simple
 # Cassandra Cluster Configuration
 #  cassandra_deploy: specifies the deployment of cassandra cluster
 #                    possible values: Hash (or) disabled
-#  hadoop_collocation: whether to collocate hadoop slave daemons and cassandra daemons
-#  number_of_instances: number of cassandra instances to launch(not required when
-#                       collocation instances)
+#   cassandra_nodes: nodes on which cassandra is deployed and managed
+#   cassandra_seeds: list of cassandra seed nodes
 # (NOTE: cassandra_nodes and hadoop_slave_nodes can co-exist if willing to sacrifice performance)
 #
 # Example Configurations:
@@ -184,8 +183,12 @@ security: simple
 # cassandra_deploy:
 #   cassandra_nodes:
 #     - 'cassandra001.ops.cw.com'
-#     - 'cassandra001.ops.cw.com'
-#     - 'cassandra001.ops.cw.com'
+#     - 'cassandra002.ops.cw.com'
+#     - 'cassandra003.ops.cw.com'
+#     - 'cassandra004.ops.cw.com'
+#     - 'cassandra005.ops.cw.com'
+#   cassandra_seeds:
+#     - 'cassandra002.ops.cw.com'
 #
 # 2. Not to deploy cassandra
 # cassandra_deploy: 'disabled'
