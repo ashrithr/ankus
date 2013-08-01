@@ -1,6 +1,6 @@
-module Ankuscli
+module Ankus
   module Inventory
-    include Ankuscli
+    include Ankus
     # Manages server inventory based on the hash passed from configuration parser
     class Manager
 

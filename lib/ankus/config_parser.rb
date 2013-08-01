@@ -1,9 +1,9 @@
-module Ankuscli
+module Ankus
 
   # ConfigParser: parses the configuration file of ankus and returns a hash to process upon
   class ConfigParser
-    require 'ankuscli/helper'
-    include Ankuscli
+    require 'ankus/helper'
+    include Ankus
 
     # Creates a configParser object with specified file_path, and a parsed_hash object
     # @param [String] file_path => path to the configuration file to parse
@@ -23,11 +23,11 @@ module Ankuscli
       unless @errors_count == 0
         puts "\rNumber of Errors: #{@errors_count}"
         puts 'Parsing config file ... ' + '[Failed]'.red.bold
-        raise(Ankuscli::Errors::ParseError.new("\rParsing Configuration Failed".red))
+        raise(Ankus::Errors::ParseError.new("\rParsing Configuration Failed".red))
       end
       create_req_files
       @parsed_hash
-    rescue Ankuscli::Errors::ParseError, Ankuscli::Errors::ParseError::NoKey
+    rescue Ankus::Errors::ParseError, Ankus::Errors::ParseError::NoKey
       puts "#{$!.message} (#{$!.class})"
       exit
     rescue
@@ -70,7 +70,7 @@ module Ankuscli
       end
     end
 
-    # Creates set of files and directories required by ankuscli
+    # Creates set of files and directories required by ankus
     def create_req_files
       Dir.mkdir DATA_DIR                unless File.exists? DATA_DIR
       FileUtils.touch NODES_FILE        unless File.exists? NODES_FILE
@@ -139,7 +139,7 @@ module Ankuscli
         end
       end
       all_nodes.each do |node|
-        unless Ankuscli::PortUtils.port_open?(node, 22, 2)
+        unless Ankus::PortUtils.port_open?(node, 22, 2)
           puts '[Error]: '.red + "Node: #{node} is not reachable"
           @errors_count += 1
         end

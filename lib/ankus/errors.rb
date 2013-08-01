@@ -1,4 +1,4 @@
-module Ankuscli
+module Ankus
   module Errors
     class Error < StandardError
       attr_accessor :verbose
@@ -10,8 +10,8 @@ module Ankuscli
         new_error
       end
     end
-    class NotImplemented < Ankuscli::Errors::Error; end
-    class ParseError < Ankuscli::Errors::Error; end
-    class ParseError::NoKey < Ankuscli::Errors::Error; end
+    class NotImplemented < Ankus::Errors::Error; end
+    class ParseError < Ankus::Errors::Error; end
+    class ParseError::NoKey < Ankus::Errors::Error; end
   end
 end

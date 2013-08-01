@@ -18,8 +18,8 @@ install_mode: 'local'
 #             should have password less sudo privileges (you can make a user password-less sudo by adding the user
 #             to /etc/sudoers file like this `ssh_user  ALL = (ALL) NOPASSWD: ALL` )
 ########################################################
-ssh_key: '~/.ssh/ruby-sample-1363113606'
-ssh_user: 'root'
+ssh_key: '~/.ssh/id_rsa'                                #<<<<<<<<<<<<<< FILL THIS
+ssh_user: 'root'                                        #<<<<<<<<<<<<<< FILL THIS
 
 ########################################################
 # Controller

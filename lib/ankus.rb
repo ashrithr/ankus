@@ -24,16 +24,16 @@ rescue LoadError
   require 'spinning_cursor'
 end
 
-module Ankuscli
-  require 'ankuscli/settings'
-  require 'ankuscli/version'
-  require 'ankuscli/helper'
-  require 'ankuscli/config_parser'
-  require 'ankuscli/cli'
-  require 'ankuscli/inventory'
-  require 'ankuscli/utils'
-  require 'ankuscli/cloud_init'
-  require 'ankuscli/cloud_manage'
-  require 'ankuscli/deploy'
-  require 'ankuscli/errors'
+module Ankus
+  require 'ankus/settings'
+  require 'ankus/version'
+  require 'ankus/helper'
+  require 'ankus/config_parser'
+  require 'ankus/cli'
+  require 'ankus/inventory'
+  require 'ankus/utils'
+  require 'ankus/cloud_init'
+  require 'ankus/cloud_manage'
+  require 'ankus/deploy'
+  require 'ankus/errors'
 end
