@@ -129,6 +129,12 @@ module Ankus
                 ip_permission['ipProtocol'] == 'udp' &&
                 ip_permission['toPort'] == 65535
           end
+          open_all_icmp = sec_group.ip_permissions.detect do |ip_permission|
+            ip_permission['ipRanges'].first && ip_permission['ipRanges'].first['cidrIp'] == '0.0.0.0/0' &&
+                ip_permission['fromPort'] == -1 &&
+                ip_permission['ipProtocol'] == 'icmp' &&
+                ip_permission['toPort'] == -1
+          end
           open_icmp_echo_req = sec_group.ip_permissions.detect do |ip_permission|
             ip_permission['ipRanges'].first && ip_permission['ipRanges'].first['cidrIp'] == '0.0.0.0/0' &&
                 ip_permission['fromPort'] == 0 &&
@@ -151,11 +157,13 @@ module Ankus
           unless open_all_udp
             sec_group.authorize_port_range(0..65535, {:ip_protocol => 'udp'})
           end
-          unless open_icmp_echo_req
-            sec_group.authorize_port_range(0..-1, {:ip_protocol => 'icmp'})
-          end
-          unless open_icmp_echo_rep
-            sec_group.authorize_port_range(8..-1, {:ip_protocol => 'icmp'})
+          unless open_all_icmp
+            unless open_icmp_echo_req
+              sec_group.authorize_port_range(0..-1, {:ip_protocol => 'icmp'})
+            end
+            unless open_icmp_echo_rep
+              sec_group.authorize_port_range(8..-1, {:ip_protocol => 'icmp'})
+            end
           end
         end
       end
