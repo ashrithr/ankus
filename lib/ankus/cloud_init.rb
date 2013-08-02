@@ -1,6 +1,7 @@
 =begin
   Cloud initializer class to create cloud instances in aws, rackspace
-  TODO accommodate for google cloud compute
+  TODO 1. accommodate for google cloud compute, openstack
+       2. move each class to their seperate files
 =end
 module Ankus
   class Aws
@@ -309,7 +310,10 @@ module Ankus
       end
       raise 'It took more than 10 mins for the servers to complete boot, this generally does not happen.'
     end
-
+    
+    # Terminates an instance on aws with provided instance id
+    # @param [Fog::Compute::AWS::Real] conn => fog aws connection object
+    # @param [String] instance_id => id of the instance to delete
     def delete_server_with_id(conn, instance_id)
       response = conn.servers.get(instance_id)
       abort "InstanceId Not found :#{instance_id}" unless response
@@ -320,7 +324,11 @@ module Ankus
         puts "\rTerminated Instance: #{instance_id}"
       end
     end
-
+    
+    # Terminates a instance on aws, also can detach and delete volumes attached to instances
+    # @param [Fog::Compute::AWS::Real] conn => fog aws connection object
+    # @param [String] dns_name => dns name of ec2 instance to terminate
+    # @param [Boolean] delete_volumes => specify whether to delete volumes attached to instances ot not
     def delete_server_with_dns_name(conn, dns_name, delete_volumes = false)
       block_mappings = []
       server = conn.servers.all('dns-name' => dns_name).first
