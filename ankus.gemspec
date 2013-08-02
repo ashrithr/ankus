@@ -1,14 +1,14 @@
 # coding: utf-8
 lib = File.expand_path('../lib', __FILE__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
-require 'ankuscli/version'
+require 'ankus/version'
 
 Gem::Specification.new do |spec|
-  spec.name          = 'ankuscli'
-  spec.version       = Ankuscli::VERSION
+  spec.name          = 'ankus'
+  spec.version       = Ankus::VERSION
   spec.authors       = ['ashrith']
   spec.email         = ['ashrith@cloudwick.com']
-  spec.summary       = %q{Command line interface for Ankus (big data deployment and management utility)}
+  spec.summary       = %q{Ankus is a big data deployment and management utility}
   spec.description   = "#{spec.summary}"
   spec.homepage      = ''
   spec.license       = 'MIT'

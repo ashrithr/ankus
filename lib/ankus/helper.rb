@@ -1,26 +1,38 @@
 =begin
-  Helper module for ankuscli
+  Helper module for ankus
 =end
-module Ankuscli
+module Ankus
   #Constants
-  DATA_DIR = File.expand_path(File.dirname(__FILE__) + '/../../.data')
-  DEFAULT_CONFIG = File.expand_path(File.dirname(__FILE__) + '/../../conf/ankus_conf.yaml')
-  NODES_FILE = "#{DATA_DIR}/nodes.yaml"
-  NODES_FILE_CLOUD = "#{DATA_DIR}/nodes_cloud.yaml"
-  CLOUD_INSTANCES = "#{DATA_DIR}/cloud_instances.yaml"
-  ENC_ROLES_FILE =  "#{DATA_DIR}/roles.yaml"
-  HIERA_DATA_FILE = "#{DATA_DIR}/common.yaml"
+  DATA_DIR          = File.expand_path(File.dirname(__FILE__) + '/../../.data')
+  DEFAULT_CONFIG    = File.expand_path(File.dirname(__FILE__) + '/../../conf/ankus_conf.yaml')
+  NODES_FILE        = "#{DATA_DIR}/nodes.yaml"
+  NODES_FILE_CLOUD  = "#{DATA_DIR}/nodes_cloud.yaml"
+  CLOUD_INSTANCES   = "#{DATA_DIR}/cloud_instances.yaml"
+  ENC_ROLES_FILE    =  "#{DATA_DIR}/roles.yaml"
+  HIERA_DATA_FILE   = "#{DATA_DIR}/common.yaml"
 
-  PUPPET_INSTALLER = File.expand_path(File.dirname(__FILE__) + '/../shell/puppet_installer.sh')
-  ENC_SCRIPT =  File.expand_path(File.dirname(__FILE__) + '/../../bin/ankus_puppet_enc')
-  GETOSINFO_SCRIPT = File.expand_path(File.dirname(__FILE__) + '../../shell/get_osinfo.sh')
-  HADOOP_CONF = File.expand_path(File.dirname(__FILE__) + '/../../conf/ankus_hadoop_conf.yaml')
-  HBASE_CONF = File.expand_path(File.dirname(__FILE__) + '/../../conf/ankus_hbase_conf.yaml')
-  ENC_PATH = %q(/etc/puppet/enc)
-  HIERA_DATA_PATH = %q(/etc/puppet/hieradata)
-  REMOTE_LOG_DIR = %q(/var/log/ankus)
+  PUPPET_INSTALLER  = File.expand_path(File.dirname(__FILE__) + '/../shell/puppet_installer.sh')
+  ENC_SCRIPT        = File.expand_path(File.dirname(__FILE__) + '/../../bin/ankus_puppet_enc')
+  GETOSINFO_SCRIPT  = File.expand_path(File.dirname(__FILE__) + '../../shell/get_osinfo.sh')
+  HADOOP_CONF       = File.expand_path(File.dirname(__FILE__) + '/../../conf/ankus_hadoop_conf.yaml')
+  HBASE_CONF        = File.expand_path(File.dirname(__FILE__) + '/../../conf/ankus_hbase_conf.yaml')
+  CASSANDRA_CONF    = File.expand_path(File.dirname(__FILE__) + '/../../conf/ankus_cassandra_conf.yaml')
+  ENC_PATH          = %q(/etc/puppet/enc)
+  HIERA_DATA_PATH   = %q(/etc/puppet/hieradata)
+  REMOTE_LOG_DIR    = %q(/var/log/ankus)
 
-  HOSTNAME_REGEX = /^(([a-zA-Z]|[a-zA-Z][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z]|[A-Za-z][A-Za-z0-9\-]*[A-Za-z0-9])$/
+  HOSTNAME_REGEX    = /^(([a-zA-Z]|[a-zA-Z][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z]|[A-Za-z][A-Za-z0-9\-]*[A-Za-z0-9])$/
+
+  ANKUS_CONF_MAIN_KEYS = [
+    :install_mode,
+    :hadoop_deploy,
+    :hbase_deploy,
+    :cassandra_deploy,
+    :security,
+    :monitoring,
+    :alerting,
+    :log_aggregation,
+  ]
 
   HADOOP_CONF_KEYS = %w{
     hadoop_heap_size
@@ -35,7 +47,6 @@ module Ankuscli
     hadoop_config_io_file_buffer_size
     hadoop_config_hadoop_tmp_dir
     hadoop_ha_nameservice_id
-    hadoop_data_dirs
     hadoop_config_dfs_replication
     hadoop_config_dfs_block_size
     hadoop_config_io_bytes_per_checksum
@@ -128,8 +139,29 @@ module Ankuscli
   }
 end
 
+# Monkey Patch some methods to ruby core classes
 class String
   def undent
     gsub(/^.{#{slice(/^ +/).length}}/, '')
+  end
+end
+
+class Hash
+  def deep_symbolize
+    target = dup
+    target.inject({}) do |memo, (key, value)|
+      value = value.deep_symbolize if value.is_a?(Hash)
+      memo[(key.to_sym rescue key) || key] = value
+      memo
+    end
+  end
+
+  def deep_stringify
+    target = dup
+    target.inject({}) do |memo, (key, value)|
+      value = value.deep_stringify if value.is_a?(Hash)
+      memo[(key.to_s rescue key) || key] = value
+      memo
+    end
   end
 end
