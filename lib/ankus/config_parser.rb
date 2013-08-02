@@ -699,10 +699,10 @@ module Ankus
             puts '[Error]: '.red + "invalid value found for 'hadoop_colocation', valid values are yes|no"
             @errors_count += 1
           end
-          if hadoop_colocation == 'no'
+          if ! hadoop_colocation
             number_of_instances = cassandra_deploy[:number_of_instances]
             if number_of_instances.nil?
-              puts '[Error]: '.red + "'number_of_instances' is a required param for cassandra_deploy"
+              puts '[Error]: '.red + "'number_of_instances' is a required param for cassandra_deploy if hadoop_colocation is disabled"
               @errors_count += 1
             elsif ! number_of_instances.is_a? Numeric
               puts '[Error]: '.red + "expecting numeric value for 'number_of_instances' in cassandra_deploy"
@@ -711,7 +711,7 @@ module Ankus
           end
           cassandra_seeds_count = cassandra_deploy[:number_of_seeds]
           if cassandra_seeds_count.nil?
-            puts '[Debug]: ' + "'number_of_seeds' is not provided cassandra_deploy defaulting to 1"
+            puts '[Debug]: ' + "'number_of_seeds' is not provided cassandra_deploy defaulting to 1" if @debug
             hash_to_validate[:cassandra_deploy][:number_of_seeds] = 1
           elsif ! cassandra_seeds_count.is_a? Numeric
             puts '[Error]: '.red + "expecting numeric value for 'number_of_seeds' in cassandra_deploy"
