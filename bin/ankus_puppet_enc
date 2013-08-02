@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 
 # ---
-# => Puppet external node classifier for ankuscli
+# => Puppet external node classifier for Ankus
 # ---
 require 'yaml'
 

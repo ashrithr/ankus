@@ -1,6 +1,6 @@
 ---
 ########################################################
-#            AnkusCLI Cloud Configuration
+#          Ankus RackSpace Cloud Configuration
 ########################################################
 install_mode: 'cloud'
 
@@ -9,15 +9,16 @@ install_mode: 'cloud'
 # cloud_credentials
 #   rackspace_username => username of the rackspace user account
 #   rackspace_api_key => api key of the rackspace user account
-#   rackspace_instance_type => type of instance to boot (2-512M, 3-1GB, 4-2GB, 5-4GB, 6-8GB, 7-15GB, 8-30G)
+#   rackspace_instance_type => type of instance to boot, list of instance types to RAM and vCPUs
+#             {2=>{512M, 1}, 3=>{1GB, 1}, 4=>{2GB, 2}, 5=>{4GB,2}, 6=>{8GB,4}, 7=>{15GB,6}, 8=>{30G,8}}
 #   ssh_key => ssh key path to inject into instances
 #   rackspace_cluster_identifier => unique name which differentiates other cluster (used for hostnames of instances)
 # cloud_os_type => type of os to boot into cloud instances (supported: CentOS|Ubuntu)
 ########################################################
 cloud_platform: rackspace
 cloud_credentials:
-  rackspace_username: ''
-  rackspace_api_key: ''
+  rackspace_username: ''                         #<<<<<<<<<<<<<< FILL THIS
+  rackspace_api_key: ''                          #<<<<<<<<<<<<<< FILL THIS
   rackspace_instance_type: 5
   rackspace_ssh_key: '~/.ssh/id_rsa.pub'
   rackspace_cluster_identifier: 'ops'
@@ -25,70 +26,173 @@ cloud_os_type: CentOS
 
 ########################################################
 # Hadoop Cluster Configuration
-# hadoop high availability configuration:
-#   enabled => hadoop ha is enabled with two namenode(s) with auto failover using zkfc
-#   disabled => hadoop ha is not setup and only one namenode will be installed and configured
-# zookeeper_quorum_count => number of zookeeper instances to deploy
 ########################################################
-hadoop_ha: 'enabled'
-zookeeper_quorum_count: 3
-
+# hadoop_deploy: specifies whether to deploy hadoop or not
+#   hadoop_ha: specifies whether to deploy highly available hadoop cluster or not
+#   mapreduce: specifies whether to deploy mapreduce framework or not
+#     type: specifies mapreduce framework type to deploy (mr1 or mr2)
+#   hadoop_ecosystem: specifies list of tools to deploy (hive, pig, oozie, sqoop)
+#
+# ===============DEPLOYMENT SCENARIO 1==================
+#               TO DEPLOY HADOOP (NON-HA)
+# ======================================================
+#hadoop_deploy:
+#  hadoop_ha: 'disabled'
+#  mapreduce:
+#    type: mr1
+#  hadoop_ecosystem:
+#    - hive
+#    - sqoop
+#    - pig
+#
+# ===============DEPLOYMENT SCENARIO 2==================
+#               TO DEPLOY HADOOP WITH HA
+# ======================================================
+#hadoop_deploy:
+#  hadoop_ha: 'enabled'
+#  mapreduce:
+#    type: mr1
+#  hadoop_ecosystem:
+#    - hive
+#    - sqoop
+#    - pig
+#
+# ===============DEPLOYMENT SCENARIO 3==================
+#         TO DEPLOY HADOOP WITH NO MAPREDUCE
+# ======================================================
+#hadoop_deploy:
+#  hadoop_ha: 'disabled'
+#  mapreduce: 'disabled'
 ########################################################
-# MapReduce Configuration
-#   type => type of mapreduce framework to setup,
-#           supported values mr1 (regular mapreduce) or mr2 (yarn)
-# Disabling mapreduce is possible, but not recommended
-# Ex: mapreduce: 'disabled'
-########################################################
-mapreduce:
-  type: 'mr1'
+hadoop_deploy:
+  hadoop_ha: 'disabled'
+  mapreduce:
+    type: mr1
+  hadoop_ecosystem:
+    - hive
+    - sqoop
+    - pig
 
 ########################################################
 # HBase configuration
-# hbase_install => Specify whether to deploy hbase or not
-#  if enabled will install hbase
-#  if disabled hbase will not be deployed
-# hbase_master_count => if hbase_install is enabled, specify number of hbase masters to deploy
 ########################################################
-hbase_install: disabled
-#hbase_master_count: 2
+# hbase_deploy: specifies whether to deploy a hbase cluster or not
+#   hbase_master_count: number of hbase master(s) nodes to deploy
+#
+# ===============DEPLOYMENT SCENARIO 1==================
+#                 TO DEPLOY HBASE
+# ======================================================
+#hbase_deploy:
+# hbase_master_count: 1
+#
+# ===============DEPLOYMENT SCENARIO 2==================
+#               DISABLE HBASE DEPLOYMENT
+# ======================================================
+#hbase_deploy: disabled
+#
+########################################################
+hbase_deploy: disabled
 
 ########################################################
-# Worker Nodes Configuration
-#  list of slave nodes on which datanode and tasktracker daemons will be installed. If hbase is enabled
-#  region servers are also installed on same instances.
-#  slave_nodes_count => number of worker nodes to deploy
-#  slave_nodes_storage_capacity => disk size on slave_nodes in GB, min is 100 & max is 1024.
-#                                  If ignored no additional disks are created
+# Zookeeper Quorum Configuration
 ########################################################
-slave_nodes_count: 5
-slave_nodes_storage_capacity: 0
+# Required when hadoop_ha or hbase is enabled
+# zookeeper_quoram_count: specifies the number of zookeeper(s) to launch to coordinate
+#   services
+########################################################
+zookeeper_quorum_count: 1
 
 ########################################################
-# Additional tools - hadoop ecosystem tools to install
+# Slaves specifications (required for hadoop or hbase deployments)
 ########################################################
-hadoop_ecosystem:
-  - hive
-  - sqoop
-  - pig
-  - oozie
+# list of slave nodes on which datanode and tasktracker daemons will be installed. If hbase is enabled
+# region servers are also installed on same instances.
+slave_nodes_count: 3
 
 ########################################################
-# Security Config
+# Cassandra Cluster Configuration
+#  cassandra_deploy: specifies the deployment of cassandra cluster
+#                    possible values: Hash (or) disabled
+#  hadoop_colocation: whether to colocate hadoop slave daemons and cassandra daemons
+#  number_of_instances: number of cassandra instances to launch(not required when
+#                       collocation instances)
+#  number_of_seeds: number of nodes to use as seeds, choosen randomly (defaults: 1)
+#
+# ===============DEPLOYMENT SCENARIO 1==================
+#  TO DEPLOY CASSANDRA (on same nodes as hadoop workers)
+# ======================================================
+#cassandra_deploy:
+# hadoop_colocation: yes
+#
+# ===============DEPLOYMENT SCENARIO 2==================
+#           TO DEPLOY CASSANDRA (on new nodes)
+# ======================================================
+#cassandra_deploy:
+# hadoop_colocation: no
+# number_of_instances: 6
+# number_of_seeds: 2
+#
+# ===============DEPLOYMENT SCENARIO 3==================
+#           DISABLE CASSANDRA DEPLOYMENT
+# ======================================================
+#cassandra_deploy: disabled
+########################################################
+cassandra_deploy: disabled
+
+########################################################
+# VOLUMES
+########################################################
+# Cloud Instances volumes configuration
+# volumes: configure extra volumes that are attached to worker instances
+#   type: type of the volumes to create, for aws: valid values are instancestore|ebs
+#                                        for rackspace valid value is blockstore
+#   count: number of volumes to attach to a instance
+#   size: size of each volume in GB
+# NOTE: rackspace instances comes with prebuilt root partitions based on instance
+#       sizes as follows:
+#       {2=>{20Gb}, 3=>{40GB}, 4=>{80GB}, 5=>{160GB}, 6=>{320GB}, 7=>{620GB}, 8=>{1200GB}}
+#
+# ===============DEPLOYMENT SCENARIO 1==================
+#     CREATE AND ATTACH 4 VOLUMES TO WORKER NODE
+# ======================================================
+#volumes:
+# type: blockstore
+# count: 4
+# size: 100
+# ===============DEPLOYMENT SCENARIO 2==================
+#           DISABLE CREATING EXTRA VOLUMES
+# ======================================================
+#volumes: disabled
+########################################################
+volumes: disabled
+
+########################################################
+# Security
+########################################################
 # security => if configured sets up kerberos and integrates it with hadoop/hbase and its eco-system
 #   possible_values: simple => will not install kerberos
 #                    kerberos => will install kerberos
 # hadoop_kerberos_realm => if kerberos is enabled, enter a kerberos realm name
 # hadoop_kerberos_domain => if kerberos is enabled, enter a kerberos domain name
 #   (http://web.mit.edu/kerberos/krb5-1.5/krb5-1.5/doc/krb5-admin/domain_realm.html)
+#
+# ===============DEPLOYMENT SCENARIO 1==================
+#                DO NOT USE SECURITY
+# ======================================================
+#security: simple
+#
+# ===============DEPLOYMENT SCENARIO 2==================
+#          ENABLE SECURITY USING KERBEROS
+# ======================================================
+#security: kerberos
+# hadoop_kerberos_realm: ANKUS.COM
+# hadoop_kerberos_domain: ankus.com
 ########################################################
 security: simple
-# if security is kerberos please fill in the below options
-#hadoop_kerberos_realm: CW.COM
-#hadoop_kerberos_domain: cw.com
 
 ########################################################
 # Management Configuration
+########################################################
 # monitoring (enabled|disabled) => if enabled, ganglia will be setup and configured
 # alerting (enabled|disabled) => if enabled, nagios will be setup and configured to monitor
 # admin_email => required (if alerting is enabled), email address to send alters (notifications)
@@ -96,5 +200,5 @@ security: simple
 ########################################################
 monitoring: enabled
 alerting: disabled
-admin_email: 'admin@cw.com'
+admin_email: 'admin@cw.com'                             #<<<<<<<<<<<<<< FILL THIS
 log_aggregation: disabled
