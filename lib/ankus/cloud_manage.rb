@@ -132,19 +132,26 @@ module Ankus
     # @param [Hash] nodes_hash => hash containing info about instances (as returned by Cloud#create_instances)
     # @param [Boolean] delete_volumes => specifies whether to delete volumes attached to instances as well
     def delete_instances(nodes_hash, delete_volumes = false)
+      threads_pool    = Ankus::ThreadPool.new(@thread_pool_size)
       if @parsed_hash[:cloud_platform] == 'aws'
         aws   = create_aws_connection
         conn  = aws.create_connection
         nodes_hash.each do |_, nodes_dns_map|
-          server_dns_name = nodes_dns_map.first
-          aws.delete_server_with_dns_name(conn, server_dns_name, delete_volumes)
+          threads_pool.schedule do
+            server_dns_name = nodes_dns_map.first
+            aws.delete_server_with_dns_name(conn, server_dns_name, delete_volumes)
+          end
         end
+        threads_pool.shutdown
       elsif @parsed_hash[:cloud_platform] == 'rackspace'
         rackspace = create_rackspace_connection
         conn      = rackspace.create_connection
         nodes_hash.each do |fqdn, _|
-          rackspace.delete_server_with_name(conn, fqdn)
+          threads_pool.schedule do
+            rackspace.delete_server_with_name(conn, fqdn)
+          end
         end
+        threads_pool.shutdown
       end
     end
 
@@ -359,14 +366,15 @@ module Ankus
                   ssh_user,
                   ssh_key,
                   22,
-                  @debug)
+                  false # we don't want output of formatting volumes to be printed in real time to stdout!!
+              )
               tempfile.unlink # delete the tempfile
               if @debug
-                printf "\r[Debug]: Stdout on #{server_objects[tag].dns_name}\n"
-                printf "\r#{output[server_objects[tag].dns_name][0]}\n"
-                prinft "\r[Debug]: Stderr on #{server_objects[tag].dns_name}\n"
-                printf "\r#{output[server_objects[tag].dns_name][1]}\n"
-                printf "\r[Debug]: Exit code from #{server_objects[tag].dns_name}: #{output[server_objects[tag].dns_name][2]}\n"
+                puts "\r[Debug]: Stdout on #{server_objects[tag].dns_name}"
+                puts "\r#{output[server_objects[tag].dns_name][0]}"
+                puts "\r[Debug]: Stderr on #{server_objects[tag].dns_name}"
+                puts "\r#{output[server_objects[tag].dns_name][1]}"
+                puts "\r[Debug]: Exit code from #{server_objects[tag].dns_name}: #{output[server_objects[tag].dns_name][2]}"
               end
             else
               # if not waiting for mounting volumes, wait for instances to become sshable
@@ -473,14 +481,14 @@ module Ankus
                   ssh_user,
                   File.expand_path(ssh_key_path),
                   22,
-                  @debug)
+                  false)
               tempfile.unlink # delete the tempfile
               if @debug
-                printf "\r[Debug]: Stdout on #{server_objects[tag].public_ip_address}\n"
-                printf "\r#{output[server_objects[tag].public_ip_address][0]}\n"
-                printf "\r[Debug]: Stdout on #{server_objects[tag].public_ip_address}\n"
-                printf "\r#{output[server_objects[tag].public_ip_address][1]}\n"
-                printf "\r[Debug]: Exit code from #{server_objects[tag].public_ip_address}: #{output[server_objects[tag].public_ip_address][2]}\n"
+                puts "\r[Debug]: Stdout on #{server_objects[tag].public_ip_address}"
+                puts "\r#{output[server_objects[tag].public_ip_address][0]}"
+                puts "\r[Debug]: Stdout on #{server_objects[tag].public_ip_address}"
+                puts "\r#{output[server_objects[tag].public_ip_address][1]}"
+                puts "\r[Debug]: Exit code from #{server_objects[tag].public_ip_address}: #{output[server_objects[tag].public_ip_address][2]}"
               end
             else
               # if not mounting volumes wait for instances to become available
