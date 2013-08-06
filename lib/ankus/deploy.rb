@@ -229,7 +229,7 @@ module Ankus
         #parse journal quorum
         if parsed_hash[:hadoop_deploy] != 'disabled'
           if parsed_hash[:hadoop_deploy][:hadoop_ha] != 'disabled' and parsed_hash[:hadoop_deploy][:journal_quorum]
-            hiera_hash['journal_quorum'] = parsed_hash[:hadoop_deploy][:journal_quorum].map { |jn| jn += ":8485" }.join(",")
+            hiera_hash['journal_quorum'] = parsed_hash[:hadoop_deploy][:journal_quorum].map { |jn| jn += ":8485" }.join(";")
           end
         end
         #parse nagios & ganglia
