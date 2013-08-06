@@ -213,21 +213,25 @@ module Ankus
         puts "\rGenerating hiera data required for puppet".blue
         #aggregate hadoop, hbase, all other related configurations in here into a common hash before writing out
         hiera_hash.merge!(parsed_hash.deep_stringify)
-        hiera_hash.merge!(YamlUtils.parse_yaml(HADOOP_CONF))
-        hiera_hash.merge!(YamlUtils.parse_yaml(HBASE_CONF))
-        hiera_hash.merge!(YamlUtils.parse_yaml(CASSANDRA_CONF))
-        #TODO add more configs
-        #parse zookeeper ensemble
-        if parsed_hash[:zookeeper_quorum]
-          hiera_hash['zookeeper_ensemble'] = parsed_hash[:zookeeper_quorum].map { |zk| zk += ":2181" }.join(",")
-          hiera_hash['zookeeper_class_ensemble'] = parsed_hash[:zookeeper_quorum].map { |zk| zk+=":2888:3888" }
+        hiera_hash.merge!(YamlUtils.parse_yaml(HADOOP_CONF))    if parsed_hash[:hadoop_deploy] != 'disabled'
+        hiera_hash.merge!(YamlUtils.parse_yaml(HBASE_CONF))     if parsed_hash[:hbase_deploy] != 'disabled'
+        hiera_hash.merge!(YamlUtils.parse_yaml(CASSANDRA_CONF)) if parsed_hash[:cassandra_deploy] != 'disabled'
+
+        if parsed_hash[:hadoop_deploy] != 'disabled' or parsed_hash[:hbase_deploy] != 'disabled'
+          #parse zookeeper ensemble
+          if parsed_hash[:zookeeper_quorum]
+            hiera_hash['zookeeper_ensemble'] = parsed_hash[:zookeeper_quorum].map { |zk| zk += ":2181" }.join(",")
+            hiera_hash['zookeeper_class_ensemble'] = parsed_hash[:zookeeper_quorum].map { |zk| zk+=":2888:3888" }
+          end
+          #parse num_of_workers
+          hiera_hash['number_of_nodes'] = parsed_hash[:slave_nodes].length
         end
         #parse journal quorum
-        if parsed_hash[:hadoop_deploy][:journal_quorum]
-          hiera_hash['journal_quorum'] = parsed_hash[:hadoop_deploy][:journal_quorum].map { |jn| jn += ":8485" }.join(",")
+        if parsed_hash[:hadoop_deploy] != 'disabled'
+          if parsed_hash[:hadoop_deploy][:hadoop_ha] != 'disabled' and parsed_hash[:hadoop_deploy][:journal_quorum]
+            hiera_hash['journal_quorum'] = parsed_hash[:hadoop_deploy][:journal_quorum].map { |jn| jn += ":8485" }.join(",")
+          end
         end
-        #parse num_of_workers
-        hiera_hash['number_of_nodes'] = parsed_hash[:slave_nodes].length
         #parse nagios & ganglia
         if parsed_hash[:monitoring] == 'enabled'
           hiera_hash['ganglia_server'] = parsed_hash[:controller]
@@ -278,11 +282,13 @@ module Ankus
           hiera_hash['kerberos_realm'] = @parsed_hash[:hadoop_kerberos_realm] if @parsed_hash[:hadoop_kerberos_realm]
           hiera_hash['kerberos_domain'] = @parsed_hash[:hadoop_kerberos_domain] if @parsed_hash[:hadoop_kerberos_domain]
         end
-          #hadoop_eco_system
-        hadoop_ecosystem = parsed_hash[:hadoop_deploy][:hadoop_ecosystem]
-        if hadoop_ecosystem
-          hadoop_ecosystem.each do |tool|
-            hiera_hash[tool] = 'enabled'
+        #hadoop_eco_system
+        if parsed_hash[:hadoop_deploy] != 'disabled'
+          hadoop_ecosystem = parsed_hash[:hadoop_deploy][:hadoop_ecosystem]
+          if hadoop_ecosystem
+            hadoop_ecosystem.each do |tool|
+              hiera_hash[tool] = 'enabled'
+            end
           end
         end
         #Write out hiera data to file and send it to puppet server
@@ -332,7 +338,7 @@ module Ankus
           #2. master nodes and parallel on worker nodes
         controller        = @parsed_hash[:controller]
         hadoop_install    = @parsed_hash[:hadoop_deploy]
-        hadoop_ha         = @parsed_hash[:hadoop_deploy][:hadoop_ha]
+        hadoop_ha         = @parsed_hash[:hadoop_deploy][:hadoop_ha] if @parsed_hash[:hadoop_deploy] != 'disabled'
         hbase_install     = @parsed_hash[:hbase_deploy]
         cassandra_install = @parsed_hash[:cassandra_deploy]
 
@@ -414,6 +420,10 @@ module Ankus
               puppet_parallel_run(hbase_master, puppet_run_cmd, 'hbasemasters')
             end
           end
+        elsif cassandra_install != 'disabled'
+          # Only Cassandra deploy is enabled
+          puppet_parallel_run(@parsed_hash[:cassandra_deploy][:cassandra_seeds], puppet_run_cmd, 'cassandra seed nodes')
+          puppet_parallel_run(@parsed_hash[:cassandra_deploy][:cassandra_nodes], puppet_run_cmd, 'cassandra nodes')
         end
 
         # finalize puppet run on controller to refresh nagios
