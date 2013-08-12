@@ -144,8 +144,7 @@ cassandra_deploy: disabled
 ########################################################
 # Cloud Instances volumes configuration
 # volumes: configure extra volumes that are attached to worker instances
-#   type: type of the volumes to create, for aws: valid values are instancestore|ebs
-#                                        for rackspace valid value is blockstore
+#   type: type of the volumes to create, valid value is blockstore
 #   count: number of volumes to attach to a instance
 #   size: size of each volume in GB
 # NOTE: rackspace instances comes with prebuilt root partitions based on instance

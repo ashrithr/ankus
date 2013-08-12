@@ -143,11 +143,15 @@ cassandra_deploy: disabled
 ########################################################
 # Cloud Instances volumes configuration
 # volumes: configure extra volumes that are attached to worker instances
-#   type: type of the volumes to create, for aws: valid values are instancestore|ebs
-#                                        for rackspace valid value is blockstore
+#   type: type of the volumes to create, aws: valid values are 'ebs|io1'
+#         - ebs (regular volumes with approximately 100 IOPS, with with a best effort ability to burst
+#                to hundreds of IOPS)
+#         - io1 (Provisioned IOPS volumes are designed to deliver predictable, high performance for
+#                I/O intensive workloads)
+#   iops: specify number of input output operations per second for io1 volumes (valid: 1-4000)
 #   count: number of volumes to attach to a instance
 #   size: size of each volume in GB
-# NOTE: ankus aws instances comes pre-built with 250GB of root partition
+# NOTE: ankus aws instances comes pre-built with 250GB of root (EBS standard) partition
 #
 # ===============DEPLOYMENT SCENARIO 1==================
 #     CREATE AND ATTACH 4 VOLUMES TO WORKER NODE
@@ -157,6 +161,14 @@ cassandra_deploy: disabled
 # count: 4
 # size: 100
 # ===============DEPLOYMENT SCENARIO 2==================
+# CREATE AND ATTACH 4 PROVISIONED IOPS VOLUMES TO WORKERS
+# ======================================================
+#volumes:
+# type: io1
+# iops: 1000
+# count: 4
+# size: 100
+# ===============DEPLOYMENT SCENARIO 3==================
 #           DISABLE CREATING EXTRA VOLUMES
 # ======================================================
 #volumes: disabled

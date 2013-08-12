@@ -273,9 +273,22 @@ module Ankus
           if volumes[:type].nil? or volumes[:type].empty?
             puts '[Error]: '.red + "type of the volumes is required 'type'"
             @errors_count += 1
-          elsif ! %w(ebs instancestore).include? volumes[:type]
+          elsif ! %w(ebs io1).include? volumes[:type]
             puts '[Error]: '.red + "invalid value found for volume type (#{volumes[:type]}, valid values are 'ebs' or 'instancestore')"
             @errors_count += 1
+          end
+          #iops
+          if volumes[:type] and volumes[:type] == 'io1'
+            if volumes[:iops].nil?
+              puts '[Error]: '.red + "'iops' rate is required if type of volume being booted is io1"
+              @errors_count += 1
+            elsif ! volumes[:iops].is_a? Numeric
+              puts '[Error]: '.red + "iops rate should be of type numeric 'iops'"
+              @errors_count += 1
+            elsif ! volumes[:iops].between?(1, 4000)
+              puts '[Error]: '.red + "iops rate should be in between 1-4000 'iops'"
+              @errors_count += 1
+            end
           end
           #volumes count
           if volumes[:count].nil?

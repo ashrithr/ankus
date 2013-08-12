@@ -84,7 +84,9 @@ module Ankus
           :os_type => 'CentOS',
           :num_of_vols => 0,
           :vol_size => 50,
-          :root_vol_size => 250
+          :root_vol_size => 250,
+          :vol_type => 'ebs',
+          :iops => 0
       }.merge(opts)
 
       unless valid_connection?(conn)
@@ -181,7 +183,9 @@ module Ankus
                                  ami,
                                  :num_of_vols => options[:num_of_vols],
                                  :vol_size => options[:vol_size],
-                                 :root_ebs_size => root_ebs_size
+                                 :root_ebs_size => root_ebs_size,
+                                 :vol_type => options[:vol_type],
+                                 :iops => options[:iops]
           )
           return server
         when 'ubuntu'
@@ -193,7 +197,9 @@ module Ankus
                                  @ubuntu_amis[@region],
                                  :num_of_vols => options[:num_of_vols],
                                  :vol_size => options[:vol_size],
-                                 :root_ebs_size => options[:root_vol_size]
+                                 :root_ebs_size => options[:root_vol_size],
+                                 :vol_type => options[:vol_type],
+                                 :iops => options[:iops]
           )
           return server
         else
@@ -310,7 +316,7 @@ module Ankus
       end
       raise 'It took more than 10 mins for the servers to complete boot, this generally does not happen.'
     end
-    
+
     # Terminates an instance on aws with provided instance id
     # @param [Fog::Compute::AWS::Real] conn => fog aws connection object
     # @param [String] instance_id => id of the instance to delete
@@ -324,7 +330,7 @@ module Ankus
         puts "\rTerminated Instance: #{instance_id}"
       end
     end
-    
+
     # Terminates a instance on aws, also can detach and delete volumes attached to instances
     # @param [Fog::Compute::AWS::Real] conn => fog aws connection object
     # @param [String] dns_name => dns name of ec2 instance to terminate
@@ -371,6 +377,8 @@ module Ankus
       num_of_volumes = ebs_options[:num_of_vols] || 0
       size_of_volumes = ebs_options[:vol_size] || 50
       root_volume_size = ebs_options[:root_ebs_size] || 100
+      vol_type = ebs_options[:vol_type] || 'ebs'
+      iops = ebs_options[:iops] || 0
       image = conn.images.get(ami_id)
       region = @region
       root_ebs_name = if @mock
@@ -389,7 +397,7 @@ module Ankus
             :flavor_id            => flavor_id,
             :key_name             => key_name,
             :groups               => groups,
-            :block_device_mapping => map_devices(num_of_volumes, size_of_volumes, root_volume_size, root_ebs_name)
+            :block_device_mapping => map_devices(num_of_volumes, size_of_volumes, root_volume_size, root_ebs_name, vol_type, iops)
         )
         server.save
         server.reload
@@ -412,8 +420,10 @@ module Ankus
     # @param [Integer] size_per_vol => size of each volume in GB
     # @param [Integer] root_ebs_size => size of the root device (should be able to run `resize2fs /dev/sda` to re-claim re-sized space)
     # @param [String] root_ebs_name => device name of the root (default: /dev/sda)
+    # @param [String] vol_type => type of the volume being create standrad or io1 (iops provisioned)
+    # @param [String] iops => input output operations per second for io1 type devices (should be between 1-4000)
     # @return [Hash] block_device_mapping => Array of block to device mappings
-    def map_devices(num_of_vols, size_per_vol, root_ebs_size, root_ebs_name = '/dev/sda')
+    def map_devices(num_of_vols, size_per_vol, root_ebs_size, root_ebs_name = '/dev/sda', vol_type = 'ebs', iops = 0)
       block_device_mapping = []
       # change the root ebs size only if root_ebs_size > 0 i.e, user should not pass 0 to resize root
       unless root_ebs_size == 0
@@ -423,11 +433,21 @@ module Ankus
         base = 'sdh' #sdi-z
         num_of_vols.times do
           base = base.next
-          mapping = {
-              'DeviceName'              => base,
-              'Ebs.VolumeSize'          => size_per_vol,
-              'Ebs.DeleteOnTermination' => false
-          }
+          if vol_type == 'io1'
+            mapping = {
+                'DeviceName'              => base,
+                'Ebs.VolumeSize'          => size_per_vol,
+                'Ebs.VolumeType'          => 'io1',
+                'Ebs.Iops'                => iops,
+                'Ebs.DeleteOnTermination' => false
+            }
+          else
+            mapping = {
+                'DeviceName'              => base,
+                'Ebs.VolumeSize'          => size_per_vol,
+                'Ebs.DeleteOnTermination' => false
+            }
+          end
           block_device_mapping << mapping
         end
       end
