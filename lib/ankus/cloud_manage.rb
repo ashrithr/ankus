@@ -294,6 +294,11 @@ module Ankus
           type :dots
           message "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')}".blue + ' [DONE]'.cyan
         end
+        iops =  if @parsed_hash[:volumes][:type] == 'io1'
+                  @parsed_hash[:volumes][:iops]
+                else
+                  0
+                end
         nodes_to_create.each do |tag, info|
           server_objects[tag] = aws.create_server!(
             conn,
@@ -303,7 +308,9 @@ module Ankus
             :flavor_id => flavor_id,
             :os_type => info[:os_type],
             :num_of_vols => info[:volumes],
-            :vol_size => info[:volume_size]
+            :vol_size => info[:volume_size],
+            :vol_type => @parsed_hash[:volumes][:type],
+            :iops => iops
           )
         end
         SpinningCursor.stop
