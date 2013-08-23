@@ -434,7 +434,7 @@ module Ankus
           end
           if cassandra_deploy != 'disabled'
             cluster_info << "\r" << ' *'.cyan << " Cassandra Nodes: \n"
-            if parsed_hash[:cassandra_deploy][:hadoop_colocation]
+            if parsed_hash[:cassandra_deploy][:colocation]
               #if both hadoop and cassandra is colocated, print slaves
               cloud_instances.select { |k, _| k.include? 'slaves' }.each do |k, v|
                 cluster_info << "\r" << "\t" << '- '.cyan << "#{v.first}" << "\n"
