@@ -429,9 +429,19 @@ module Ankus
           hbase_validator hash_to_validate
         end
       end
-      # call cassandra validator
-      if hash_to_validate[:cassandra_deploy] != 'disabled'
-        cassandra_validator hash_to_validate
+
+      zookeeper_validator hash_to_validate
+
+      cassandra_validator hash_to_validate
+
+      kafka_validator hash_to_validate
+
+      storm_validator hash_to_validate
+
+      #Check to see if all the deploy options are disabled if so raise
+      if ANKUS_CONF_DEPLOY_KEYS.map { |e| hash_to_validate[e] }.uniq.length == 1
+        puts '[Error]:'.red + " All the deploy(s) are disabled, atleast one deploy should be configured"
+        @errors_count += 1
       end
     end
 
@@ -574,8 +584,7 @@ module Ankus
             puts '[Error]:'.red + ' namenode\'s cannot be the same in ha deployment mode'
             @errors_count += 1
           end
-          #check zookeepers and journal_nodes for oddity
-          puts '[Warn]:'.yellow + 'zookeepers should be odd number to handle failover\'s, please update when possible' unless zookeeper_quorum.length % 2 == 1
+          #check journal_nodes for oddity
           puts '[Warn]:'.yellow + 'journal nodes should be odd number to handle failover\'s, please update when possible' unless journal_quorum.length % 2 == 1
           #zookeepers cannot be same
           if zookeeper_quorum.uniq.length != zookeeper_quorum.length
@@ -637,19 +646,7 @@ module Ankus
           puts '[Error]:'.red + " invalid value for 'hbase_master_count'"
           @errors_count += 1
         end
-        zookeeper_quorum = hash_to_validate[:zookeeper_quorum_count]
-        if zookeeper_quorum.nil?
-          puts '[Error]: '.red + "'zookeeper_quorum' is required for hbase install"
-          @errors_count += 1
-        end
-        puts "[Warn]: zookeepers should be odd number to handle failover's, please update when possible" unless zookeeper_quorum % 2 == 1
       else
-        zookeeper_quorum = hash_to_validate[:zookeeper_quorum]
-        if zookeeper_quorum.nil? or zookeeper_quorum.empty?
-          puts '[Error]: '.red + "'zookeeper_quorum' is required for hbase install"
-          @errors_count += 1
-        end
-        puts "[Warn]: zookeepers should be odd number to handle failover's, please update when possible" unless zookeeper_quorum.length % 2 == 1
         if hbase_install and (hbase_install[:hbase_master].nil? or hbase_install[:hbase_master].empty?)
           puts '[Error]:'.red + " invalid value for 'hbase_master'"
           @errors_count += 1
@@ -669,6 +666,33 @@ module Ankus
       end
     end
 
+    def zookeeper_validator(hash_to_validate)
+      install_mode = hash_to_validate[:install_mode]
+      hadoop_ha = hash_to_validate[:hadoop_deploy][:hadoop_ha] if hash_to_validate[:hadoop_deploy] != 'disabled'
+      hbase_install = hash_to_validate[:hbase_deploy]
+      kafka_install = hash_to_validate[:kafka_deploy]
+      storm_install = hash_to_validate[:storm_deploy]
+      if hadoop_ha == 'enabled' or hbase_install != 'disabled' or kafka_install != 'disabled' or storm_install != 'disabled'
+        if install_mode == 'local'
+          zookeeper_quorum = hash_to_validate[:zookeeper_quorum]
+          if zookeeper_quorum.nil? or zookeeper_quorum.empty?
+            puts '[Error]: '.red + "'zookeeper_quorum' is required for deployment types: 'hadoop_ha' or 'hbase_deploy' or 'kafka_deploy' or 'storm_deploy'"
+            @errors_count += 1
+          else
+            puts "[Warn]: zookeepers should be odd number to handle failover's, please update when possible" unless zookeeper_quorum.length % 2 == 1
+          end
+        elsif install_mode == 'cloud'
+          zookeeper_quorum = hash_to_validate[:zookeeper_quorum_count]
+          if zookeeper_quorum.nil?
+            puts '[Error]: '.red + "'zookeeper_quorum' is required for deployment types: 'hadoop_ha' or 'hbase_deploy' or 'kafka_deploy' or 'storm_deploy'"
+            @errors_count += 1
+          else
+            puts "[Warn]: zookeepers should be odd number to handle failover's, please update when possible" unless zookeeper_quorum % 2 == 1
+          end
+        end
+      end
+    end
+
     # Validate cassandra realted conf params
     # @param [Hash] hash_to_validate
     def cassandra_validator(hash_to_validate)
@@ -677,7 +701,7 @@ module Ankus
         puts '[Error]:'.red + " 'cassandra_deploy' is required parameter, valid values: hash|disabled"
         @errors_count += 1
       elsif cassandra_deploy == 'disabled'
-        puts '[Debug]: cassandra deploymeny is disabled' if @debug
+        puts '[Debug]: cassandra deployment is disabled' if @debug
       elsif ! cassandra_deploy.is_a? Hash
         puts '[Error]: '.red + "unrecognized value set for 'cassandra_deploy' : #{cassandra_deploy}"
         @errors_count += 1
@@ -704,18 +728,18 @@ module Ankus
         end
       else
         if cassandra_deploy != 'disabled'
-          hadoop_colocation = cassandra_deploy[:hadoop_colocation]
-          if hadoop_colocation.nil?
-            puts '[Error]: '.red + "'hadoop_colocation' is required param, valid values are yes|no"
+          colocation = cassandra_deploy[:colocation]
+          if colocation.nil?
+            puts '[Error]: '.red + "'colocation' is required param, valid values are yes|no"
             @errors_count += 1
-          elsif ! (hadoop_colocation.is_a? TrueClass or hadoop_colocation.is_a? FalseClass)
-            puts '[Error]: '.red + "invalid value found for 'hadoop_colocation', valid values are yes|no"
+          elsif ! (colocation.is_a? TrueClass or colocation.is_a? FalseClass)
+            puts '[Error]: '.red + "invalid value found for 'colocation', valid values are yes|no"
             @errors_count += 1
           end
-          if ! hadoop_colocation
+          if ! colocation
             number_of_instances = cassandra_deploy[:number_of_instances]
             if number_of_instances.nil?
-              puts '[Error]: '.red + "'number_of_instances' is a required param for cassandra_deploy if hadoop_colocation is disabled"
+              puts '[Error]: '.red + "'number_of_instances' is a required param for cassandra_deploy if colocation is disabled"
               @errors_count += 1
             elsif ! number_of_instances.is_a? Numeric
               puts '[Error]: '.red + "expecting numeric value for 'number_of_instances' in cassandra_deploy"
@@ -732,7 +756,128 @@ module Ankus
           end
         end
       end
-    end
+    end #cassandra_validator
+
+    # Validate kafka realted conf params
+    # @param [Hash] hash_to_validate
+    def kafka_validator(hash_to_validate)
+      kafka_deploy = hash_to_validate[:kafka_deploy]
+      if kafka_deploy.nil? or kafka_deploy.empty?
+        puts '[Error]:'.red + " 'kafka_deploy' is required parameter, valid values: hash|disabled"
+        @errors_count += 1
+      elsif kafka_deploy == 'disabled'
+        puts '[Debug]: kafka deployment is disabled' if @debug
+      elsif ! kafka_deploy.is_a? Hash
+        puts '[Error]: '.red + "unrecognized value set for 'kafka_deploy' : #{kafka_deploy}"
+        @errors_count += 1
+      end
+
+      if hash_to_validate[:install_mode] == 'local'
+        if kafka_deploy != 'disabled'
+          kafka_nodes = kafka_deploy[:kafka_nodes]
+          if kafka_nodes.nil? or kafka_nodes.empty?
+            puts '[Error]: '.red + "'kafka_nodes' should contain list of fqdn(s) on which to install kafka package"
+            @errors_count += 1
+          elsif ! kafka_nodes.is_a? Array
+            puts '[Error]: '.red + "Excepting list (array) of nodes for 'kafka_nodes'"
+            @errors_count += 1
+          end
+          kafka_brokers = kafka_deploy[:kafka_brokers]
+          if kafka_brokers.nil? or kafka_brokers.empty?
+            puts '[Error]: '.red + "'kafka_brokers' should contain list of fqdn(s) which act as kafka broker nodes"
+            @errors_count += 1
+          elsif ! kafka_brokers.is_a? Array
+            puts '[Error]: '.red + "Excepting list (array) of fqdn(s) for 'kafka_brokers'"
+            @errors_count += 1
+          end
+        end
+      else
+        #cloud deploy
+        if kafka_deploy != 'disabled'
+          colocation = kafka_deploy[:colocation]
+          if colocation.nil?
+            puts '[Error]: '.red + "'colocation' is required param, valid values are yes|no"
+            @errors_count += 1
+          elsif ! (colocation.is_a? TrueClass or colocation.is_a? FalseClass)
+            puts '[Error]: '.red + "invalid value found for 'colocation', valid values are yes|no"
+            @errors_count += 1
+          end
+          if ! colocation
+            number_of_instances = kafka_deploy[:number_of_instances]
+            if number_of_instances.nil?
+              puts '[Error]: '.red + "'number_of_instances' is a required key for kafka_deploy if colocation is disabled"
+              @errors_count += 1
+            elsif ! number_of_instances.is_a? Numeric
+              puts '[Error]: '.red + "expecting numeric value for 'number_of_instances' in kafka_deploy hash"
+              @errors_count += 1
+            end
+          end
+          kafka_brokers_count = kafka_deploy[:number_of_brokers]
+          if kafka_brokers_count.nil?
+            puts '[Debug]: ' + "'number_of_brokers' is not provided for kafka_deploy defaulting to 1" if @debug
+            hash_to_validate[:kafka_deploy][:number_of_brokers] = 1
+          elsif ! kafka_brokers_count.is_a? Numeric
+            puts '[Error]: '.red + "expecting numeric value for 'number_of_brokers' in kafka_deploy hash"
+            @errors_count += 1
+          end
+        end
+      end
+    end #kafka_validator
+
+    # Validate storm realted conf params
+    # @param [Hash] hash_to_validate
+    def storm_validator(hash_to_validate)
+      storm_deploy = hash_to_validate[:storm_deploy]
+      if storm_deploy.nil? or storm_deploy.empty?
+        puts '[Error]:'.red + " 'storm_deploy' is required parameter, valid values: hash|disabled"
+        @errors_count += 1
+      elsif storm_deploy == 'disabled'
+        puts '[Debug]: storm deployment is disabled' if @debug
+      elsif ! storm_deploy.is_a? Hash
+        puts '[Error]: '.red + "unrecognized value set for 'storm_deploy' : #{storm_deploy}"
+        @errors_count += 1
+      end
+
+      if hash_to_validate[:install_mode] == 'local'
+        if storm_deploy != 'disabled'
+          storm_supervisors = storm_deploy[:storm_supervisors]
+          if storm_supervisors.nil? or storm_supervisors.empty?
+            puts '[Error]: '.red + "'storm_supervisors' should contain list of fqdn(s) on which to deploy storm supervisor daemons"
+            @errors_count += 1
+          elsif ! storm_supervisors.is_a? Array
+            puts '[Error]: '.red + "Excepting list (array) of nodes for 'storm_supervisors'"
+            @errors_count += 1
+          end
+          storm_master = storm_deploy[:storm_master]
+          if storm_master.nil? or storm_master.empty?
+            puts '[Error]: '.red + "'storm_master' should contain a fqdn which act as storm master node"
+            @errors_count += 1
+          end
+        end
+      else
+        #cloud deploy
+        if storm_deploy != 'disabled'
+          colocation = storm_deploy[:colocation]
+          if colocation.nil?
+            puts '[Error]: '.red + "'colocation' is required param, valid values are yes|no"
+            @errors_count += 1
+          elsif ! (colocation.is_a? TrueClass or colocation.is_a? FalseClass)
+            puts '[Error]: '.red + "invalid value found for 'colocation', valid values are yes|no"
+            @errors_count += 1
+          end
+          if ! colocation
+            number_of_supervisors = storm_deploy[:number_of_supervisors]
+            if number_of_supervisors.nil?
+              puts '[Error]: '.red + "'number_of_supervisors' is a required key for storm_deploy if colocation is disabled"
+              @errors_count += 1
+            elsif ! number_of_supervisors.is_a? Numeric
+              puts '[Error]: '.red + "expecting numeric value for 'number_of_supervisors' in storm_deploy hash"
+              @errors_count += 1
+            end
+          end
+        end
+      end
+    end #storm_validator
   end
 
   #class to parse hadoop configuration

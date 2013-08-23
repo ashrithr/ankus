@@ -55,6 +55,14 @@ module Ankus
         if @parsed_hash[:cassandra_deploy] != 'disabled'
           nodes.push(*@parsed_hash[:cassandra_deploy][:cassandra_nodes])
         end
+        if @parsed_hash[:kafka_deploy] != 'disabled'
+          nodes.push(*@parsed_hash[:kafka_deploy][:kafka_nodes])
+          nodes.push(*@parsed_hash[:kafka_deploy][:kafka_brokers])
+        end
+        if @parsed_hash[:storm_deploy] != 'disabled'
+          nodes.push(*@parsed_hash[:storm_deploy][:storm_supervisors])
+          nodes.push(*@parsed_hash[:storm_deploy][:storm_master])
+        end
         #remove duplicates
         nodes.uniq!
         nodes.compact!  #remove nil if any
@@ -117,6 +125,12 @@ module Ankus
         end
         cassandra_install   = @parsed_hash[:cassandra_deploy]
         cassandra_nodes     = @parsed_hash[:cassandra_deploy][:cassandra_nodes] if cassandra_install != 'disabled'
+        kafka_install       = @parsed_hash[:kafka_deploy]
+        kafka_nodes         = @parsed_hash[:kafka_deploy][:kafka_nodes] if kafka_install != 'disabled'
+        kafka_brokers       = @parsed_hash[:kafka_deploy][:kafka_brokers] if kafka_install != 'disabled'
+        storm_install       = @parsed_hash[:storm_deploy]
+        storm_master        = @parsed_hash[:storm_deploy][:storm_master] if storm_install != 'disabled'
+        storm_supervisors   = @parsed_hash[:storm_deploy][:storm_supervisors] if storm_install != 'disabled'
         @pcs.each do |pc|
           roles_hash[pc] = {}
           #java
@@ -192,6 +206,15 @@ module Ankus
           #cassandra
           if cassandra_install != 'disabled'
             roles_hash[pc]['cassandra'] = nil if cassandra_nodes.include? pc
+          end
+          if kafka_install != 'disabled'
+            roles_hash[pc]['kafka'] = nil if kafka_nodes.include? pc
+            roles_hash[pc]['kafka::server'] = nil if kafka_brokers.include? pc
+          end
+          if storm_install != 'disabled'
+            roles_hash[pc]['storm::worker'] = nil if storm_supervisors.include? pc
+            roles_hash[pc]['storm::nimbus'] = nil if storm_master.include? pc
+            roles_hash[pc]['storm::ui'] = nil if storm_master.include? pc
           end
         end
         roles_hash

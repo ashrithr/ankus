@@ -31,7 +31,15 @@ module Ankus
     :security,
     :monitoring,
     :alerting,
-    :log_aggregation,
+    :log_aggregation
+  ]
+
+  ANKUS_CONF_DEPLOY_KEYS = [
+    :hadoop_deploy,
+    :hbase_deploy,
+    :cassandra_deploy,
+    :kafka_deploy,
+    :storm_deploy
   ]
 
   HADOOP_CONF_KEYS = %w{
