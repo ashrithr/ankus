@@ -161,8 +161,8 @@ cassandra_deploy: disabled
 # ======================================================
 #kafka_deploy:
 # colocation: no
-# number_of_instances: 5
-# number_of_brokers: 2
+# number_of_instances: 3
+# number_of_brokers: 3
 #
 # ===============DEPLOYMENT SCENARIO 3==================
 #               DISABLE KAFKA DEPLOYMENT
@@ -178,12 +178,14 @@ kafka_deploy: disabled
 #  colocation           : whether to colocate storm supervisor daemons with other cluster daemons
 #                         such as hadoop, hbase or cassandra
 #  number_of_supervisors: number of supervisor nodes to deploy (not required when collocating instances)
+#  workers_count        : number of worker processes to run per supervisor node
 #
 # ===============DEPLOYMENT SCENARIO 1==================
 #       TO DEPLOY STORM (on same nodes as workers)
 # ======================================================
 #storm_deploy:
 # colocation: yes
+# workers_count: 8
 #
 # ===============DEPLOYMENT SCENARIO 2==================
 #       TO DEPLOY STORM (on seperate instances)
@@ -191,6 +193,7 @@ kafka_deploy: disabled
 #kafka_deploy:
 # colocation: no
 # number_of_supervisors: 5
+# workers_count: 8
 #
 # ===============DEPLOYMENT SCENARIO 3==================
 #               DISABLE STORM DEPLOYMENT

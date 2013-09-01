@@ -853,6 +853,11 @@ module Ankus
             puts '[Error]: '.red + "'storm_master' should contain a fqdn which act as storm master node"
             @errors_count += 1
           end
+          storm_workers_count = storm_deploy[:workers_count]
+          if ! storm_workers_count.is_a? Numeric
+            puts '[Error]: '.red + "'storm_workers_count' should contain number of worker processes each supervisor should run"
+            @errors_count += 1
+          end
         end
       else
         #cloud deploy
@@ -874,6 +879,11 @@ module Ankus
               puts '[Error]: '.red + "expecting numeric value for 'number_of_supervisors' in storm_deploy hash"
               @errors_count += 1
             end
+          end
+          storm_workers_count = storm_deploy[:workers_count]
+          if ! storm_workers_count.is_a? Numeric
+            puts '[Error]: '.red + "'workers_count' should contain number of worker processes each supervisor should run"
+            @errors_count += 1
           end
         end
       end

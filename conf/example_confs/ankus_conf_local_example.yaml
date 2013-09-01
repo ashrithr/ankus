@@ -212,8 +212,8 @@ cassandra_deploy: 'disabled'
 #     - 'kafka004.ops.cw.com'
 #     - 'kafka005.ops.cw.com'
 #   kafka_brokers:
-#     - 'kafkabroker001.ops.cw.com'
-#     - 'kafkabroker002.ops.cw.com'
+#     - 'kafka001.ops.cw.com'
+#     - 'kafka002.ops.cw.com'
 #
 # 2. Not to deploy kafka
 # kafka_deploy: 'disabled'
@@ -226,6 +226,7 @@ kafka_deploy: 'disabled'
 #                possible values: Hash (or) disabled
 #   storm_supervisors: nodes on which storm supervisor daemons are installed
 #   storm_master: node on which storm nimbus and ui daemons are installed
+#   workers_count: number of worker processes to run per supervisor node
 #
 # Example Configurations:
 # 1. To deploy storm on set of nodes
@@ -236,8 +237,8 @@ kafka_deploy: 'disabled'
 #     - 'stormsupervisor003.ops.cw.com'
 #     - 'stormsupervisor004.ops.cw.com'
 #     - 'stormsupervisor005.ops.cw.com'
-#   storm_master:
-#     - 'stormmaster001.ops.cw.com'
+#   storm_master: 'stormmaster001.ops.cw.com'
+#   workers_count: 8
 #
 # 2. Not to deploy kafka
 # storm_deploy: 'disabled'

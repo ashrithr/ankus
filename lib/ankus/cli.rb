@@ -333,16 +333,18 @@ module Ankus
       end
       hiera_data = YamlUtils.parse_yaml(HIERA_DATA_FILE)
       hbase_deploy = if parsed_hash[:hbase_deploy] == 'disabled'
-                       'disabled'
+                      'disabled'
                      else
-                       'enabled'
+                      'enabled'
                      end
       mapreduce   = if parsed_hash[:hadoop_deploy] != 'disabled' and parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
                       parsed_hash[:hadoop_deploy][:mapreduce][:type]
                     else
                       'disabled'
                     end
-      cassandra_deploy =  parsed_hash[:cassandra_deploy] != 'disabled' ? 'enabled' : 'disabled'
+      cassandra_deploy  =  parsed_hash[:cassandra_deploy] != 'disabled' ? 'enabled' : 'disabled'
+      storm_deploy      =  parsed_hash[:storm_deploy] != 'disabled' ? 'enabled' : 'disabled'
+      kafka_deploy      =  parsed_hash[:kafka_deploy] != 'disabled' ? 'enabled' : 'disabled'
 
       (cluster_info ||= '') << 'Ankus Cluster Info'.yellow_on_cyan.bold.underline << "\n"
       if parsed_hash[:hadoop_deploy] != 'disabled'
@@ -353,6 +355,8 @@ module Ankus
       end
       cluster_info << "\r" << ' #'.green << " HBase Deploy: #{hbase_deploy} \n"
       cluster_info << "\r" << ' #'.green << " Cassandra Deploy: #{cassandra_deploy} \n"
+      cluster_info << "\r" << ' #'.green << " Storm Deploy: #{storm_deploy} \n"
+      cluster_info << "\r" << ' #'.green << " Kafka Deploy: #{kafka_deploy} \n"
       cluster_info << "\r" << ' #'.green << " Security: #{parsed_hash[:security]} \n"
       cluster_info << "\r" << ' #'.green << " Monitoring(with ganglia): #{parsed_hash[:monitoring]} \n"
       cluster_info << "\r" << ' #'.green << " Altering(with nagios): #{parsed_hash[:alerting]} \n"
@@ -419,11 +423,16 @@ module Ankus
           end
         end
         if parsed_hash[:hbase_deploy] != 'disabled'
-          hms = cloud_instances.select { |k, _| k.include? 'hbasemaster'}
+          hms = cloud_instances.select { |k, _| k.include? 'hbasemaster' }
           hms.each do |k, v|
             cluster_info << "\r" << ' *'.cyan << " #{k.capitalize}: #{v.first} \n"
           end
           urls << "\r" << ' %'.black << " HBaseMaster: http://#{Hash[hms.select {|k,v| k.include? 'hbasemaster1'}].values.flatten.first}:60010 \n"
+        end
+        if storm_deploy != 'disabled'
+          stn = cloud_instances.select { |k, _| k.include? 'stormnimbus' }.values.first
+          cluster_info << "\r" << ' *'.cyan << " Storm Master: #{stn.first} \n"
+          urls << "\r" << ' %'.black << " Storm UI: http://#{stn.first}:8080 \n"
         end
         if options[:extended]
           if parsed_hash[:hadoop_deploy] != 'disabled' or parsed_hash[:hbase_deploy] != 'disabled'
@@ -444,6 +453,18 @@ module Ankus
                 cluster_info << "\r" << "\t" << '- '.cyan << "#{v.first}" << "\n"
               end
             end
+          end
+          if storm_deploy != 'disabled'
+            cluster_info << "\r" << ' *'.cyan << " Storm Supervisor Nodes: \n"
+            cloud_instances.select { |k, _| k.include? 'stormworker' }.each do |k, v|
+              cluster_info << "\r" << "\t" << "- ".cyan << "#{v.first}" << "\n"
+            end
+          end
+          if kafka_deploy != 'disabled'
+            cluster_info << "\r" << ' *'.cyan << " Kafka Nodes: \n"
+            cloud_instances.select { |k, _| k.include? 'kafka' }.each do |k, v|
+              cluster_info << "\r" << "\t" << "- ".cyan << "#{v.first}" << "\n"
+            end            
           end
         end
       else
@@ -479,12 +500,16 @@ module Ankus
               cluster_info << "\r"<< "\t - #{zk} \n"
             end
           end
+          cluster_info << "\r" << ' *'.cyan << " MapReduce Master: #{parsed_hash[:hadoop_deploy][:mapreduce][:master]} \n" if parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
         end
         if parsed_hash[:hbase_deploy] != 'disabled'
           cluster_info << "\r" << ' *'.cyan << " Hbase Master: #{parsed_hash[:hbase_deploy][:hbase_master].join(',')} \n"
           urls << "\r" << ' %'.black << " Hbase Master: http://#{parsed_hash[:hbase_deploy][:hbase_master].first}:60010 \n"
         end
-        cluster_info << "\r" << ' *'.cyan << " MapReduce Master: #{parsed_hash[:hadoop_deploy][:mapreduce][:master]} \n"
+        if parsed_hash[:storm_deploy] != 'disabled'
+          cluster_info << "\r" << ' *'.cyan << " Storm Master: #{parsed_hash[:storm_deploy][:storm_master]} \n"
+          urls << "\r" << ' %'.black << " Hbase Master: http://#{parsed_hash[:storm_deploy][:storm_master]}:8080 \n"
+        end
         if options[:extended]
           cluster_info << "\r" << ' *'.cyan << " Slaves: \n"
           parsed_hash[:slave_nodes].each do |slave|
@@ -496,6 +521,22 @@ module Ankus
               cluster_info << "\r" << "\t" << '- '.cyan << cn << "\n"
             end
           end
+          if parsed_hash[:storm_deploy] != 'disabled'
+            cluster_info << "\r" << ' *'.cyan << " Storm Supervisors: \n"
+            parsed_hash[:storm_deploy][:storm_supervisors].each do |cn|
+              cluster_info << "\r" << "\t" << '- '.cyan << cn << "\n"
+            end            
+          end
+          if parsed_hash[:kafka_deploy] != 'disabled'
+            cluster_info << "\r" << ' *'.cyan << " Kafka Brokers: \n"
+            parsed_hash[:kafka_deploy][:kafka_brokers].each do |cn|
+              cluster_info << "\r" << "\t" << '- '.cyan << cn << "\n"
+            end            
+            cluster_info << "\r" << ' *'.cyan << " Kafka Node(s): \n"
+            parsed_hash[:kafka_deploy][:kafka_nodes].each do |cn|
+              cluster_info << "\r" << "\t" << '- '.cyan << cn << "\n"
+            end            
+          end          
         end
       end
       cluster_info << "\n"
