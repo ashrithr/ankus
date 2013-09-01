@@ -226,6 +226,10 @@ module Ankus
           #parse num_of_workers
           hiera_hash['number_of_nodes'] = parsed_hash[:slave_nodes].length
         end
+        if parsed_hash[:kafka_deploy] != 'disabled' or parsed_hash[:storm_deploy] != 'disabled'
+          hiera_hash['zookeeper_ensemble'] = parsed_hash[:zookeeper_quorum].map { |zk| zk += ":2181" }.join(",") unless hiera_hash.has_key? 'zookeeper_ensemble'
+          hiera_hash['zookeeper_class_ensemble'] = parsed_hash[:zookeeper_quorum].map { |zk| zk+=":2888:3888" } unless hiera_hash.has_key? 'zookeeper_class_ensemble'
+        end
         #parse journal quorum
         if parsed_hash[:hadoop_deploy] != 'disabled'
           if parsed_hash[:hadoop_deploy][:hadoop_ha] != 'disabled' and parsed_hash[:hadoop_deploy][:journal_quorum]
@@ -290,6 +294,18 @@ module Ankus
               hiera_hash[tool] = 'enabled'
             end
           end
+        end
+        #kafka
+        if parsed_hash[:kafka_deploy] != 'disabled'
+          hiera_hash['kafak_hosts'] = Hash.new { |hash, key| hash[key] = {} }
+          parsed_hash[:kafka_deploy][:kafka_brokers].each_with_index do |broker, id|
+            hiera_hash['kafak_hosts'][broker] = { 'port' => 9092, 'id' => id + 1 }
+          end
+        end
+        #storm
+        if parsed_hash[:storm_deploy] != 'disabled'
+          hiera_hash['storm_nimbus_host'] = parsed_hash[:storm_deploy][:storm_master]
+          hiera_hash['storm_worker_count'] = parsed_hash[:storm_deploy][:workers_count]
         end
         #Write out hiera data to file and send it to puppet server
         YamlUtils.write_yaml(hiera_hash, HIERA_DATA_FILE)

@@ -63,6 +63,9 @@ module Ankus
           nodes.push(*@parsed_hash[:storm_deploy][:storm_supervisors])
           nodes.push(*@parsed_hash[:storm_deploy][:storm_master])
         end
+        if @parsed_hash[:kafka_deploy] != 'disabled' or @parsed_hash[:storm_deploy] != 'disabled'
+          nodes.push(*@parsed_hash[:zookeeper_quorum]) 
+        end
         #remove duplicates
         nodes.uniq!
         nodes.compact!  #remove nil if any
