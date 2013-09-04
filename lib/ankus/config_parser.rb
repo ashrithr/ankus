@@ -652,14 +652,19 @@ module Ankus
           @errors_count += 1
         end
         if hbase_install != 'disabled'
-          hbase_master_count = hash_to_validate['hbase_master_count']
-          if hbase_master_count.nil? or hbase_master_count == 0
-            puts '[Error]: '.red + "'hbase_master_count' is required"
+          hbase_master = hbase_install[:hbase_master]
+          if hbase_master.nil? or hbase_master.empty?
+            puts '[Error]: '.red + "'hbase_master' is required"
+            @errors_count += 1
+          elsif ! hbase_master.kind_of?(Array)
+            puts '[Error]: '.red + "'hbase_master' should be of type array"
             @errors_count += 1
           end
-          zookeeper_quorum_count = hash_to_validate['zookeeper_quorum_count']
-          if zookeeper_quorum_count.nil? or zookeeper_quorum_count == 0
-            puts '[Error]: '.red + "'zookeeper_quorum_count' is required"
+          if zookeeper_quorum.nil? or zookeeper_quorum.empty?
+            puts '[Error]: '.red + "'zookeeper_quorum' is required"
+            @errors_count += 1
+          elsif ! zookeeper_quorum.kind_of?(Array)
+            puts '[Error]: '.red + "'zookeeper_quorum' should be of type array"
             @errors_count += 1
           end
         end

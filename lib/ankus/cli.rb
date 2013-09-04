@@ -226,8 +226,10 @@ module Ankus
         end
       else
         #Run only mode
-        cloud = create_cloud_obj(@parsed_hash)
-        @parsed_hash, @parsed_hash_with_internal_ips = cloud.modify_config_hash(@parsed_hash, YamlUtils.parse_yaml(CLOUD_INSTANCES))
+        if @parsed_hash[:install_mode] == 'cloud'
+          cloud = create_cloud_obj(@parsed_hash)
+          @parsed_hash, @parsed_hash_with_internal_ips = cloud.modify_config_hash(@parsed_hash, YamlUtils.parse_yaml(CLOUD_INSTANCES))
+        end
       end
 
       ## create puppet_deploy object which is can install puppet & generate hiera data, enc data
