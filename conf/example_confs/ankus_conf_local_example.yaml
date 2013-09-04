@@ -81,6 +81,7 @@ controller: 'controller.ops.cw.com'
 #   hadoop_ha: 'disabled'
 #   hadoop_namenode:
 #     - 'namenode001.ops.cw.com'
+#   hadoop_secondarynamenode: 'snn.ops.cw.com'
 #   mapreduce: disabled
 #
 # 3. Not to deploy hadoop, used for cassandra oriented deployments
@@ -90,10 +91,7 @@ hadoop_deploy:
   hadoop_ha: 'enabled'
   hadoop_namenode:
     - 'namenode001.ops.cw.com'
-    - 'namenode002.ops.cw.com'
-  journal_quorum:
-    - 'utils001.ops.cw.com'
-  #hadoop_secondarynamenode: 'snn.ops.cw.com'
+  hadoop_secondarynamenode: 'snn.ops.cw.com'
   mapreduce:
     type: mr1
     master: 'jobtracker.ops.cw.com'
