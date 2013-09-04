@@ -6,6 +6,8 @@ Ankus is a big-data deployment & orchestration tool. Handles the installation & 
  - hadoop ecosystem tools: pig (0.11.x), hive (0.10.x), sqoop2, oozie (3.3.x), flume-ng
  - hbase (hbase-0.94)
  - cassandra (cassandra-1.2)
+ - kafka (kafka-0.8)
+ - storm (storm-0.8.2)
 
  Ankus can handle deployments in local (group of local machines) as well as cloud (servers hosted by cloud providers).
 
@@ -201,8 +203,6 @@ Change the configuration file as per the requirements and then
 
  More deployment modules are in Development:
 
- - storm
- - kafka
  - solr
  - mongodb
 
