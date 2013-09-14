@@ -37,7 +37,7 @@ Ankus is a big-data deployment & orchestration tool. Handles the installation & 
 
 ###Dependencies
 
-Ankus should work fine with ruby 1.8.7 or 1.9.3. In you want to build from source, dependencies need to be met. To install dependencies on supported platforms follow these instructions:
+Ankus should work fine with ruby 1.8.7 or 1.9.3. If you want to build from source, dependencies need to be met. To install dependencies on supported platforms follow these instructions:
 
  - CentOS:
 
