@@ -11,8 +11,8 @@ Ankus is a big-data deployment & orchestration tool. Handles the installation & 
 
  Ankus can handle deployments in local (group of local machines) as well as cloud (servers hosted by cloud providers).
 
- 1. **Local mode** is where the user specifies the instance roles, supported operating systems for deployments are `centos` and `ubuntu`
- 2. **Cloud mode** is where ankus will create/manage vm's and auto assigns roles to them. Currently ankus supports `AWS(Amazon Web Services)` & `Rackspace`.
+ 1. **Local mode** -  User can specify instance roles, supported operating systems ('centos' or 'ubuntu') for deployments.
+ 2. **Cloud mode** -  Ankus will create/manage vm's and auto assigns roles to them. Currently ankus supports `AWS(Amazon Web Services)` & `Rackspace`.
 
 **Ankus leverages several open source tools such as:**
 
@@ -37,7 +37,7 @@ Ankus is a big-data deployment & orchestration tool. Handles the installation & 
 
 ###Dependencies
 
-Ankus should work fine with ruby 1.8.7 or 1.9.3, so to built from source some of the dependencies are required, to install the dependencies required on supported platforms follow these instructions:
+Ankus should work fine with ruby 1.8.7 or 1.9.3. In you want to build from source, dependencies need to be met. To install dependencies on supported platforms follow these instructions:
 
  - CentOS:
 
@@ -91,7 +91,7 @@ Ankus should work fine with ruby 1.8.7 or 1.9.3, so to built from source some of
 
 To quickly deploy big-data clusters like hadoop, hbase or cassandra in the cloud, follow these steps:
 
-Ankus is a configuration based deployment platform, so deployments should be specified as files written in YAML. So, for the sake of convience example configurations are provided in `conf` directory for several sample deployment(s) which could be used as baseline templates.
+Ankus is a configuration based deployment platform, so deployments should be specified as files written in YAML. So, for the sake of convience example configurations are provided in `conf` directory for several sample deployment(s) which can be used as baseline templates.
 
 1. Modify the configuration in (*conf* directory of where you installed ankus), for convenience ankus comes with pre-built configurations for aws, rackspace and local install modes.
 	* If you are working with aws use `conf/ankus_conf_cloud_aws_example.yaml` as a base line template for configuration
