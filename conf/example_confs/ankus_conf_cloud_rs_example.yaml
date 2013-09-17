@@ -9,17 +9,19 @@ install_mode: 'cloud'
 # cloud_credentials:
 #   rackspace_username            : username of the rackspace user account
 #   rackspace_api_key             : api key of the rackspace user account
-#   rackspace_instance_type       : type of instance to boot, list of instance types to RAM and vCPUs
-#                                   {2=>{512M, 1}, 3=>{1GB, 1}, 4=>{2GB, 2}, 5=>{4GB,2}, 6=>{8GB,4}, 
-#                                   7=>{15GB,6}, 8=>{30G,8}}
+#   rackspace_instance_type       : type of instance to boot, list of instance 
+#                                   types to RAM and vCPUs
+#                                   {2=>{512M, 1}, 3=>{1GB, 1}, 4=>{2GB, 2}, 
+#                                    5=>{4GB,2}, 6=>{8GB,4}, 7=>{15GB,6}, 
+#                                    8=>{30G,8}}
 #   ssh_key                       : ssh key path to inject into instances
-#   rackspace_cluster_identifier  : unique name which differentiates other cluster (used for hostnames 
-#                                   of instances)
+#   rackspace_cluster_identifier  : unique name which differentiates other 
+#                                   cluster (used for hostnames of instances)
 ########################################################
 cloud_platform: rackspace
 cloud_credentials:
-  rackspace_username: ''                         #<<<<<<<<<<<<<< FILL THIS
-  rackspace_api_key: ''                          #<<<<<<<<<<<<<< FILL THIS
+  rackspace_username: ''            #<<<<<<<<<<<<<< FILL THIS
+  rackspace_api_key: ''             #<<<<<<<<<<<<<< FILL THIS
   rackspace_instance_type: 5
   rackspace_ssh_key: '~/.ssh/id_rsa.pub'
   rackspace_cluster_identifier: 'ops'
@@ -31,10 +33,12 @@ cloud_os_type: CentOS
 # Hadoop Cluster Configuration
 ########################################################
 # hadoop_deploy     : specifies whether to deploy hadoop or not
-#   hadoop_ha       : specifies whether to deploy highly available hadoop cluster or not
+#   hadoop_ha       : specifies whether to deploy highly available hadoop 
+#                     cluster or not
 #   mapreduce       : specifies whether to deploy mapreduce framework or not
 #     type          : specifies mapreduce framework type to deploy (mr1 or mr2)
-#   hadoop_ecosystem: specifies list of tools to deploy (hive, pig, oozie, sqoop)
+#   hadoop_ecosystem: specifies list of tools to deploy (hive, pig, oozie, 
+#                     sqoop)
 #
 # ===============DEPLOYMENT SCENARIO 1==================
 #               TO DEPLOY HADOOP (NON-HA)
@@ -42,11 +46,11 @@ cloud_os_type: CentOS
 #hadoop_deploy:
 #  hadoop_ha: 'disabled'
 #  mapreduce:
-#    type: mr1
+#    type: 'mr1'
 #  hadoop_ecosystem:
-#    - hive
-#    - sqoop
-#    - pig
+#    - 'hive'
+#    - 'sqoop'
+#    - 'pig'
 #
 # ===============DEPLOYMENT SCENARIO 2==================
 #               TO DEPLOY HADOOP WITH HA
@@ -54,11 +58,11 @@ cloud_os_type: CentOS
 #hadoop_deploy:
 #  hadoop_ha: 'enabled'
 #  mapreduce:
-#    type: mr1
+#    type: 'mr1'
 #  hadoop_ecosystem:
-#    - hive
-#    - sqoop
-#    - pig
+#    - 'hive'
+#    - 'sqoop'
+#    - 'pig'
 #
 # ===============DEPLOYMENT SCENARIO 3==================
 #         TO DEPLOY HADOOP WITH NO MAPREDUCE
@@ -67,14 +71,7 @@ cloud_os_type: CentOS
 #  hadoop_ha: 'disabled'
 #  mapreduce: 'disabled'
 ########################################################
-hadoop_deploy:
-  hadoop_ha: 'disabled'
-  mapreduce:
-    type: mr1
-  hadoop_ecosystem:
-    - hive
-    - sqoop
-    - pig
+hadoop_deploy: 'disabled'
 
 ########################################################
 # HBase configuration
@@ -91,22 +88,26 @@ hadoop_deploy:
 # ===============DEPLOYMENT SCENARIO 2==================
 #               DISABLE HBASE DEPLOYMENT
 # ======================================================
-#hbase_deploy: disabled
+#hbase_deploy: 'disabled'
 #
 ########################################################
-hbase_deploy: disabled
+hbase_deploy: 'disabled'
 
 ########################################################
 # Zookeeper Quorum Configuration
 ########################################################
 # Required for hadoop_ha, hbase, kafka, storm deployments
-# zookeeper_quoram_count: specifies the number of zookeeper(s) to launch to coordinate services
+# zookeeper_quoram_count: specifies the number of zookeeper(s) to launch to 
+#                         coordinate services
 ########################################################
 zookeeper_quorum_count: 1
 
 ########################################################
 # Slaves specifications (required for hadoop & hbase deployments only)
-# slave_nodes_count: number slave nodes on which worker daemons will be installed.
+# slave_nodes_count: number slave nodes on which worker daemons are installed
+#                    if 'hadoop_deploy' is enabled, 'datanode' is initialized
+#                    if 'mapreduce' is enabled, 'tasktracker' is initialized
+#                    if 'hbase_deploy' is enabled, 'regionserver' is initialized
 ########################################################
 slave_nodes_count: 3
 
@@ -114,97 +115,101 @@ slave_nodes_count: 3
 # Cassandra Cluster Configuration
 #  cassandra_deploy   : specifies the deployment of cassandra cluster
 #                       possible values: Hash (or) disabled
-#  colocation         : whether to colocate cassandra daemons with other daemons or deploy
-#                       cassandra on their own instances
-#  number_of_instances: number of cassandra instances to launch(not required when
-#                       collocation instances)
-#  number_of_seeds    : number of nodes to use as seeds, choosen randomly (default: 1)
+#  colocate           : whether to colocate cassandra daemons with hadoop &  
+#                       hbase daemons or deploy cassandra on their own instances
+#                       default: no (*not recommended to colocate daemons*)
+#  number_of_instances: number of cassandra instances to launch(not required 
+#                       when collocation instances)
+#  number_of_seeds    : number of nodes to use as seeds, choosen randomly
+#                       default: 1
+#
 #
 # ===============DEPLOYMENT SCENARIO 1==================
-#  TO DEPLOY CASSANDRA (on same nodes as hadoop workers)
+#                 TO DEPLOY CASSANDRA 
 # ======================================================
 #cassandra_deploy:
-# colocation: yes
+# number_of_instances: 5
 # number_of_seeds: 2
 #
 # ===============DEPLOYMENT SCENARIO 2==================
-#           TO DEPLOY CASSANDRA (on new nodes)
+#  TO DEPLOY CASSANDRA (on same nodes as hadoop workers)
 # ======================================================
 #cassandra_deploy:
-# colocation: no
-# number_of_instances: 5
+# colocate: yes
 # number_of_seeds: 2
 #
 # ===============DEPLOYMENT SCENARIO 3==================
 #           DISABLE CASSANDRA DEPLOYMENT
 # ======================================================
-#cassandra_deploy: disabled
+#cassandra_deploy: 'disabled'
+#
 ########################################################
-cassandra_deploy: disabled
+cassandra_deploy: 'disabled'
 
 ########################################################
 # Kafka Cluster Configuration
 #  kafka_deploy       : specifies the deployment of kafka cluster
 #                       possible values: 'Hash' (or) 'disabled'
-#  colocation         : whether to colocate kafka daemons with other cluster daemons such as
-#                       hadoop, hbase or cassandra
-#  number_of_brokers  : number of instances on which kafka brokers to launch, choosen randomly
-#                       (default: 1)
-#  number_of_instances: number of kafka nodes to deploy with kafka package, which can be used as
-#                       producer(s) and consumer(s) (not required when collocating instances)
+#  colocate           : whether to colocate kafka daemons with other cluster 
+#                       daemons such as hadoop, hbase or cassandra
+#                       default: no (*not recommended to colocate daemons*)
+#  number_of_brokers  : number of instances on which kafka brokers to launch
 #
 # ===============DEPLOYMENT SCENARIO 1==================
+#                   TO DEPLOY KAFKA
+# ======================================================
+#kafka_deploy:
+# number_of_brokers: 3
+#
+# ===============DEPLOYMENT SCENARIO 2==================
 #       TO DEPLOY KAFKA (on same nodes as workers)
 # ======================================================
 #kafka_deploy:
-# colocation: yes
+# colocate: yes
 # number_of_brokers: 2
-#
-# ===============DEPLOYMENT SCENARIO 2==================
-#       TO DEPLOY KAFKA (on seperate instances)
-# ======================================================
-#kafka_deploy:
-# colocation: no
-# number_of_instances: 3
-# number_of_brokers: 3
 #
 # ===============DEPLOYMENT SCENARIO 3==================
 #               DISABLE KAFKA DEPLOYMENT
 # ======================================================
-#kafka_deploy: disabled
+#kafka_deploy: 'disabled'
+#
 ########################################################
-kafka_deploy: disabled
+kafka_deploy: 'disabled'
 
 ########################################################
 # STORM Cluster Configuration
 #  storm_deploy         : specifies the deployment of storm cluster
 #                         possible values: 'Hash' (or) 'disabled'
-#  colocation           : whether to colocate storm supervisor daemons with other cluster daemons
-#                         such as hadoop, hbase or cassandra
-#  number_of_supervisors: number of supervisor nodes to deploy (not required when collocating instances)
+#  colocate             : whether to colocate storm supervisor daemons with 
+#                         other cluster daemons such as hadoop, hbase or
+#                         cassandra
+#                         default: no (*not recommended to colocate daemons*)
+#  number_of_supervisors: number of supervisor nodes to deploy (not required 
+#                         when collocating instances)
 #  workers_count        : number of worker processes to run per supervisor node
 #
+#
 # ===============DEPLOYMENT SCENARIO 1==================
-#       TO DEPLOY STORM (on same nodes as workers)
+#                   TO DEPLOY STORM
 # ======================================================
-#storm_deploy:
-# colocation: yes
+#kafka_deploy:
+# number_of_supervisors: 5
 # workers_count: 8
 #
 # ===============DEPLOYMENT SCENARIO 2==================
-#       TO DEPLOY STORM (on seperate instances)
+#       TO DEPLOY STORM (on same nodes as workers)
 # ======================================================
-#kafka_deploy:
-# colocation: no
-# number_of_supervisors: 5
+#storm_deploy:
+# colocate: yes
 # workers_count: 8
 #
 # ===============DEPLOYMENT SCENARIO 3==================
 #               DISABLE STORM DEPLOYMENT
 # ======================================================
-#storm_deploy: disabled
+#storm_deploy: 'disabled'
+#
 ########################################################
-storm_deploy: disabled
+storm_deploy: 'disabled'
 
 ########################################################
 # VOLUMES
@@ -215,61 +220,65 @@ storm_deploy: disabled
 #   count : number of volumes to attach to a instance
 #   size  : size of each volume in GB
 #
-# NOTE: rackspace instances comes with prebuilt root partitions based on instance
-#       sizes as follows:
-#       {2=>{20Gb}, 3=>{40GB}, 4=>{80GB}, 5=>{160GB}, 6=>{320GB}, 7=>{620GB}, 8=>{1200GB}}
+# NOTE: rackspace instances comes with prebuilt root partitions based on 
+#       instance sizes as follows:
+#       {2=>{20Gb}, 3=>{40GB}, 4=>{80GB}, 5=>{160GB}, 6=>{320GB}, 7=>{620GB}, 
+#        8=>{1200GB}}
 #
 # ===============DEPLOYMENT SCENARIO 1==================
 #     CREATE AND ATTACH 4 VOLUMES TO WORKER NODE
 # ======================================================
 #volumes:
-# type: blockstore
+# type: 'blockstore'
 # count: 4
 # size: 100
 # ===============DEPLOYMENT SCENARIO 2==================
 #           DISABLE CREATING EXTRA VOLUMES
 # ======================================================
-#volumes: disabled
+#volumes: 'disabled'
+#
 ########################################################
-volumes: disabled
+volumes: 'disabled'
 
 ########################################################
 # Security
 ########################################################
-# security              : if configured sets up kerberos and integrates it with hadoop/hbase and its eco-system
+# security              : if configured sets up kerberos and integrates it with
+#                         hadoop/hbase and its eco-system
 #                         possible_values - simple (will not install kerberos)
 #                                         - kerberos (will install kerberos)
 # hadoop_kerberos_realm : if kerberos is enabled, enter a kerberos realm name
 # hadoop_kerberos_domain: if kerberos is enabled, enter a kerberos domain name
-#   (http://web.mit.edu/kerberos/krb5-1.5/krb5-1.5/doc/krb5-admin/domain_realm.html)
+#                         (http://goo.gl/o44h1O)
 #
 # ===============DEPLOYMENT SCENARIO 1==================
 #                DO NOT USE SECURITY
 # ======================================================
-#security: simple
+#security: 'simple'
 #
 # ===============DEPLOYMENT SCENARIO 2==================
 #          ENABLE SECURITY USING KERBEROS
 # ======================================================
-#security: kerberos
+#security: 'kerberos'
 # hadoop_kerberos_realm: ANKUS.COM
 # hadoop_kerberos_domain: ankus.com
 ########################################################
-security: simple
+security: 'simple'
 
 ########################################################
 # Management Configuration
 ########################################################
 # monitoring      : whether to enable monitoring if the instances using ganglia
 #                   possible values: enabled,disabled
-# alerting        : whether to monitor services and send alerts if something goes wrong based on nagios
+# alerting        : whether to monitor services and send alerts if something
+#                   goes wrong based on nagios
 #                   possible values: enabled,disabled
 #   admin_email   : email address to send alerts (notifications)
-# log_aggregation : whether to collect logs from all the services for core services and make them available
-#                   through web console using logstash
+# log_aggregation : whether to collect logs from all the services for core
+#                   services and make them available through web console
 #                   possible values: enabled,disabled
 ########################################################
-monitoring: enabled
-alerting: disabled
-admin_email: 'admin@cw.com'                             #<<<<<<<<<<<<<< FILL THIS
-log_aggregation: disabled
+monitoring: 'disabled'
+alerting: 'disabled'
+admin_email: ''                             #<<<<<<<<<<<<<< FILL THIS
+log_aggregation: 'disabled'

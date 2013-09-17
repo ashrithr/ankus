@@ -106,7 +106,6 @@ module Ankus
       HBaseConfigParser.new(HBASE_CONF, options[:debug])
     end
 
-    # Creates a object to interface with ankus cloud interactions
     def create_cloud_obj(parsed_hash)
       Cloud.new(
           parsed_hash[:cloud_platform],
@@ -119,11 +118,11 @@ module Ankus
     end
 
     def initiate_deployment(options)
-      size = `stty size 2>/dev/null` #get the size of the terminal
+      size = `stty size 2>/dev/null`
       cols =  if $? == 0
                 size.split.map { |x| x.to_i }.reverse.first
               else
-                80 # if failed to get the size, set the terminal size to default of 80 columns
+                80
               end
       if options[:mock]
         puts '*' * cols
@@ -132,7 +131,6 @@ module Ankus
       end
       options[:run_only] ? puts('Orchestrating puppet runs') : puts('Starting deployment')
       if @parsed_hash.nil? or @parsed_hash.empty?
-        # parse the configuration file if not parsed prior to this point
         puts 'Parsing config file ...'
         parse_config
         puts 'Parsing config file ... ' + '[OK]'.green.bold
@@ -152,9 +150,10 @@ module Ankus
         #   5. Generate Hiera and ENC data
         #   6. Kick off puppet on all instances (Orchestrate the puppet runs based on roles)
         if @parsed_hash[:install_mode] == 'cloud'
-          #Kick off cloud instances and add them back to configuration hash
           Fog.mock! if options[:mock]
+
           cloud = create_cloud_obj(@parsed_hash)
+          
           if options[:add_nodes]
             # if deploy option is add_nodes create a list of tags for instances to be created
             existing_clients_count = @parsed_hash[:slave_nodes_count]
@@ -225,12 +224,12 @@ module Ankus
           Inventory::Generator.new(options[:config], @parsed_hash).generate! NODES_FILE
         end
       else
-        #Run only mode
+        # => RUN ONLY
         if @parsed_hash[:install_mode] == 'cloud'
           cloud = create_cloud_obj(@parsed_hash)
           @parsed_hash, @parsed_hash_with_internal_ips = cloud.modify_config_hash(@parsed_hash, YamlUtils.parse_yaml(CLOUD_INSTANCES))
         end
-      end
+      end # end unless options[:run_only]
 
       ## create puppet_deploy object which is can install puppet & generate hiera data, enc data
       puppet_clients =  if options[:add_nodes] and @parsed_hash[:install_mode] == 'cloud'
