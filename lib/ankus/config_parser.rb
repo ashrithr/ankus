@@ -45,7 +45,7 @@ module Ankus
         puts '[Error]: '.red + 'config file is empty!'
         @errors_count += 1
       end
-      #validate if basic keys are present or not
+      #validate if basic comfiguration parameters are present or not
       ANKUS_CONF_MAIN_KEYS.each do |key|
         unless hash_to_validate.include?(key)
           puts '[Error]: '.red + "Required key: '#{key}' is not present in the configuration file"
@@ -53,14 +53,14 @@ module Ankus
         end
       end
       #validate install_mode, it can be 'local|cloud' modes
-      install_mode = @parsed_hash[:install_mode]
-      if install_mode == 'local'
+      case @parsed_hash[:install_mode]
+      when 'local'
         local_validator hash_to_validate
-      elsif install_mode == 'cloud'
+      when 'cloud'
         cloud_validator hash_to_validate
-      elsif install_mode.nil?
+      when nil
         puts '[Error]:'.red + " 'install_mode' cannot be empty"
-        @errors_count += 1
+        @errors_count += 1        
       else
         puts <<-EOF.undent
           [Error]: Not supported install mode
@@ -84,8 +84,7 @@ module Ankus
     # @param [Hash] hash_to_validate => hash to validate
     def local_validator(hash_to_validate)
       puts '[Debug]: Calling local validator' if @debug
-      #required:
-        #controller:
+      #controller:
       if hash_to_validate[:controller].nil? or hash_to_validate[:controller].empty?
         puts '[Error]:'.red + " 'controller' is required for local install_mode"
         @errors_count += 1
@@ -128,7 +127,7 @@ module Ankus
       # if hosts are up or not
       common_validator(hash_to_validate)
 
-      # force user to enter hostname instead of ipaddress
+      # force user to use hostname instead of ipaddress
       nodes = Inventory::Generator.new(@config_file, @parsed_hash).generate
       ( all_nodes ||= [] ) << nodes[:puppet_server]
       nodes[:puppet_clients].each {|pc| all_nodes << pc }
@@ -164,7 +163,7 @@ module Ankus
         @errors_count += 1
       end
 
-      # cloud credentials => Hash of credentials
+      # cloud credentials
       if cloud_credentials.nil? or cloud_credentials.empty?
         puts '[Error]:'.red + " 'cloud_credentials' is required for cloud install_mode"
         @errors_count += 1
@@ -199,7 +198,10 @@ module Ankus
 
         # validate aws connection
         puts '[Debug]: Validating aws connection' if @debug
-        aws = Aws.new(cloud_credentials[:aws_access_id], cloud_credentials[:aws_secret_key], cloud_credentials[:aws_region])
+        aws = Aws.new(cloud_credentials[:aws_access_id], 
+          cloud_credentials[:aws_secret_key], 
+          cloud_credentials[:aws_region]
+          )
         unless aws.valid_connection?(aws.create_connection)
           puts '[Error]: '.red + 'failed establishing connection to aws, check your credentials'
           exit 2
@@ -425,9 +427,10 @@ module Ankus
       if hash_to_validate[:hadoop_deploy] != 'disabled'
         # call hadoop_validator
         hadoop_validator hash_to_validate
-        if hash_to_validate[:hbase_deploy] != 'disabled'
-          hbase_validator hash_to_validate
-        end
+      end
+
+      if hash_to_validate[:hbase_deploy] != 'disabled'
+        hbase_validator hash_to_validate
       end
 
       zookeeper_validator hash_to_validate
@@ -459,6 +462,7 @@ module Ankus
       journal_quorum = hash_to_validate[:hadoop_deploy][:journal_quorum]
       hadoop_snn = hash_to_validate[:hadoop_deploy][:hadoop_secondarynamenode]
       mapreduce = hash_to_validate[:hadoop_deploy][:mapreduce]
+      slave_nodes_count = hash_to_validate[:slave_nodes_count]
       if mapreduce != 'disabled'
         mapreduce_type = hash_to_validate[:hadoop_deploy][:mapreduce][:type]
         mapreduce_master = hash_to_validate[:hadoop_deploy][:mapreduce][:master]
@@ -485,7 +489,6 @@ module Ankus
           @errors_count += 1
         end
         if hadoop_ha == 'enabled'
-          zookeeper_quorum = hash_to_validate[:zookeeper_quorum]
           if zookeeper_quorum.nil? or zookeeper_quorum.empty?
             puts '[Error]: '.red + "'zookeeper_quorum' is required for hadoop_ha deployment"
             @errors_count += 1
@@ -493,9 +496,8 @@ module Ankus
         end
       else
         #if cloud, validate slave_nodes_count
-        slave_nodes_count = hash_to_validate[:slave_nodes_count]
         if slave_nodes_count.nil?
-          puts '[Error]: '.red + "number of slave nodes is required for cloud deployment ('slave_nodes_count')"
+          puts '[Error]: '.red + "number of slave nodes is required for hadoop deployment ('slave_nodes_count')"
           @errors_count += 1
         elsif ! slave_nodes_count.is_a?(Numeric)
           puts '[Error]: '.red + "expecting numeric value for 'slave_nodes_count'"
@@ -622,11 +624,11 @@ module Ankus
       end
     end
 
-    # Validates hbase related conf params for local install_mode
+    # Validates hbase related conf params
     # @param [Hash] hash_to_validate
     def hbase_validator(hash_to_validate)
       install_mode = hash_to_validate[:install_mode]
-      hadoop_ha = hash_to_validate[:hadoop_deploy][:hadoop_ha]
+      hadoop_install = hash_to_validate[:hadoop_deploy]
       hbase_install = hash_to_validate[:hbase_deploy]
       hbase_master = hash_to_validate[:hbase_deploy][:hbase_master]
       zookeeper_quorum = hash_to_validate[:zookeeper_quorum]
@@ -641,11 +643,24 @@ module Ankus
         @errors_count += 1
       end
 
+      # hadoop is required
+      if hadoop_install.nil? or hadoop_install.empty?
+        puts '[Error]:'.red + " 'hadoop_deploy' is required for hbase deployments"
+        @errors_count += 1
+      elsif hadoop_install == 'disabled'
+        puts '[Error]:'.red + " 'hadoop_deploy' should be enabled for hbase deployments"
+        @errors_count += 1
+      end
+
       if install_mode == 'cloud'
         if hbase_install and (hbase_install[:hbase_master_count].nil? or hbase_install[:hbase_master_count].to_i == 0)
           puts '[Error]:'.red + " invalid value for 'hbase_master_count'"
           @errors_count += 1
         end
+        if hash_to_validate[:zookeeper_quorum_count].nil?
+          puts '[Error]: '.red + "'zookeeper_quorum_count' is required for hbase deployment"
+          @errors_count += 1
+        end        
       else
         if hbase_install and (hbase_install[:hbase_master].nil? or hbase_install[:hbase_master].empty?)
           puts '[Error]:'.red + " invalid value for 'hbase_master'"
@@ -661,7 +676,7 @@ module Ankus
             @errors_count += 1
           end
           if zookeeper_quorum.nil? or zookeeper_quorum.empty?
-            puts '[Error]: '.red + "'zookeeper_quorum' is required"
+            puts '[Error]: '.red + "'zookeeper_quorum' is required for hbase deployments"
             @errors_count += 1
           elsif ! zookeeper_quorum.kind_of?(Array)
             puts '[Error]: '.red + "'zookeeper_quorum' should be of type array"
@@ -671,6 +686,7 @@ module Ankus
       end
     end
 
+    # Validates zookeeper configuration
     def zookeeper_validator(hash_to_validate)
       install_mode = hash_to_validate[:install_mode]
       hadoop_ha = hash_to_validate[:hadoop_deploy][:hadoop_ha] if hash_to_validate[:hadoop_deploy] != 'disabled'
@@ -733,18 +749,18 @@ module Ankus
         end
       else
         if cassandra_deploy != 'disabled'
-          colocation = cassandra_deploy[:colocation]
-          if colocation.nil?
-            puts '[Error]: '.red + "'colocation' is required param, valid values are yes|no"
-            @errors_count += 1
-          elsif ! (colocation.is_a? TrueClass or colocation.is_a? FalseClass)
-            puts '[Error]: '.red + "invalid value found for 'colocation', valid values are yes|no"
+          colocate = cassandra_deploy[:colocate]
+          if colocate.nil?
+            puts "[Debug]: defaulting colocate for cassandra"
+            hash_to_validate[:cassandra_deploy][:colocate] = false
+          elsif ! (colocate.is_a? TrueClass or colocate.is_a? FalseClass)
+            puts '[Error]: '.red + "invalid value found for 'colocate', valid values are yes|no"
             @errors_count += 1
           end
-          if ! colocation
+          if ! colocate
             number_of_instances = cassandra_deploy[:number_of_instances]
             if number_of_instances.nil?
-              puts '[Error]: '.red + "'number_of_instances' is a required param for cassandra_deploy if colocation is disabled"
+              puts '[Error]: '.red + "'number_of_instances' is a required param for cassandra_deploy if colocate is disabled"
               @errors_count += 1
             elsif ! number_of_instances.is_a? Numeric
               puts '[Error]: '.red + "expecting numeric value for 'number_of_instances' in cassandra_deploy"
@@ -799,18 +815,18 @@ module Ankus
       else
         #cloud deploy
         if kafka_deploy != 'disabled'
-          colocation = kafka_deploy[:colocation]
-          if colocation.nil?
-            puts '[Error]: '.red + "'colocation' is required param, valid values are yes|no"
-            @errors_count += 1
-          elsif ! (colocation.is_a? TrueClass or colocation.is_a? FalseClass)
-            puts '[Error]: '.red + "invalid value found for 'colocation', valid values are yes|no"
+          colocate = kafka_deploy[:colocate]
+          if colocate.nil?
+            puts "[Debug]: defaulting colocate for kafka"
+            hash_to_validate[:kafka_deploy][:colocate] = false  
+          elsif ! (colocate.is_a? TrueClass or colocate.is_a? FalseClass)
+            puts '[Error]: '.red + "invalid value found for 'colocate', valid values are yes|no"
             @errors_count += 1
           end
-          if ! colocation
+          if ! colocate
             number_of_instances = kafka_deploy[:number_of_instances]
             if number_of_instances.nil?
-              puts '[Error]: '.red + "'number_of_instances' is a required key for kafka_deploy if colocation is disabled"
+              puts '[Error]: '.red + "'number_of_instances' is a required key for kafka_deploy if colocate is disabled"
               @errors_count += 1
             elsif ! number_of_instances.is_a? Numeric
               puts '[Error]: '.red + "expecting numeric value for 'number_of_instances' in kafka_deploy hash"
@@ -867,18 +883,18 @@ module Ankus
       else
         #cloud deploy
         if storm_deploy != 'disabled'
-          colocation = storm_deploy[:colocation]
-          if colocation.nil?
-            puts '[Error]: '.red + "'colocation' is required param, valid values are yes|no"
-            @errors_count += 1
-          elsif ! (colocation.is_a? TrueClass or colocation.is_a? FalseClass)
-            puts '[Error]: '.red + "invalid value found for 'colocation', valid values are yes|no"
+          colocate = storm_deploy[:colocate]
+          if colocate.nil?
+            puts "[Debug]: defaulting colocate for kafka"
+            hash_to_validate[:storm_deploy][:colocate] = false
+          elsif ! (colocate.is_a? TrueClass or colocate.is_a? FalseClass)
+            puts '[Error]: '.red + "invalid value found for 'colocate', valid values are yes|no"
             @errors_count += 1
           end
-          if ! colocation
+          if ! colocate
             number_of_supervisors = storm_deploy[:number_of_supervisors]
             if number_of_supervisors.nil?
-              puts '[Error]: '.red + "'number_of_supervisors' is a required key for storm_deploy if colocation is disabled"
+              puts '[Error]: '.red + "'number_of_supervisors' is a required key for storm_deploy if colocate is disabled"
               @errors_count += 1
             elsif ! number_of_supervisors.is_a? Numeric
               puts '[Error]: '.red + "expecting numeric value for 'number_of_supervisors' in storm_deploy hash"

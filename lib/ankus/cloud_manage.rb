@@ -77,15 +77,15 @@ module Ankus
         end
       end
       if @parsed_hash[:cassandra_deploy] != 'disabled'
-        unless @parsed_hash[:cassandra_deploy][:colocation]
-          # if colocation is not enabled then create separate cassandra instances
+        unless @parsed_hash[:cassandra_deploy][:colocate]
+          # if colocate is not enabled then create separate cassandra instances
           @parsed_hash[:cassandra_deploy][:number_of_instances].times do |cn|
             nodes_to_create["cassandra#{cn+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
           end
         end
       end
       if @parsed_hash[:kafka_deploy] != 'disabled'
-        unless @parsed_hash[:kafka_deploy][:colocation]
+        unless @parsed_hash[:kafka_deploy][:colocate]
           @parsed_hash[:kafka_deploy][:number_of_brokers].times do |kn|
             nodes_to_create["kafka#{kn+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
           end
@@ -93,7 +93,7 @@ module Ankus
       end
       if @parsed_hash[:storm_deploy] != 'disabled'
         nodes_to_create["stormnimbus"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-        unless @parsed_hash[:storm_deploy][:colocation]
+        unless @parsed_hash[:storm_deploy][:colocate]
           @parsed_hash[:storm_deploy][:number_of_supervisors].times do |kn|
             nodes_to_create["stormworker#{kn+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
           end
@@ -208,6 +208,7 @@ module Ankus
                                       ['/data/0']
                                     end
       parsed_hash[:controller] = nodes_hash.map { |k,v| v.first if k =~ /controller/ }.compact.first
+
       if parsed_hash[:hadoop_deploy] != 'disabled'
         parsed_hash[:hadoop_deploy][:hadoop_namenode]    = nodes_hash.map { |k,v| v.first if k =~ /namenode/ }.compact
         parsed_hash[:hadoop_deploy][:mapreduce][:master] = nodes_hash.map { |k,v| v.first if k =~ /jobtracker/ }.compact.first if parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
@@ -220,30 +221,38 @@ module Ankus
         parsed_hash[:hadoop_deploy][:journal_quorum]  = nodes_hash.map { |k,v| v.first if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
         parsed_hash[:hbase_deploy][:hbase_master]     = nodes_hash.map { |k,v| v.first if k =~ /hbasemaster/ }.compact if parsed_hash[:hbase_deploy] != 'disabled'
       end
+
       if parsed_hash[:cassandra_deploy] != 'disabled'
-        parsed_hash[:cassandra_deploy][:cassandra_nodes] =  if ! parsed_hash[:cassandra_deploy][:colocation]
+        parsed_hash[:cassandra_deploy][:cassandra_nodes] =  if ! parsed_hash[:cassandra_deploy][:colocate]
                                                               nodes_hash.map { |k,v| v.first if k =~ /cassandra/ }.compact
-                                                            elsif parsed_hash[:cassandra_deploy][:colocation]
+                                                            elsif parsed_hash[:cassandra_deploy][:colocate]
                                                               nodes_hash.map { |k,v| v.first if k =~ /slaves/ }.compact
                                                             end
         parsed_hash[:cassandra_deploy][:cassandra_seeds] = Array.new(parsed_hash[:cassandra_deploy][:number_of_seeds]){|i| parsed_hash[:cassandra_deploy][:cassandra_nodes][i] }
       end
+
       if parsed_hash[:kafka_deploy] != 'disabled'
-        parsed_hash[:kafka_deploy][:kafka_nodes] =  if ! parsed_hash[:kafka_deploy][:colocation]
+        parsed_hash[:kafka_deploy][:kafka_nodes] =  if ! parsed_hash[:kafka_deploy][:colocate]
                                                       nodes_hash.map { |k,v| v.first if k =~ /kafka/ }.compact
-                                                    elsif parsed_hash[:kafka_deploy][:colocation]
+                                                    elsif parsed_hash[:kafka_deploy][:colocate] and parsed_hash[:hadoop_deploy] == 'disabled'
+                                                      nodes_hash.map { |k,v| v.first if k =~ /cassandra/  }.compact
+                                                    elsif parsed_hash[:kafka_deploy][:colocate] and parsed_hash[:hadoop_deploy] != 'disabled'
                                                       nodes_hash.map { |k,v| v.first if k =~ /slaves/  }.compact
                                                     end
         parsed_hash[:kafka_deploy][:kafka_brokers] = Array.new(parsed_hash[:kafka_deploy][:number_of_brokers]) { |i| parsed_hash[:kafka_deploy][:kafka_nodes][i] }
       end
+
       if parsed_hash[:storm_deploy] != 'disabled'
-        parsed_hash[:storm_deploy][:storm_supervisors] =  if ! parsed_hash[:storm_deploy][:colocation]
+        parsed_hash[:storm_deploy][:storm_supervisors] =  if ! parsed_hash[:storm_deploy][:colocate]
                                                             nodes_hash.map { |k,v| v.first if k =~ /stormworker/ }.compact
-                                                          elsif parsed_hash[:storm_deploy][:colocation]
+                                                          elsif parsed_hash[:storm_deploy][:colocate] and parsed_hash[:hadoop_deploy] == 'disabled'
+                                                            nodes_hash.map { |k,v| v.first if k =~ /cassandra/  }.compact
+                                                          elsif parsed_hash[:storm_deploy][:colocate] and parsed_hash[:hadoop_deploy] != 'disabled'
                                                             nodes_hash.map { |k,v| v.first if k =~ /slaves/  }.compact
                                                           end
         parsed_hash[:storm_deploy][:storm_master] = nodes_hash.map { |k,v| v.first if k =~ /stormnimbus/ }.compact.first
       end
+
       #zookeepers
       if parsed_hash[:hadoop_deploy] != 'disabled'
         parsed_hash[:zookeeper_quorum] = nodes_hash.map { |k,v| v.first if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
@@ -269,25 +278,29 @@ module Ankus
           parsed_hash_internal_ips[:hbase_deploy][:hbase_master]    = nodes_hash.map { |k,v| v.last if k =~ /hbasemaster/ }.compact if parsed_hash[:hbase_deploy] != 'disabled'
         end
         if parsed_hash[:cassandra_deploy] != 'disabled'
-          parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes] = if ! parsed_hash[:cassandra_deploy][:colocation]
+          parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes] = if ! parsed_hash[:cassandra_deploy][:colocate]
                                                                             nodes_hash.map { |k,v| v.last if k =~ /cassandra/ }.compact
-                                                                          elsif parsed_hash[:cassandra_deploy][:colocation]
+                                                                          elsif parsed_hash[:cassandra_deploy][:colocate]
                                                                             nodes_hash.map { |k,v| v.last if k =~ /slaves/ }.compact
                                                                           end
           parsed_hash_internal_ips[:cassandra_deploy][:cassandra_seeds] = Array.new(parsed_hash[:cassandra_deploy][:number_of_seeds]){|i| parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes][i] }
         end
         if parsed_hash[:kafka_deploy] != 'disabled'
-          parsed_hash_internal_ips[:kafka_deploy][:kafka_nodes] = if ! parsed_hash[:kafka_deploy][:colocation]
+          parsed_hash_internal_ips[:kafka_deploy][:kafka_nodes] =  if ! parsed_hash[:kafka_deploy][:colocate]
                                                                     nodes_hash.map { |k,v| v.last if k =~ /kafka/ }.compact
-                                                                  elsif parsed_hash[:kafka_deploy][:colocation]
+                                                                  elsif parsed_hash[:kafka_deploy][:colocate] and parsed_hash[:hadoop_deploy] == 'disabled'
+                                                                    nodes_hash.map { |k,v| v.last if k =~ /cassandra/  }.compact
+                                                                  elsif parsed_hash[:kafka_deploy][:colocate] and parsed_hash[:hadoop_deploy] != 'disabled'
                                                                     nodes_hash.map { |k,v| v.last if k =~ /slaves/  }.compact
                                                                   end
           parsed_hash_internal_ips[:kafka_deploy][:kafka_brokers] = Array.new(parsed_hash[:kafka_deploy][:number_of_brokers]) { |i| parsed_hash_internal_ips[:kafka_deploy][:kafka_nodes][i] }
         end
         if parsed_hash[:storm_deploy] != 'disabled'
-          parsed_hash_internal_ips[:storm_deploy][:storm_supervisors] = if ! parsed_hash[:storm_deploy][:colocation]
+          parsed_hash_internal_ips[:storm_deploy][:storm_supervisors] =  if ! parsed_hash[:storm_deploy][:colocate]
                                                                           nodes_hash.map { |k,v| v.last if k =~ /stormworker/ }.compact
-                                                                        elsif parsed_hash[:storm_deploy][:colocation]
+                                                                        elsif parsed_hash[:storm_deploy][:colocate] and parsed_hash[:hadoop_deploy] == 'disabled'
+                                                                          nodes_hash.map { |k,v| v.last if k =~ /cassandra/  }.compact
+                                                                        elsif parsed_hash[:storm_deploy][:colocate] and parsed_hash[:hadoop_deploy] != 'disabled'
                                                                           nodes_hash.map { |k,v| v.last if k =~ /slaves/  }.compact
                                                                         end
           parsed_hash_internal_ips[:storm_deploy][:storm_master] = nodes_hash.map { |k,v| v.last if k =~ /stormnimbus/ }.compact.first
@@ -316,27 +329,31 @@ module Ankus
           parsed_hash_internal_ips[:hbase_deploy][:hbase_master]    = nodes_hash.map { |k,_| k if k =~ /hbasemaster/ }.compact if parsed_hash[:hbase_deploy] != 'disabled'
         end
         if parsed_hash[:cassandra_deploy] != 'disabled'
-          parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes] = if ! parsed_hash[:cassandra_deploy][:colocation]
+          parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes] = if ! parsed_hash[:cassandra_deploy][:colocate]
                                                                             nodes_hash.map { |k,_| k if k =~ /cassandra/ }.compact
-                                                                          elsif parsed_hash[:cassandra_deploy][:colocation]
+                                                                          elsif parsed_hash[:cassandra_deploy][:colocate]
                                                                             nodes_hash.map { |k,_| k if k =~ /slaves/ }.compact
                                                                           end
           parsed_hash_internal_ips[:cassandra_deploy][:cassandra_seeds] = Array.new(parsed_hash[:cassandra_deploy][:number_of_seeds]){|i| parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes][i] }
         end
         if parsed_hash[:kafka_deploy] != 'disabled'
-          parsed_hash_internal_ips[:kafka_deploy][:kafka_nodes] = if ! parsed_hash[:kafka_deploy][:colocation]
+          parsed_hash_internal_ips[:kafka_deploy][:kafka_nodes] =  if ! parsed_hash[:kafka_deploy][:colocate]
                                                                     nodes_hash.map { |k,_| k if k =~ /kafka/ }.compact
-                                                                  elsif parsed_hash[:kafka_deploy][:colocation]
-                                                                    nodes_hash.map { |k,_| k if k =~ /slaves/  }.compact
-                                                                  end
+                                                                  elsif parsed_hash[:kafka_deploy][:colocate] and parsed_hash[:hadoop_deploy] == 'disabled'
+                                                                    nodes_hash.map { |k,_| k if k =~ /cassandra/ }.compact
+                                                                  elsif parsed_hash[:kafka_deploy][:colocate] and parsed_hash[:hadoop_deploy] != 'disabled'
+                                                                    nodes_hash.map { |k,_| k if k =~ /slaves/ }.compact
+                                                                  end          
           parsed_hash_internal_ips[:kafka_deploy][:kafka_brokers] = Array.new(parsed_hash[:kafka_deploy][:number_of_brokers]) { |i| parsed_hash_internal_ips[:kafka_deploy][:kafka_nodes][i] }
         end
         if parsed_hash[:storm_deploy] != 'disabled'
-          parsed_hash_internal_ips[:storm_deploy][:storm_supervisors] = if ! parsed_hash[:storm_deploy][:colocation]
+          parsed_hash_internal_ips[:storm_deploy][:storm_supervisors] =  if ! parsed_hash[:storm_deploy][:colocate]
                                                                           nodes_hash.map { |k,_| k if k =~ /stormworker/ }.compact
-                                                                        elsif parsed_hash[:storm_deploy][:colocation]
+                                                                        elsif parsed_hash[:storm_deploy][:colocate] and parsed_hash[:hadoop_deploy] == 'disabled'
+                                                                          nodes_hash.map { |k,_| k if k =~ /cassandra/  }.compact
+                                                                        elsif parsed_hash[:storm_deploy][:colocate] and parsed_hash[:hadoop_deploy] != 'disabled'
                                                                           nodes_hash.map { |k,_| k if k =~ /slaves/  }.compact
-                                                                        end
+                                                                        end          
           parsed_hash_internal_ips[:storm_deploy][:storm_master] = nodes_hash.map { |k,_| k if k =~ /stormnimbus/ }.compact
         end
         if parsed_hash[:hadoop_deploy] != 'disabled'

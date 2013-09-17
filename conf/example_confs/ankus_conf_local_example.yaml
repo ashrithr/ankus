@@ -2,64 +2,76 @@
 ########################################################
 #             Ankus Local Configuration
 ########################################################
-
-########################################################
-# * install_mode: Specifies the type of installation
-#     Possible values: local | cloud
-#     # local: installation will be done on pre-defined machines (managed by user)
-#     # cloud: ankus will create machines in the cloud (managed by ankus)
-########################################################
 install_mode: 'local'
 
 ########################################################
 # SSH Configuration
-# * ssh_key: root users ssh private key to log into machines
-# * ssh_user: username used to log into machines, change this if the user is not 'root', ssh_user
-#             should have password less sudo privileges (you can make a user password-less sudo by adding the user
-#             to /etc/sudoers file like this `ssh_user  ALL = (ALL) NOPASSWD: ALL` )
 ########################################################
-ssh_key: '~/.ssh/id_rsa'                                #<<<<<<<<<<<<<< UPDATE THIS
-ssh_user: 'root'                                        #<<<<<<<<<<<<<< UPDATE THIS
+# * ssh_key : root users ssh private key to log into machines
+# * ssh_user: username used to log into machines, change this if the user is 
+#             not 'root', ssh_user should have password less sudo privileges 
+#             (you can make a user password-less sudo by adding the user to
+#              /etc/sudoers file like this 
+#              `ssh_user  ALL = (ALL) NOPASSWD: ALL` 
+#             )
+########################################################
+ssh_key: '~/.ssh/id_rsa'         #<<<<<<<<<<<<<< UPDATE THIS
+ssh_user: 'root'                 #<<<<<<<<<<<<<< UPDATE THIS
 
 ########################################################
 # Controller
-# * controller: hostname of the server which will host puppet master, kerberos server
-#   if security is enabled, nagios & ganglia servers if monitoring & altering are enabled.
-#   logstash indexer if log_aggregation is enabled this could be local host if running
-#   ankus from controller machine.
+########################################################
+# * controller: fqdn of the server which will host 
+#               - puppet master 
+#               - kerberos server (if security is enabled)
+#               - nagios server (if alerting is enabled)
+#               - ganglia server (if monitoring is enabled)
+#               - logstash indexer (if log aggregation is enabled)
+#   The value of the controller could be 'localhost' if runing ankus from 
+#   controller.
 ########################################################
 controller: 'controller.ops.cw.com'
 
 ########################################################
 # Hadoop Cluster Configuration
+########################################################
 # * hadoop_deploy: specifies whether to deploy hadoop or not
 #   * hadoop_ha (hadoop high availability configuration):
-#       enabled => hadoop ha is enabled with two namenode(s) with auto failover using zkfc
-#       disabled => hadoop ha is not setup and only one namenode will be installed and configured
+#       enabled => hadoop ha is enabled with two namenode(s) with auto failover 
+#                  using zkfc
+#       disabled => hadoop ha is not setup and only one namenode will be 
+#                   installed and configured
 #   * hadoop_namenode:
 #       fqdn of hosts on which namenode should be deployed
 #       if hadoop_ha is enabled, pass in two fqdn(s)
 #       if hadoop_ha is disabled, pass in one fqdn
 #   * hadoop_secondarynamenode:
-#       if hadoop_ha is disabled pass in a fqdn in which secondarynamenode is configured
+#       if hadoop_ha is disabled pass in a fqdn in which secondarynamenode is 
+#       configured
 #   * journal_quorum:
-#       if hadoop_ha is enabled|auto, pass in odd number of fqdn(s). Journal nodes are used to store
-#       metadata in high availability configuration
-#   * mapreduce: mapreduce specific configuration, specifies whether to deploy mapreduce framework or not
+#       if hadoop_ha is enabled|auto, pass in odd number of fqdn(s). Journal 
+#       nodes are used to store metadata in high availability configuration
+#   * mapreduce: mapreduce specific configuration, specifies whether to deploy 
+#                mapreduce framework or not
 #       * type: specifies mapreduce framework type to deploy (mr1 or mr2)
 #       * master: fqdn of machine on which mapreduce master will be deployed
 #   * hadoop_ecosystem: list of ecosystem tools to deploy
-#       hive  - installs and configures hive, which is data warehouse system for Hadoop (http://hive.apache.org/)
-#       pig   - installs and configures pig, is a platform for analyzing large data sets (http://pig.apache.org/)
-#       sqoop - installs and configures sqoop, is a tool designed for efficiently transferring bulk data between
-#               hadoop & rdbms & mpp (http://sqoop.apache.org/)
-#       oozie - installs and configures oozie, is a workflow scheduler system to manage Apache Hadoop jobs
+#       hive  - installs and configures hive, which is data warehouse system for 
+#               Hadoop (http://hive.apache.org/)
+#       pig   - installs and configures pig, is a platform for analyzing large 
+#               data sets (http://pig.apache.org/)
+#       sqoop - installs and configures sqoop, is a tool designed for 
+#               efficiently transferring bulk data between hadoop & rdbms & mpp
+#               (http://sqoop.apache.org/)
+#       oozie - installs and configures oozie, is a workflow scheduler system to
+#               manage Apache Hadoop jobs 
 #               (http://oozie.apache.org/)
-#       hue   - installs and configures hue, the open source Apache Hadoop UI (http://cloudera.github.io/hue/)
+#       hue   - installs and configures hue, the open source Apache Hadoop UI
+#               (http://cloudera.github.io/hue/)
 #
-#  ======================================================
-# Example Configurations:
-# 1. To deploy hadoop (ha) with mapreduce
+# ===============DEPLOYMENT SCENARIO 1==================
+#        TO DEPLOY HADOOP (HA) with MapReduce
+# ======================================================
 # hadoop_deploy:
 #   hadoop_ha: 'enabled'
 #   hadoop_namenode:
@@ -68,65 +80,64 @@ controller: 'controller.ops.cw.com'
 #   journal_quorum:
 #     - 'utils001.ops.cw.com'
 #   mapreduce:
-#     type: mr1
+#     type: 'mr1'
 #     master: 'jt.ops.cw.com'
 #   hadoop_ecosystem:
-#     - hive
-#     - pig
-#     - sqoop
-#     - oozie
+#     - 'hive'
+#     - 'pig'
+#     - 'sqoop'
+#     - 'oozie'
 #
-# 2. To deploy only hadoop(non-ha), used for hbase oriented deployments
+# ===============DEPLOYMENT SCENARIO 2==================
+# TO DEPLOY HADOOP (just HDFS) suitable for HBase deployments
+# ======================================================
 # hadoop_deploy:
 #   hadoop_ha: 'disabled'
 #   hadoop_namenode:
 #     - 'namenode001.ops.cw.com'
 #   hadoop_secondarynamenode: 'snn.ops.cw.com'
-#   mapreduce: disabled
+#   mapreduce: 'disabled'
 #
-# 3. Not to deploy hadoop, used for cassandra oriented deployments
+# ===============DEPLOYMENT SCENARIO 3==================
+#              DISABLE HADOOP DEPLOYMENT
+# ======================================================
 # hadoop_deploy: 'disabled'
+#
 ########################################################
-hadoop_deploy:
-  hadoop_ha: 'enabled'
-  hadoop_namenode:
-    - 'namenode001.ops.cw.com'
-  hadoop_secondarynamenode: 'snn.ops.cw.com'
-  mapreduce:
-    type: mr1
-    master: 'jobtracker.ops.cw.com'
-  hadoop_ecosystem:
-    - hive
-    - sqoop
-    - pig
+hadoop_deploy: 'disabled'
 
 ########################################################
 # HBase Cluster configuration
+########################################################
 # * hbase_install: Specify whether to deploy hbase or not
-#     if enabled will install hbase
-#     if disabled hbase will not be deployed
-# * hbase_master: if hbase_install is enabled, specify fqdn's of hbase masters to deploy
+#                   if enabled will install hbase
+#                   if disabled hbase will not be deployed
+# * hbase_master: if hbase_install is enabled, specify fqdn's of hbase masters 
+#                 to deploy
 #
-#  ======================================================
-# Example configurations
-# 1. Deploy hbase on 2 masters
+# ===============DEPLOYMENT SCENARIO 2==================
+#           TO DEPLOY HBASE (with 2 masters)
+# ======================================================
 # hbase_deploy:
 #   hbase_master:
 #     - 'hbasemaster001.ops.cw.com'
 #     - 'hbasemaster002.ops.cw.com'
 #
-# 2. Do noy deploy hbase
-# hbase_install: disabled
+# ===============DEPLOYMENT SCENARIO 3==================
+#               DISABLE HBASE DEPLOYMENT
+# ======================================================
+# hbase_deploy: 'disabled'
+#
 ########################################################
-hbase_deploy:
-  hbase_master:
-    - 'hbasemaster001.ops.cw.com'
-    - 'hbasemaster002.ops.cw.com'
+hbase_deploy: 'disabled'
 
 ########################################################
-# Zookeeper Quorum Configuration (Required when hadoop_ha or hbase is enabled)
-# * zookeeper_quoram_count: specifies the number of zookeeper(s) to launch used for coordination
-#                           services of hadoop-ha and hbase. Recommended is Odd number of zookeepers.
+# Zookeeper Quorum Configuration
+########################################################
+# Required for hadoop_ha, hbase, kafka, storm deployments
+# * zookeeper_quoram: specifies the fqdn(s) of hosts to launch zookeeper, which
+#                     are used for coordination between several services
+#                     Recommended: Odd number of hosts
 # Note: (zookeepers and journal nodes can co-exist on same machines)
 ########################################################
 zookeeper_quorum:
@@ -134,12 +145,13 @@ zookeeper_quorum:
 
 ########################################################
 # Worker Nodes Configuration
+########################################################
 #  slave_nodes:
-#   list of slave nodes on which datanode and tasktracker daemons will be installed. If hbase is enabled
-#   region servers are also installed on same instances.
+#   list of slave nodes on which hadoop worker daemons will be installed. If 
+#   hbase is enabled hbase worker daemons are also installed on same machines.
 #  storage_dirs:
-#   list of directories where worker nodes will store data, recommended to mount each dir on separate
-#   volumes for higher throughput
+#   list of directories where worker nodes will store data, recommended to mount 
+#   each dir on separate volumes for higher throughput
 ########################################################
 slave_nodes:
   - 'worker001.ops.cw.com'
@@ -155,18 +167,30 @@ storage_dirs:
   - '/data/4'
 
 ########################################################
-# Security Config
-# security => if configured sets up kerberos and integrates it with hadoop/hbase and its eco-system
-#   possible_values: simple => will not install kerberos
-#                    kerberos => will install kerberos
-# hadoop_kerberos_realm => if kerberos is enabled, enter a kerberos realm name
-# hadoop_kerberos_domain => if kerberos is enabled, enter a kerberos domain name
-#   (http://web.mit.edu/kerberos/krb5-1.5/krb5-1.5/doc/krb5-admin/domain_realm.html)
+# Security
 ########################################################
-security: simple
-# if security is kerberos please fill in the below options
-#hadoop_kerberos_realm: CW.COM
-#hadoop_kerberos_domain: cw.com
+# security              : if configured sets up kerberos and integrates it with
+#                         hadoop/hbase and its eco-system
+#                         possible_values - simple (will not install kerberos)
+#                                         - kerberos (will install kerberos)
+# hadoop_kerberos_realm : if kerberos is enabled, enter a kerberos realm name
+# hadoop_kerberos_domain: if kerberos is enabled, enter a kerberos domain name
+#                         (http://goo.gl/o44h1O)
+#
+# ===============DEPLOYMENT SCENARIO 1==================
+#                DO NOT USE SECURITY
+# ======================================================
+#security: 'simple'
+#
+# ===============DEPLOYMENT SCENARIO 2==================
+#          ENABLE SECURITY USING KERBEROS
+# ======================================================
+#security: 'kerberos'
+# hadoop_kerberos_realm: ANKUS.COM
+# hadoop_kerberos_domain: ankus.com
+#
+########################################################
+security: 'simple'
 
 ########################################################
 # Cassandra Cluster Configuration
@@ -174,10 +198,12 @@ security: simple
 #                    possible values: Hash (or) disabled
 #   cassandra_nodes: nodes on which cassandra is deployed and managed
 #   cassandra_seeds: list of cassandra seed nodes
-# (NOTE: cassandra_nodes and hadoop_slave_nodes can co-exist if willing to sacrifice performance)
+# (NOTE: cassandra_nodes and hadoop_slave_nodes can co-exist if willing to 
+#        sacrifice performance)
 #
-# Example Configurations:
-# 1. To deploy cassandra on set of nodes
+# ===============DEPLOYMENT SCENARIO 1==================
+#                 TO DEPLOY CASSANDRA 
+# ======================================================
 # cassandra_deploy:
 #   cassandra_nodes:
 #     - 'cassandra001.ops.cw.com'
@@ -188,8 +214,11 @@ security: simple
 #   cassandra_seeds:
 #     - 'cassandra002.ops.cw.com'
 #
-# 2. Not to deploy cassandra
-# cassandra_deploy: 'disabled'
+# ===============DEPLOYMENT SCENARIO 2==================
+#           DISABLE CASSANDRA DEPLOYMENT
+# ======================================================
+#cassandra_deploy: 'disabled'
+#
 ########################################################
 cassandra_deploy: 'disabled'
 
@@ -197,24 +226,23 @@ cassandra_deploy: 'disabled'
 # Kafka Cluster Configuration
 #  kafka_deploy: specifies the deployment of kafka cluster
 #                possible values: Hash (or) disabled
-#   kafka_nodes: nodes on which kafka package is installed
+#   kafka_nodes: nodes on which kafka package is installed (can be used as
+#                 producers and consumenrs)
 #   kafka_brokers: list of kafka broker nodes
 #
-# Example Configurations:
-# 1. To deploy kafka on set of nodes
+# ===============DEPLOYMENT SCENARIO 1==================
+#                   TO DEPLOY KAFKA
+# ======================================================
 # kafka_deploy:
-#   kafka_nodes:
-#     - 'kafka001.ops.cw.com'
-#     - 'kafka002.ops.cw.com'
-#     - 'kafka003.ops.cw.com'
-#     - 'kafka004.ops.cw.com'
-#     - 'kafka005.ops.cw.com'
 #   kafka_brokers:
 #     - 'kafka001.ops.cw.com'
 #     - 'kafka002.ops.cw.com'
 #
-# 2. Not to deploy kafka
-# kafka_deploy: 'disabled'
+# ===============DEPLOYMENT SCENARIO 2==================
+#               DISABLE KAFKA DEPLOYMENT
+# ======================================================
+#kafka_deploy: 'disabled'
+#
 ########################################################
 kafka_deploy: 'disabled'
 
@@ -226,8 +254,9 @@ kafka_deploy: 'disabled'
 #   storm_master: node on which storm nimbus and ui daemons are installed
 #   workers_count: number of worker processes to run per supervisor node
 #
-# Example Configurations:
-# 1. To deploy storm on set of nodes
+# ===============DEPLOYMENT SCENARIO 1==================
+#                   TO DEPLOY STORM
+# ======================================================
 # storm_deploy:
 #   storm_supervisors:
 #     - 'stormsupervisor001.ops.cw.com'
@@ -238,19 +267,28 @@ kafka_deploy: 'disabled'
 #   storm_master: 'stormmaster001.ops.cw.com'
 #   workers_count: 8
 #
-# 2. Not to deploy kafka
+# ===============DEPLOYMENT SCENARIO 2==================
+#               DISABLE STORM DEPLOYMENT
+# ======================================================
 # storm_deploy: 'disabled'
+#
 ########################################################
 storm_deploy: 'disabled'
 
 ########################################################
 # Management Configuration
-# monitoring (enabled|disabled) => if enabled, ganglia will be setup and configured
-# alerting (enabled|disabled) => if enabled, nagios will be setup and configured to monitor
-# admin_email => required (if alerting is enabled), email address to send alters (notifications)
-# log_aggregation (enabled|disabled) => if enabled, logstash will be installed to aggregate logs from all the servers
 ########################################################
-monitoring: enabled
-alerting: enabled
-admin_email: 'admin@cw.com'
-log_aggregation: enabled
+# monitoring      : whether to enable monitoring if the instances using ganglia
+#                   possible values: enabled,disabled
+# alerting        : whether to monitor services and send alerts if something
+#                   goes wrong based on nagios
+#                   possible values: enabled,disabled
+#   admin_email   : email address to send alerts (notifications)
+# log_aggregation : whether to collect logs from all the services for core
+#                   services and make them available through web console
+#                   possible values: enabled,disabled
+########################################################
+monitoring: 'disabled'
+alerting: 'disabled'
+admin_email: ''                   #<<<<<<<<<<<<<< FILL THIS
+log_aggregation: 'disabled'
