@@ -158,13 +158,14 @@ module Ankus
             # if deploy option is add_nodes create a list of tags for instances to be created
             existing_clients_count = @parsed_hash[:slave_nodes_count]
             tags = []
+            rackspace_cloud_ident = @parsed_hash[:cloud_credentials][:rackspace_cluster_identifier]
             options[:count].times do
               tags << if @parsed_hash[:cloud_platform] == 'aws'
                         existing_clients_count += 1
                         "slaves#{existing_clients_count}"
                       elsif @parsed_hash[:cloud_platform] == 'rackspace'
                         existing_clients_count += 1
-                        "slaves#{existing_clients_count}.#{@parsed_hash[:cloud_credentials][:rackspace_cluster_identifier]}.ankus.com"
+                        "slaves#{existing_clients_count}.#{rackspace_cluster_identifier}.ankus.com"
                       end
             end
             @new_instances = cloud.create_instances_on_count tags #this only contains currently created instances
@@ -174,38 +175,45 @@ module Ankus
             _parsed_hash[:slave_nodes_count] += options[:count]
             YamlUtils.write_yaml(_parsed_hash.deep_stringify, options[:config])
           else
-            nodes_fqdn_map = cloud.create_instances
+            #
+            # => Creates cloud instances and returns nodes hash
+            #
+            nodes = cloud.create_cloud_instances
           end
-          YamlUtils.write_yaml(nodes_fqdn_map, CLOUD_INSTANCES)
+          YamlUtils.write_yaml(nodes, CLOUD_INSTANCES)
           if options[:mock] and options[:debug]
             puts '[Debug]: ' + 'Nodes Hash'.blue
-            pp nodes_fqdn_map
+            pp YamlUtils.parse_yaml(CLOUD_INSTANCES)
             puts
           end
-          # @parsed_hash_with_internal_ips is a rebuild'ed hash which is similar to @parsed_hash only difference is
-          # that it contains private_ips which are resolved internally by cloud instances, which is required for building
-          # hiera data and enc data
-          @parsed_hash, @parsed_hash_with_internal_ips = cloud.modify_config_hash(@parsed_hash, nodes_fqdn_map)
+          # @ph and @phip are rebuild'ed hash(es) which are similar to @parsed_hash only difference is that they
+          # make config look more like local deployment, @ph contains hash with public ip(s) and @phip contains hash
+          # with private dns (ip's)
+          @parsed_hash, @parsed_hash_with_internal_ips = cloud.modify_cloud_config(@parsed_hash, nodes)
           if options[:mock] and options[:debug]
             puts '[Debug]: ' + 'Parsed Hash'.blue
             pp @parsed_hash
             puts
             puts '[Debug]: ' + 'Parsed hash with internal ip(s)'.blue
             pp @parsed_hash_with_internal_ips
+            puts
           end
           Fog.unmock! if options[:mock]
 
           # if cloud_provider is rackspace build /etc/hosts
           if @parsed_hash[:cloud_platform] == 'rackspace'
-            hosts_file.write(cloud.build_hosts(nodes_fqdn_map))
+            hosts_map = cloud.build_hosts(nodes)
+            hosts_file.write(hosts_map)
             hosts_file.close
             if options[:mock] and options[:debug]
               puts '[Debug]: ' + 'Hosts file'.blue
-              puts cloud.build_hosts(nodes_fqdn_map)
+              pp hosts_map
             end
           end
         else
-          #local mode & adding nodes
+          #
+          # => local mode & adding nodes
+          #
           if options[:add_nodes]
             abort '--host option is required' unless options[:hosts]
             # validate hosts
@@ -215,7 +223,9 @@ module Ankus
             YamlUtils.write_yaml(@parsed_hash.deep_stringify, options[:config])
           end
         end
-        # generate puppet nodes file from configuration
+        #
+        # => generate puppet nodes from configuration
+        #
         if @parsed_hash[:install_mode] == 'cloud'
           Inventory::Generator.new(options[:config], @parsed_hash_with_internal_ips).generate! NODES_FILE_CLOUD #for enc generate
           Inventory::Generator.new(options[:config], @parsed_hash).generate! NODES_FILE # for puppet install/runs
@@ -224,7 +234,9 @@ module Ankus
           Inventory::Generator.new(options[:config], @parsed_hash).generate! NODES_FILE
         end
       else
-        # => RUN ONLY
+        #
+        # => Run only mode, read config
+        #
         if @parsed_hash[:install_mode] == 'cloud'
           cloud = create_cloud_obj(@parsed_hash)
           @parsed_hash, @parsed_hash_with_internal_ips = cloud.modify_config_hash(@parsed_hash, YamlUtils.parse_yaml(CLOUD_INSTANCES))
@@ -254,15 +266,25 @@ module Ankus
       unless options[:run_only]
         begin
           if options[:add_nodes]
+            #
             # install only clients
+            #
             puppet.install_puppet_clients
           else
+            #
             # install master and clients
+            #
             puppet.install_puppet
           end
+          #
+          # => generate hiera data
+          #
           @parsed_hash[:install_mode] == 'cloud' ?
               puppet.generate_hiera(@parsed_hash_with_internal_ips) :
               puppet.generate_hiera(@parsed_hash)
+          #
+          # => generate enc data
+          #
           @parsed_hash[:install_mode] == 'cloud' ?
               puppet.generate_enc(@parsed_hash_with_internal_ips, NODES_FILE_CLOUD) :
               puppet.generate_enc(@parsed_hash, NODES_FILE)
@@ -273,12 +295,21 @@ module Ankus
           hosts_file.unlink if @parsed_hash[:cloud_platform] == 'rackspace'
         end
         if options[:add_nodes]
+          #
+          # => puppet run on set of nodes
+          #
           puppet.run_puppet_set puppet_clients
         else
+          #
+          # => puppet run on all nodes
+          #
           puppet.run_puppet
           deployment_info @parsed_hash
         end
       else
+        #
+        # => Run only mode
+        #
         puppet.run_puppet
       end
     end
@@ -333,6 +364,7 @@ module Ankus
         abort
       end
       hiera_data = YamlUtils.parse_yaml(HIERA_DATA_FILE)
+      cloud = create_cloud_obj(parsed_hash)
       hbase_deploy = if parsed_hash[:hbase_deploy] == 'disabled'
                       'disabled'
                      else
@@ -373,42 +405,38 @@ module Ankus
         cloud_instances = YamlUtils.parse_yaml(CLOUD_INSTANCES)
 
         # controller, nagios, ganglia and logstash
-        controller = Hash[cloud_instances.select { |k, _| k.include? 'controller'}].values.first
-        cluster_info << "\r" << ' *'.cyan << " Controller: #{controller.first} \n"
-        urls << "\r" << ' %'.black << " Ganglia: http://#{controller.first}/ganglia \n" if parsed_hash[:monitoring] == 'enabled'
+        controller = cloud.find_fqdn_for_tag(cloud_instances, 'controller').first
+        cluster_info << "\r" << ' *'.cyan << " Controller: #{controller} \n"
+        urls << "\r" << ' %'.black << " Ganglia: http://#{controller}/ganglia \n" if parsed_hash[:monitoring] == 'enabled'
         if parsed_hash[:cloud_os_type].downcase == 'centos'
-          urls << "\r" << ' %'.black << " Nagios: http://#{controller.first}/nagios \n" if parsed_hash[:alerting] == 'enabled'
+          urls << "\r" << ' %'.black << " Nagios: http://#{controller}/nagios \n" if parsed_hash[:alerting] == 'enabled'
         elsif parsed_hash[:cloud_os_type].downcase == 'ubuntu'
-          urls << "\r" << ' %'.black << " Nagios: http://#{controller.first}/nagios3 \n" if parsed_hash[:alerting] == 'enabled'
+          urls << "\r" << ' %'.black << " Nagios: http://#{controller}/nagios3 \n" if parsed_hash[:alerting] == 'enabled'
         end
-        urls << "\r" << ' %'.black << " LogStash: http://#{controller.first}:5601 \n" if parsed_hash[:log_aggregation] == 'enabled'
+        urls << "\r" << ' %'.black << " LogStash: http://#{controller}:5601 \n" if parsed_hash[:log_aggregation] == 'enabled'
 
         if parsed_hash[:hadoop_deploy] != 'disabled'
           if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
             cluster_info << "\r" << ' *'.cyan << " Namenode(s): \n"
-            nns = cloud_instances.select {|k, _| k.include? 'namenode'}
+            nns = cloud.find_fqdn_for_tag(cloud_instances, 'namenode')
             nns.each do |k, v|
               cluster_info << "\r" << "\t #{k.capitalize}: #{v.first} \n"
               urls << "\r" << ' %'.black << " #{k.capitalize}: http://#{v.first}:50070 \n"
             end
           else
-            namenode = Hash[cloud_instances.select { |k, _| k.include? 'namenode'}].values.first
-            snn = if parsed_hash[:hadoop_deploy][:mapreduce] == 'disabled'
-                    Hash[cloud_instances.select { |k, _| k.include? 'snn'}].values.first
-                  else
-                    Hash[cloud_instances.select { |k, _| k.include? 'jobtracker'}].values.first
-                  end
-            cluster_info << "\r" << ' *'.cyan << " Namenode: #{namenode.first}\n"
-            cluster_info << "\r" << ' *'.cyan << " Secondary Namenode: #{snn.first}\n"
-            urls << "\r" << ' %'.black << " Namenode: http://#{namenode.first}:50070 \n"
+            namenode = cloud.find_fqdn_for_tag(cloud_instances, 'namenode').first
+            snn = cloud.find_fqdn_for_tag(cloud_instances, 'secondarynamenode').first
+            cluster_info << "\r" << ' *'.cyan << " Namenode: #{namenode}\n"
+            cluster_info << "\r" << ' *'.cyan << " Secondary Namenode: #{snn}\n"
+            urls << "\r" << ' %'.black << " Namenode: http://#{namenode}:50070 \n"
           end
           if parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
-            jt = Hash[cloud_instances.select { |k, _| k.include? 'jobtracker'}].values.first
-            cluster_info << "\r" << ' *'.cyan << " MapReduce Master: #{jt.first} \n"
-            urls << "\r" << ' %'.black << " MapReduce Master: http://#{jt.first}:50030 \n"
+            jt = cloud.find_fqdn_for_tag(cloud_instances, 'jobtracker').first
+            cluster_info << "\r" << ' *'.cyan << " MapReduce Master: #{jt} \n"
+            urls << "\r" << ' %'.black << " MapReduce Master: http://#{jt}:50030 \n"
             #hadoop_ecosystem
             if parsed_hash[:hadoop_deploy][:hadoop_ecosystem] and parsed_hash[:hadoop_deploy][:hadoop_ecosystem].include?('oozie')
-              urls << "\r" << ' %'.black << " Oozie Console: http://#{jt.first}:11000/oozie \n"
+              urls << "\r" << ' %'.black << " Oozie Console: http://#{jt}:11000/oozie \n"
             end
           end
           if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled' or parsed_hash[:hbase_deploy] != 'disabled'
@@ -417,54 +445,47 @@ module Ankus
             else
               cluster_info << "\r" << ' *'.cyan << " ZooKeeper Quoram: \n"
             end
-            zks = cloud_instances.select { |k, _| k.include? 'zookeeper' }
+            zks = cloud.find_fqdn_for_tag(cloud_instances, 'zookeeper')
             zks.each do |k, v|
               cluster_info << "\r" << "\t #{k.capitalize}: #{v.first} \n"
             end
           end
         end
         if parsed_hash[:hbase_deploy] != 'disabled'
-          hms = cloud_instances.select { |k, _| k.include? 'hbasemaster' }
+          hms = cloud.find_fqdn_for_tag(cloud_instances, 'hbasemaster')
           hms.each do |k, v|
             cluster_info << "\r" << ' *'.cyan << " #{k.capitalize}: #{v.first} \n"
           end
           urls << "\r" << ' %'.black << " HBaseMaster: http://#{Hash[hms.select {|k,v| k.include? 'hbasemaster1'}].values.flatten.first}:60010 \n"
         end
         if storm_deploy != 'disabled'
-          stn = cloud_instances.select { |k, _| k.include? 'stormnimbus' }.values.first
-          cluster_info << "\r" << ' *'.cyan << " Storm Master: #{stn.first} \n"
-          urls << "\r" << ' %'.black << " Storm UI: http://#{stn.first}:8080 \n"
+          stn = cloud.find_fqdn_for_tag(cloud_instances, 'stormnimbus').first
+          cluster_info << "\r" << ' *'.cyan << " Storm Master: #{stn} \n"
+          urls << "\r" << ' %'.black << " Storm UI: http://#{stn}:8080 \n"
         end
         if options[:extended]
           if parsed_hash[:hadoop_deploy] != 'disabled' or parsed_hash[:hbase_deploy] != 'disabled'
             cluster_info << "\r" << ' *'.cyan << " Slaves: \n"
-            cloud_instances.select { |k, _| k.include? 'slaves' }.each do |k, v|
-              cluster_info << "\r" << "\t" << '- '.cyan << "#{k.capitalize}: #{v.first}" << "\n"
+            cloud.find_fqdn_for_tag(cloud_instances, 'slaves').each_with_index do |k, i|
+              cluster_info << "\r" << "\t" << '- '.cyan << "slave#{i+1}: #{k}" << "\n"
             end
           end
           if cassandra_deploy != 'disabled'
             cluster_info << "\r" << ' *'.cyan << " Cassandra Nodes: \n"
-            if parsed_hash[:cassandra_deploy][:colocation]
-              #if both hadoop and cassandra is colocated, print slaves
-              cloud_instances.select { |k, _| k.include? 'slaves' }.each do |k, v|
-                cluster_info << "\r" << "\t" << '- '.cyan << "#{v.first}" << "\n"
-              end
-            else
-              cloud_instances.select { |k, _| k.include? 'cassandra' }.each do |k, v|
-                cluster_info << "\r" << "\t" << '- '.cyan << "#{v.first}" << "\n"
-              end
+            cloud.find_fqdn_for_tag(cloud_instances, 'cassandra').each_with_index do |k, i|
+              cluster_info << "\r" << "\t" << '- '.cyan << "cassandra#{i+1}: #{k}" << "\n"
             end
           end
           if storm_deploy != 'disabled'
             cluster_info << "\r" << ' *'.cyan << " Storm Supervisor Nodes: \n"
-            cloud_instances.select { |k, _| k.include? 'stormworker' }.each do |k, v|
-              cluster_info << "\r" << "\t" << "- ".cyan << "#{v.first}" << "\n"
+            cloud.find_fqdn_for_tag(cloud_instances, 'stormworker').each_with_index do |k, i|
+              cluster_info << "\r" << "\t" << "- ".cyan << "stormworker#{i+1}: #{k}" << "\n"
             end
           end
           if kafka_deploy != 'disabled'
             cluster_info << "\r" << ' *'.cyan << " Kafka Nodes: \n"
-            cloud_instances.select { |k, _| k.include? 'kafka' }.each do |k, v|
-              cluster_info << "\r" << "\t" << "- ".cyan << "#{v.first}" << "\n"
+            cloud.find_fqdn_for_tag(cloud_instances, 'kafka').each_with_index do |k, i|
+              cluster_info << "\r" << "\t" << "- ".cyan << "kafka#{i+1}: #{k}" << "\n"
             end            
           end
         end
@@ -577,10 +598,11 @@ module Ankus
 
     def ssh_into_instance(role, parsed_hash)
       if parsed_hash[:install_mode] == 'cloud'
+        cloud = create_cloud_obj(parsed_hash)
         #check tags and show available tags into machine
         cloud_instances = YamlUtils.parse_yaml(CLOUD_INSTANCES)
         if cloud_instances.keys.find { |e| /#{role}/ =~ e  }
-          host = Hash[cloud_instances.select { |k, _| k.include? role}].values.first.first
+          host = cloud.find_fqdn_for_tag(cloud_instances, role).first
           username = parsed_hash[:ssh_user]
           private_key = if parsed_hash[:cloud_platform] == 'aws'
                           "~/.ssh/#{parsed_hash[:cloud_credentials][:aws_key]}"
@@ -588,6 +610,7 @@ module Ankus
                           # rackspace instances need private file to login
                           parsed_hash[:cloud_credentials][:rackspace_ssh_key][0..-5]
                         end
+          puts "[Info]: ssh into #{host} as user:#{username} with key:#{private_key}"
           SshUtils.ssh_into_instance(host, username, private_key, 22)
         else
           puts "No such role found #{role}"

@@ -587,7 +587,10 @@ module Ankus
             @errors_count += 1
           end
           #check journal_nodes for oddity
-          puts '[Warn]:'.yellow + 'journal nodes should be odd number to handle failover\'s, please update when possible' unless journal_quorum.length % 2 == 1
+          unless journal_quorum.length % 2 == 1
+            puts '[Error]:'.red + 'journal nodes should be odd number to handle failover\'s, please update'
+            @errors_count += 1
+          end
           #zookeepers cannot be same
           if zookeeper_quorum.uniq.length != zookeeper_quorum.length
             puts '[Error]:'.red + ' zookeeper\'s cannot be the same'
@@ -700,7 +703,10 @@ module Ankus
             puts '[Error]: '.red + "'zookeeper_quorum' is required for deployment types: 'hadoop_ha' or 'hbase_deploy' or 'kafka_deploy' or 'storm_deploy'"
             @errors_count += 1
           else
-            puts "[Warn]: zookeepers should be odd number to handle failover's, please update when possible" unless zookeeper_quorum.length % 2 == 1
+            unless zookeeper_quorum.length % 2 == 1
+              puts '[Error]:'.red + 'zookeeper nodes should be odd number to handle failover\'s, please update'
+              @errors_count += 1
+            end
           end
         elsif install_mode == 'cloud'
           zookeeper_quorum = hash_to_validate[:zookeeper_quorum_count]
@@ -708,7 +714,10 @@ module Ankus
             puts '[Error]: '.red + "'zookeeper_quorum' is required for deployment types: 'hadoop_ha' or 'hbase_deploy' or 'kafka_deploy' or 'storm_deploy'"
             @errors_count += 1
           else
-            puts "[Warn]: zookeepers should be odd number to handle failover's, please update when possible" unless zookeeper_quorum % 2 == 1
+            unless zookeeper_quorum % 2 == 1
+              puts '[Error]:'.red + 'zookeeper nodes should be odd number to handle failover\'s, please update'
+              @errors_count += 1          
+            end
           end
         end
       end

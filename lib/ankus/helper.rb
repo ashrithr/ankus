@@ -6,6 +6,8 @@ module Ankus
   DATA_DIR          = File.expand_path(File.dirname(__FILE__) + '/../../.data')
   DEFAULT_CONFIG    = File.expand_path(File.dirname(__FILE__) + '/../../conf/ankus_conf.yaml')
   NODES_FILE        = "#{DATA_DIR}/nodes.yaml"
+  # TODO: Delete me
+  NODES_MOCK        = "#{DATA_DIR}/mock_nodes.yaml"
   NODES_FILE_CLOUD  = "#{DATA_DIR}/nodes_cloud.yaml"
   CLOUD_INSTANCES   = "#{DATA_DIR}/cloud_instances.yaml"
   ENC_ROLES_FILE    =  "#{DATA_DIR}/roles.yaml"
