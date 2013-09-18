@@ -103,6 +103,7 @@ module Ankus
       def create_enc_roles
         roles_hash = Hash.new
         puppet_nodes = YamlUtils.parse_yaml(@nodes_file)
+
         #puppet server
         @ps  = puppet_nodes[:puppet_server]   # puppet server
         @pcs = puppet_nodes[:puppet_clients]  # puppet clients
@@ -211,7 +212,6 @@ module Ankus
             roles_hash[pc]['cassandra'] = nil if cassandra_nodes.include? pc
           end
           if kafka_install != 'disabled'
-            roles_hash[pc]['kafka'] = nil if kafka_nodes.include? pc
             roles_hash[pc]['kafka::server'] = nil if kafka_brokers.include? pc
           end
           if storm_install != 'disabled'

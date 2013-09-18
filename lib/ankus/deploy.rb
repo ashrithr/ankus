@@ -209,9 +209,9 @@ module Ankus
       # @param [Hash] parsed_hash => hash from which to generate hiera data
       def generate_hiera(parsed_hash)
         hiera_hash = {}
-        #generate hiera data to local data folder first
+        # generate hiera data to local data folder first
         puts "\rGenerating hiera data required for puppet".blue
-        #aggregate hadoop, hbase, all other related configurations in here into a common hash before writing out
+        # aggregate hadoop, hbase, all other related configurations in here into a common hash before writing out
         hiera_hash.merge!(parsed_hash.deep_stringify)
         hiera_hash.merge!(YamlUtils.parse_yaml(HADOOP_CONF))    if parsed_hash[:hadoop_deploy] != 'disabled'
         hiera_hash.merge!(YamlUtils.parse_yaml(HBASE_CONF))     if parsed_hash[:hbase_deploy] != 'disabled'
