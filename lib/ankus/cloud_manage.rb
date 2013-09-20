@@ -7,6 +7,7 @@ module Ankus
   require 'erb'
 
   class Cloud
+    include Ankus
     # Create a new Cloud class object
     # @param [String] provider => Cloud service provider; aws|rackspace
     # @param [Hash] parsed_config => Configuration that has been already parsed from cloud_configuration file
@@ -42,26 +43,14 @@ module Ankus
       Ankus::Rackspace.new @credentials[:rackspace_api_key], @credentials[:rackspace_username], @mock
     end
 
-    # Creates cloud instances on both AWS or Rackspace using the paesed config file
-    # @return [Hash] nodes => contains created node info each node is of the form
-    # { :node_tag =>
-    #   {:fqdn                  =>  "fully_qualified_domain_name (or) public ip",
-    #    :private_ip            =>  "internal_dns_name (or) private ip",
-    #    :vmconfig              =>  {:os_type=>"CentOS", :volumes=>0, :volume_size=>250},
-    #    :puppet_install_status =>  null,
-    #    :puppet_run_status     =>  null,
-    #    :last_run              =>  null,
-    #    :tags                  =>  ["list of tags for this node"]}
-    # }
+    # Create instance definitions
     def create_cloud_instances
       num_of_slaves   = @parsed_hash[:slave_nodes_count]
       num_of_zks      = @parsed_hash[:zookeeper_quorum_count]
-      nodes_created   = {}
-      nodes_to_create = {}
       volume_count    = @parsed_hash[:volumes] != 'disabled' ? @parsed_hash[:volumes][:count] : 0
       volume_size     = @parsed_hash[:volumes] != 'disabled' ? @parsed_hash[:volumes][:size] : 0
-      default_vmconfig= { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-      slaves_vmconfig = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
+      default_config= { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+      slaves_config = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
 
       nodes_to_create_masters = {}
       nodes_to_create_slaves = {}
@@ -158,10 +147,10 @@ module Ankus
       # Create node wrapper objects
       if @provider == 'aws'
         nodes_to_create_masters.each do |name, tags|
-          @nodes[name] = create_node_obj(default_vmconfig, tags)
+          @nodes[name] = create_node_obj(default_config, tags)
         end 
         nodes_to_create_slaves.each do |name, tags|
-          @nodes[name] = create_node_obj(slaves_vmconfig, tags)
+          @nodes[name] = create_node_obj(slaves_config, tags)
         end        
       elsif @provider == 'rackspace'
         domain_name = "#{@parsed_hash[:cloud_credentials][:rackspace_cluster_identifier]}.ankus.com"
@@ -171,22 +160,50 @@ module Ankus
         nodes_to_create_masters.each {|k,v| nodes_to_create_masters_fqdn["#{k}.#{domain_name}"] = v }
         nodes_to_create_slaves.each {|k,v| nodes_to_create_slaves_fqdn["#{k}.#{domain_name}"] = v }
         nodes_to_create_masters_fqdn.each do |name, tags|
-          @nodes[name] = create_node_obj(default_vmconfig, tags)
+          @nodes[name] = create_node_obj(default_config, tags)
         end
         nodes_to_create_slaves_fqdn.each do |name, tags|
-          @nodes[name] = create_node_obj(default_vmconfig, tags)
+          @nodes[name] = create_node_obj(default_config, tags)
         end        
       end
+      @nodes
+    end
 
-      # Create instances
+    # Creates cloud instances on both AWS or Rackspace using the paesed config file
+    # @return [Hash] nodes => contains created node info each node is of the form
+    # { :node_tag =>
+    #   {
+    #    :fqdn                  =>  "fully_qualified_domain_name (or) public ip",
+    #    :private_ip            =>  "internal_dns_name (or) private ip",
+    #    :config                =>  {:os_type=>"CentOS", :volumes=>0, :volume_size=>250},
+    #    :puppet_install_status =>  null,
+    #    :puppet_run_status     =>  null,
+    #    :last_run              =>  null,
+    #    :tags                  =>  ["list of tags for this node"]
+    #   }
+    # }
+    def create_cloud_instances!
+      create_cloud_instances
       case @provider
       when 'aws'
         @nodes = create_aws_instances(@nodes, @credentials, @thread_pool_size)
       when 'rackspace'
         @nodes = create_rackspace_instances(@nodes, @credentials, @thread_pool_size)
       end
-
       @nodes
+    end
+
+    # Create instances if the node has no fqdn is assigned
+    # @param [Hash] nodes => merged nodes info
+    def safe_create_instances!(nodes)
+      nodes = nodes.select { |k, v| k if v[:fqdn].empty? }
+      case @provider
+      when 'aws'
+        nodes = create_aws_instances(nodes, @credentials, @thread_pool_size)
+      when 'rackspace'
+        nodes = create_rackspace_instances(nodes, @credentials, @thread_pool_size)
+      end
+      nodes
     end
 
     # Create a single instance and return instance mappings
@@ -234,6 +251,14 @@ module Ankus
           end
         end
         threads_pool.shutdown
+      end
+    end
+
+    def find_internal_ip(nodes, tag)
+      if @provider == 'aws'
+        find_pip_for_tag(nodes, tag)
+      elsif @provider == 'rackspace'
+        find_key_for_tag(nodes, tag)
       end
     end
 
@@ -299,6 +324,9 @@ module Ankus
         end
       end
 
+      # If AWS, hash with internal ips should contain private_ip
+      # If RackSpace, hash with internal ips should contain fqdn
+
       parsed_hash_internal_ips[:ssh_key]  = 
           if @provider == 'aws'
             File.expand_path('~/.ssh') + '/' + @credentials[:aws_key]
@@ -306,42 +334,42 @@ module Ankus
             File.split(File.expand_path(@credentials[:rackspace_ssh_key])).first + '/' +
             File.basename(File.expand_path(@credentials[:rackspace_ssh_key]), '.pub')
           end 
-      parsed_hash_internal_ips[:controller] = find_pip_for_tag(nodes, 'controller').first
+      parsed_hash_internal_ips[:controller] = find_internal_ip(nodes, 'controller').first
       if parsed_hash[:hadoop_deploy] != 'disabled'
-        parsed_hash_internal_ips[:hadoop_deploy][:hadoop_namenode] = find_pip_for_tag(nodes, 'namenode')
+        parsed_hash_internal_ips[:hadoop_deploy][:hadoop_namenode] = find_internal_ip(nodes, 'namenode')
         if parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
-          parsed_hash_internal_ips[:hadoop_deploy][:mapreduce][:master] = find_pip_for_tag(nodes, 'jobtracker').first
+          parsed_hash_internal_ips[:hadoop_deploy][:mapreduce][:master] = find_internal_ip(nodes, 'jobtracker').first
         end    
         if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
-          parsed_hash_internal_ips[:hadoop_deploy][:hadoop_secondarynamenode] = find_pip_for_tag(nodes, 'secondarynamenode').first
+          parsed_hash_internal_ips[:hadoop_deploy][:hadoop_secondarynamenode] = find_internal_ip(nodes, 'secondarynamenode').first
         end
-        parsed_hash_internal_ips[:slave_nodes] = find_pip_for_tag(nodes, 'slaves')
+        parsed_hash_internal_ips[:slave_nodes] = find_internal_ip(nodes, 'slaves')
         if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
-          parsed_hash_internal_ips[:hadoop_deploy][:journal_quorum] = find_pip_for_tag(nodes, 'zookeeper')
+          parsed_hash_internal_ips[:hadoop_deploy][:journal_quorum] = find_internal_ip(nodes, 'zookeeper')
         end
         if parsed_hash[:hbase_deploy] != 'disabled'      
-          parsed_hash_internal_ips[:hbase_deploy][:hbase_master] = find_pip_for_tag(nodes, 'hbasemaster')
+          parsed_hash_internal_ips[:hbase_deploy][:hbase_master] = find_internal_ip(nodes, 'hbasemaster')
         end
       end
       if parsed_hash[:cassandra_deploy] != 'disabled'
-        parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes] =  find_pip_for_tag(nodes, 'cassandra')
-        parsed_hash_internal_ips[:cassandra_deploy][:cassandra_seeds] =  find_pip_for_tag(nodes, 'cassandraseed')
+        parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes] =  find_internal_ip(nodes, 'cassandra')
+        parsed_hash_internal_ips[:cassandra_deploy][:cassandra_seeds] =  find_internal_ip(nodes, 'cassandraseed')
       end
       if parsed_hash[:kafka_deploy] != 'disabled'
-        parsed_hash_internal_ips[:kafka_deploy][:kafka_brokers] = find_pip_for_tag(nodes, 'kafka')
+        parsed_hash_internal_ips[:kafka_deploy][:kafka_brokers] = find_internal_ip(nodes, 'kafka')
       end
       if parsed_hash[:storm_deploy] != 'disabled'
-        parsed_hash_internal_ips[:storm_deploy][:storm_supervisors] =  find_pip_for_tag(nodes, 'stormworker')
-        parsed_hash_internal_ips[:storm_deploy][:storm_master] = find_pip_for_tag(nodes, 'stormnimbus').first
+        parsed_hash_internal_ips[:storm_deploy][:storm_supervisors] =  find_internal_ip(nodes, 'stormworker')
+        parsed_hash_internal_ips[:storm_deploy][:storm_master] = find_internal_ip(nodes, 'stormnimbus').first
       end
       if parsed_hash[:hadoop_deploy] != 'disabled' and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
-        parsed_hash_internal_ips[:zookeeper_quorum] = find_pip_for_tag(nodes, 'zookeeper')
+        parsed_hash_internal_ips[:zookeeper_quorum] = find_internal_ip(nodes, 'zookeeper')
       end
       if parsed_hash[:hbase_depoy] != 'disabled' or 
         parsed_hash[:kafka_deploy] != 'disabled' or 
         parsed_hash[:storm_deploy] != 'disabled'
         unless parsed_hash_internal_ips.has_key? :zookeeper_quorum
-          parsed_hash_internal_ips[:zookeeper_quorum] = find_pip_for_tag(nodes, 'zookeeper') 
+          parsed_hash_internal_ips[:zookeeper_quorum] = find_internal_ip(nodes, 'zookeeper') 
         end
       end
 
@@ -396,9 +424,9 @@ module Ankus
             :key => key,
             :groups => groups,
             :flavor_id => flavor_id,
-            :os_type => info[:vmconfig][:os_type],
-            :num_of_vols => info[:vmconfig][:volumes],
-            :vol_size => info[:vmconfig][:volume_size],
+            :os_type => info[:config][:os_type],
+            :num_of_vols => info[:config][:volumes],
+            :vol_size => info[:config][:volume_size],
             :vol_type => vol_type,
             :iops => iops
           )
@@ -440,10 +468,10 @@ module Ankus
         # partition and format attached disks using thread pool
         nodes.each do |tag, info|
           threads_pool.schedule do
-            if info[:vmconfig][:volumes] > 0
+            if info[:config][:volumes] > 0
               printf "\r[Debug]: Formatting attached volumes on instance #{server_objects[tag].dns_name}\n" if @debug
               #build partition script
-              partition_script = gen_partition_script(info[:vmconfig][:volumes], true)
+              partition_script = gen_partition_script(info[:config][:volumes], true)
               tempfile = Tempfile.new('partition')
               tempfile.write(partition_script)
               tempfile.close
@@ -491,7 +519,7 @@ module Ankus
         puts "\rPartitioning/Formatting attached volumes".blue
         nodes.each do |tag, info|
           threads_pool.schedule do
-            if info[:vmconfig][:volumes] > 0
+            if info[:config][:volumes] > 0
               printf "\r[Debug]: Preping attached volumes on instance #{server_objects[tag].dns_name}\n"
               sleep 5
             else
@@ -513,8 +541,6 @@ module Ankus
     # @return [Hash] modified variant of nodes with fqdn and private_ip
     def create_rackspace_instances(nodes, credentials, thread_pool_size)
       threads_pool        = Ankus::ThreadPool.new(thread_pool_size)
-      api_key             = credentials[:rackspace_api_key]
-      username            = credentials[:rackspace_username]
       machine_type        = credentials[:rackspace_instance_type] || 4
       public_ssh_key_path = credentials[:rackspace_ssh_key] || '~/.ssh/id_rsa.pub'
       ssh_key_path        = File.split(public_ssh_key_path).first + '/' + File.basename(public_ssh_key_path, '.pub')
@@ -530,7 +556,7 @@ module Ankus
                                   tag, 
                                   public_ssh_key_path, 
                                   machine_type, 
-                                  info[:vmconfig][:os_type]
+                                  info[:config][:os_type]
                               )
       end
       puts "\rCreating servers with roles: " + "#{nodes.keys.join(',')} ".blue + '[DONE]'.cyan
@@ -562,12 +588,12 @@ module Ankus
         # parition and format attached disks using thread pool
         nodes.each do |tag, info|
           threads_pool.schedule do
-            if info[:vmconfig][:volumes] > 0
+            if info[:config][:volumes] > 0
               printf "\r[Debug]: Preping attached volumes on instnace #{server_objects[tag]}\n" if @debug
               # attach specified volumes to server
-              rackspace.attach_volumes!(server_objects[tag], info[:vmconfig][:volumes], info[:vmconfig][:volume_size])
+              rackspace.attach_volumes!(server_objects[tag], info[:config][:volumes], info[:config][:volume_size])
               # build partition script
-              partition_script = gen_partition_script(info[:vmconfig][:volumes])
+              partition_script = gen_partition_script(info[:config][:volumes])
               tempfile = Tempfile.new('partition')
               tempfile.write(partition_script)
               tempfile.close
@@ -620,7 +646,7 @@ module Ankus
         puts "\rPartitioning|Formatting attached volumes".blue
         nodes.each do |tag, info|
           threads_pool.schedule do
-            if info[:vmconfig][:volumes] > 0
+            if info[:config][:volumes] > 0
               printf "\r[Debug]: Preping attached volumes on instance #{server_objects[tag].public_ip_address}\n"
               sleep 5
             else
@@ -693,51 +719,19 @@ module Ankus
     end
 
     # Creates a wrapper around the node object
-    # @param [Hash] vmconfig => {:ostype => 'centos', :volumes => 0, :volume_size => 250}
+    # @param [Hash] config => {:ostype => 'centos', :volumes => 0, :volume_size => 250}
     # @param [Hash] tags => ['node_tag']
     # @return [Hash]
-    def create_node_obj(vmconfig, tags)
+    def create_node_obj(config, tags)
       {
         :fqdn => '',
         :private_ip => '',
-        :vmconfig => vmconfig,
+        :config => config,
         :puppet_install_status => false,
         :puppet_run_status => false,
         :last_run => '',
         :tags => tags
       }
-    end
-
-    # Returns fqdn for input tag
-    # @param [Hash] nodes to search for tag in
-    # @param [tag] tag to search
-    # @return [Array] || nil
-    def find_fqdn_for_tag(nodes, tag)
-      found_clients = []
-      nodes.each do |k, v|
-         found_clients << k if v[:tags].grep(/^#{tag}/).any?
-      end
-      if found_clients.length == 0
-        return nil
-      else
-        return found_clients.map { |k| nodes[k][:fqdn] }
-      end
-    end 
-
-    # Returns private_ip for input tag
-    # @param [Hash] nodes to search for tag in
-    # @param [tag] tag to search
-    # @return [Array] || nil
-    def find_pip_for_tag(nodes, tag)
-      found_clients = []
-      nodes.each do |k, v|
-         found_clients << k if v[:tags].grep(/^#{tag}/).any?
-      end
-      if found_clients.length == 0
-        return nil
-      else
-        return found_clients.map { |k| nodes[k][:private_ip] }
-      end
     end
 
     # Calculates number of disks to insert into vms and their size based on users specified total storage in

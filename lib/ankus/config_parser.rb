@@ -74,8 +74,6 @@ module Ankus
     def create_req_files
       Dir.mkdir DATA_DIR                unless File.exists? DATA_DIR
       FileUtils.touch NODES_FILE        unless File.exists? NODES_FILE
-      FileUtils.touch NODES_FILE_CLOUD  unless File.exists? NODES_FILE_CLOUD
-      FileUtils.touch CLOUD_INSTANCES   unless File.exists? CLOUD_INSTANCES
       FileUtils.touch ENC_ROLES_FILE    unless File.exists? ENC_ROLES_FILE
       FileUtils.touch HIERA_DATA_FILE   unless File.exists? HIERA_DATA_FILE
     end

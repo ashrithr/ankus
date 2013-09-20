@@ -18,5 +18,6 @@ tmp
 .idea
 conf/ankus_conf.yaml
 conf/ankus_conf_backup.yaml
+conf/ankus_conf_rs.yaml
 .data
 .test

@@ -5,6 +5,7 @@ require 'pp'
 require 'tempfile'
 require 'benchmark'
 require 'thread'
+require 'time'
 begin
   require 'thor'
   require 'thor/group'
