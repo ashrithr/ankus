@@ -339,16 +339,16 @@ module Ankus
       block_mappings = []
       server = conn.servers.all('dns-name' => dns_name).first
       if server
-        printf "\rTerminating instance with dns_name: #{dns_name}\n"
+        printf "\r[Info]: ".blue + "Terminating instance with dns_name: #{dns_name}\n"
         server.destroy if server.state == 'running'
         block_mappings << server.block_device_mapping
         if delete_volumes
-          printf "\rDeleting volumes attached to instance: #{dns_name}\n"
+          printf "\r[Info]: ".blue + "Deleting volumes attached to instance: #{dns_name}\n"
           unless block_mappings.length == 0
             block_mappings.each do |bm|
               bm.each do |vol_info|
                 vol = conn.volumes.get(vol_info['volumeId'])
-                printf "\r[Info]: waiting for volume to detach from instance: #{dns_name}\n"
+                printf "\r[Info]:".blue + " waiting for volume to detach from instance: #{dns_name}\n"
                 vol.wait_for { vol.state == 'available' }
                 vol.destroy if vol_info['deleteOnTermination'] != 'true'
               end
@@ -617,7 +617,7 @@ module Ankus
     def delete_server_with_name(conn, fqdn)
       conn.servers.all.each do |server|
         if server.name == fqdn
-          puts "\rDeleting instance with fqdn: #{fqdn}"
+          puts "\r[Info]: ".blue + "Deleting instance with fqdn: #{fqdn}"
           server.destroy
         end
       end

@@ -235,9 +235,9 @@ module Ankus
       if @parsed_hash[:cloud_platform] == 'aws'
         aws   = create_aws_connection
         conn  = aws.create_connection
-        nodes_hash.each do |_, nodes_dns_map|
+        nodes_hash.each do |node, node_info|
           threads_pool.schedule do
-            server_dns_name = nodes_dns_map.first
+            server_dns_name = node_info[:fqdn]
             aws.delete_server_with_dns_name(conn, server_dns_name, delete_volumes)
           end
         end
