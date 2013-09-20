@@ -28,9 +28,11 @@ module Ankus
                                   if parsed_hash[:install_mode] == 'local'
                                     nodes.except(@puppet_master).keys
                                   elsif parsed_hash[:cloud_platform] == 'aws'
-                                    nodes.except(find_key_for_fqdn(nodes, @puppet_master)).keys
+                                    pc_client_keys =  nodes.except(find_key_for_fqdn(nodes, @puppet_master)).keys
+                                    nodes.map {|k, v| v[:fqdn] if pc_client_keys.include?(k) }.compact
                                   elsif parsed_hash[:cloud_platform] == 'rackspace'
-                                    nodes.except(find_key_for_fqdn(nodes, @puppet_master)).keys
+                                    pc_client_keys =  nodes.except(find_key_for_fqdn(nodes, @puppet_master)).keys
+                                    nodes.map {|k, v| v[:fqdn] if pc_client_keys.include?(k) }.compact
                                   end
         @debug                 = debug
         @mock                  = mock
@@ -132,9 +134,9 @@ module Ankus
                   preq(node_info[:fqdn], remote_puppet_installer_loc, @hosts_file) :
                   preq(node_info[:fqdn], remote_puppet_installer_loc)
                 ssh_connections.schedule do
-                  clients_output << SshUtils.execute_ssh!(
+                  @clients_output << SshUtils.execute_ssh!(
                       remote_puppet_client_cmd,
-                      node[:fqdn],
+                      node_info[:fqdn],
                       @ssh_user,
                       @ssh_key
                     )
@@ -207,7 +209,7 @@ module Ankus
             hiera_hash['zookeeper_class_ensemble'] = parsed_hash[:zookeeper_quorum].map { |zk| zk+=":2888:3888" }
           end
           #parse num_of_workers
-          hiera_hash['number_of_puppet_clients'] = parsed_hash[:slave_nodes].length
+          hiera_hash['number_of_nodes'] = parsed_hash[:slave_nodes].length
         end
         if parsed_hash[:kafka_deploy] != 'disabled' or parsed_hash[:storm_deploy] != 'disabled'
           unless hiera_hash.has_key? 'zookeeper_ensemble'
@@ -333,8 +335,29 @@ module Ankus
         end
       end
 
+      # Force run all puppet client instances without checking puppet last_run_status
+      def run!
+        puppet_run_cmd = "sudo sh -c 'puppet agent --onetime --verbose --no-daemonize --no-splay --ignorecache" + 
+                         " --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log'"
+        if ! @mock
+          # send enc_data and enc_script to puppet server
+          SshUtils.upload!(ENC_ROLES_FILE, '/tmp', @puppet_master, @ssh_user, @ssh_key, 22)
+          SshUtils.upload!(ENC_SCRIPT, '/tmp', @puppet_master, @ssh_user, @ssh_key, 22)
+          SshUtils.execute_ssh_cmds(
+            ["sudo mv /tmp/roles.yaml #{ENC_PATH}",
+             "sudo mv /tmp/ankus_puppet_enc #{ENC_PATH}"],
+            @puppet_master,
+            @ssh_user,
+            @ssh_key,
+            22,
+            @debug
+          )
+        end
+        puppet_parallel_run(@puppet_clients, puppet_run_cmd, 'all nodes', true)
+      end
+
       # Kick off puppet run on all instances orchestrate runs based on configuration
-      def run
+      def run(force=false)
         puppet_run_cmd = "sudo sh -c 'puppet agent --onetime --verbose --no-daemonize --no-splay --ignorecache" + 
                          " --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log'"
         if ! @mock
@@ -371,13 +394,13 @@ module Ankus
             YamlUtils.write_yaml(@nodes, NODES_FILE)
           end
         else
-          puppet_single_run(@puppet_master, puppet_run_cmd, 'controller')
+          puppet_single_run(@puppet_master, puppet_run_cmd, 'controller', force)
         end
 
         if hadoop_ha == 'enabled' or hbase_install != 'disabled' or kafka_install != 'disabled' or 
           storm_install != 'disabled'
             #parallel puppet run on zks
-            puppet_parallel_run(@parsed_hash[:zookeeper_quorum], puppet_run_cmd, 'zookeepers')
+            puppet_parallel_run(@parsed_hash[:zookeeper_quorum], puppet_run_cmd, 'zookeepers', force)
         end
 
         if hadoop_install != 'disabled'
@@ -386,11 +409,13 @@ module Ankus
           if hadoop_ha == 'enabled'
             if @parsed_hash[:hadoop_deploy][:journal_quorum]
               #parallel puppet run on jns
-              puppet_parallel_run(@parsed_hash[:hadoop_deploy][:journal_quorum], puppet_run_cmd, 'journalnodes')
+              puppet_parallel_run(@parsed_hash[:hadoop_deploy][:journal_quorum], puppet_run_cmd, 'journalnodes', force)
             end
             # puppet run on nns
-            puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_namenode].first, puppet_run_cmd, 'active_namenode')
-            puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_namenode].last, puppet_run_cmd, 'standby_namenode')
+            puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_namenode].first, puppet_run_cmd, 'active_namenode',
+              force)
+            puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_namenode].last, puppet_run_cmd, 'standby_namenode',
+              force)
             #
             # => VENDOR_BUG:
             # parallel run breaks beacuse namenode2 should copy namenode1 dfs.name.dir contents which only happens 
@@ -398,27 +423,29 @@ module Ankus
             # puppet_parallel_run(@parsed_hash['hadoop_namenode'], puppet_run_cmd, 'namepuppet_clients')
             #
           else
-            puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_namenode].first, puppet_run_cmd, 'namenode')
+            puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_namenode].first, puppet_run_cmd, 'namenode', force)
           end
           if hbase_install != 'disabled'
             hbase_master = @parsed_hash[:hbase_deploy][:hbase_master]
             if hbase_master.length == 1
               puts "\rInitializing hbase master"
-              puppet_single_run(hbase_master.join, puppet_run_cmd, 'hbasemaster')
+              puppet_single_run(hbase_master.join, puppet_run_cmd, 'hbasemaster', force)
             else
-              puppet_parallel_run(hbase_master, puppet_run_cmd, 'hbasemasters')
+              puppet_parallel_run(hbase_master, puppet_run_cmd, 'hbasemasters', force)
             end
           end
 
           # init puppet agent on mapreduce master
           if @parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
-            puppet_single_run(@parsed_hash[:hadoop_deploy][:mapreduce][:master], puppet_run_cmd, 'mapreduce_master')
+            puppet_single_run(@parsed_hash[:hadoop_deploy][:mapreduce][:master], puppet_run_cmd, 'mapreduce_master',
+              force)
           else
             #mapreduce is disabled for cloud_deployments, snn will be on diff machine
             unless hadoop_ha == 'enabled'
               puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_secondarynamenode], 
                 puppet_run_cmd, 
-                'secondary_namenode'
+                'secondary_namenode',
+                force
               )
             end
           end
@@ -426,37 +453,38 @@ module Ankus
 
         # Storm Nimbus
         if storm_install != 'disabled'
-          puppet_single_run(@parsed_hash[:storm_deploy][:storm_master], puppet_run_cmd, 'storm_nimbus')
+          puppet_single_run(@parsed_hash[:storm_deploy][:storm_master], puppet_run_cmd, 'storm_nimbus', force)
         end
 
         # Cassandra
         if cassandra_install != 'disabled' and ! @parsed_hash[:cassandra_deploy][:colocation]
           cassandra_seeds = @parsed_hash[:cassandra_deploy][:cassandra_seeds]
           cassandra_nodes = @parsed_hash[:cassandra_deploy][:cassandra_nodes]
-          puppet_parallel_run(cassandra_seeds, puppet_run_cmd, 'cassandra_seed_node')
-          puppet_parallel_run(cassandra_nodes, puppet_run_cmd, 'cassandra')
+          puppet_parallel_run(cassandra_seeds, puppet_run_cmd, 'cassandra_seed_node', force)
+          puppet_parallel_run(cassandra_nodes, puppet_run_cmd, 'cassandra', force)
         elsif cassandra_install != 'disabled' and @parsed_hash[:cassandra_deploy][:colocation]
           if cassandra_install != 'disabled'
             puppet_parallel_run(@parsed_hash[:cassandra_deploy][:cassandra_seeds], 
               puppet_run_cmd, 
-              'cassandra_seed_node'
+              'cassandra_seed_node',
+              force
             )
           end
         end
 
         #Kafka
         if kafka_install != 'disabled' and ! @parsed_hash[:kafka_deploy][:colocation]
-          puppet_parallel_run(@parsed_hash[:kafka_deploy][:kafka_brokers], puppet_run_cmd, 'kafka_brokers')
+          puppet_parallel_run(@parsed_hash[:kafka_deploy][:kafka_brokers], puppet_run_cmd, 'kafka_brokers', force)
         end
 
         #Storm
         if storm_install != 'disabled' and ! @parsed_hash[:storm_deploy][:colocation]
-          puppet_parallel_run(@parsed_hash[:storm_deploy][:storm_supervisors], puppet_run_cmd, 'kafka_worker')
+          puppet_parallel_run(@parsed_hash[:storm_deploy][:storm_supervisors], puppet_run_cmd, 'kafka_worker', force)
         end
 
         # All hadoop & hbase slaves
         if hadoop_install != 'disabled' or hbase_install != 'disabled'
-          puppet_parallel_run(@parsed_hash[:slave_nodes], puppet_run_cmd, 'slaves')
+          puppet_parallel_run(@parsed_hash[:slave_nodes], puppet_run_cmd, 'slaves', force)
         end
 
         # hbasemasters need service refresh after region servers came online
@@ -465,9 +493,9 @@ module Ankus
           hbase_master = @parsed_hash[:hbase_deploy][:hbase_master]
           if hbase_master.length == 1
             puts "\rInitializing hbase master"
-            puppet_single_run(hbase_master.join, puppet_run_cmd, 'hbasemaster')
+            puppet_single_run(hbase_master.join, puppet_run_cmd, 'hbasemaster', force)
           else
-            puppet_parallel_run(hbase_master, puppet_run_cmd, 'hbasemasters')
+            puppet_parallel_run(hbase_master, puppet_run_cmd, 'hbasemasters', force)
           end
         end
 
@@ -483,7 +511,7 @@ module Ankus
               end
             end
           else
-            puppet_single_run(@puppet_master, puppet_run_cmd, 'controller')
+            puppet_single_run(@puppet_master, puppet_run_cmd, 'controller', force)
           end
         end
       end # Puppet.run
@@ -494,7 +522,7 @@ module Ankus
       # @param [String] instance => node on which puppet should be run
       # @param [String] puppet_run_cmd => command to run on remote client to run puppet
       # @param [String] role => role installing on remote client
-      def puppet_single_run(instance, puppet_run_cmd, role)
+      def puppet_single_run(instance, puppet_run_cmd, role, force=false)
         unless @mock
           unless @debug
             SpinningCursor.start do
@@ -509,7 +537,7 @@ module Ankus
           # run puppet only if the previous state it 'not_run(false)' or 'failed'
           #
           puppet_run_status = @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status]
-          if !puppet_run_status || puppet_run_status == 'failed'
+          if force || !puppet_run_status || puppet_run_status == 'failed'
             output = SshUtils.execute_ssh!(
                 puppet_run_cmd,
                 instance,
@@ -538,7 +566,7 @@ module Ankus
           end
         else
           puppet_run_status = @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status]
-          if !puppet_run_status || puppet_run_status == 'failed'          
+          if force || !puppet_run_status || puppet_run_status == 'failed'          
             puts "\rInitializing " + "#{role}".blue + " on " + "#{instance} ".blue
             @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status] = 'success'
             @nodes[find_key_for_fqdn(@nodes, instance)][:last_run] = Time.now.to_i          
@@ -551,7 +579,7 @@ module Ankus
       # @param [Array] instances_array => list of instances on which puppet should be run in parallel
       # @param [String] puppet_run_cmd => command to run on remote client to run puppet
       # @param [String] role => role installing on remote client
-      def puppet_parallel_run(instances_array, puppet_run_cmd, role)
+      def puppet_parallel_run(instances_array, puppet_run_cmd, role, force=false)
         if ! @mock
           SpinningCursor.start do
             banner "\rInitializing " + "#{role}".blue + " on client(s) " + "#{instances_array.join(',')} ".blue
@@ -568,7 +596,7 @@ module Ankus
               ssh_connections.schedule do
                 # run puppet installer only if the previous puppet run 'failed' or ænot_run'
                 puppet_run_status = @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status]
-                if !puppet_run_status || puppet_run_status == 'failed'
+                if force || !puppet_run_status || puppet_run_status == 'failed'
                   output << SshUtils.execute_ssh!(
                       puppet_run_cmd,
                       instance,
@@ -577,21 +605,25 @@ module Ankus
                       22,
                       false
                     )
-                  exit_status = output[instance][2].to_i
-                  # Check if the pupppet run succeeded or not
-                  unless exit_status == 0
-                    @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status] = 'failed'
-                  else
-                    # add status to nodes hash
-                    @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status] = 'success'
-                    @nodes[find_key_for_fqdn(@nodes, instance)][:last_run] = Time.now.to_i
-                  end
                 end # if
               end # ssh_connections.schedule
             end # each block
             ssh_connections.shutdown
           end
           puts "\r[Debug]: Time to run puppet on clients: #{time}" if @debug
+          output.each do |o|
+            instance = o.keys[0]
+            exit_status = o[instance][2].to_i
+            unless exit_status == 0
+              puts "\r[Error]: ".red + "Puppet run failed on #{instance}!, " + 
+                   "Try checking the log @ '/var/log/ankus/puppet_run.log' on #{instance}"              
+              @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status] = 'failed'
+            else
+              # add status to nodes hash
+              @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status] = 'success'
+              @nodes[find_key_for_fqdn(@nodes, instance)][:last_run] = Time.now.to_i              
+            end
+          end
           if @debug
             output.each do |o|
               instance = o.keys[0]
@@ -606,7 +638,7 @@ module Ankus
         else
           instances_array.each do |instance|
             puppet_run_status = @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status]
-            if !puppet_run_status || puppet_run_status == 'failed'
+            if force || !puppet_run_status || puppet_run_status == 'failed'
               puts "\rInitializing " + "#{role}".blue + " on client " + "#{instance}".blue
               @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status] = 'success'
               @nodes[find_key_for_fqdn(@nodes, instance)][:last_run] = Time.now.to_i

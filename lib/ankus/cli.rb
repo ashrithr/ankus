@@ -50,7 +50,7 @@ module Ankus
                   :default => false,
                   :desc => 'orchestrates only puppet runs accross cluster'
     def deploy
-      unless options[:reload]
+      unless options[:reload] or options[:run_only]
         if File.exists? NODES_FILE
           if YamlUtils.parse_yaml(NODES_FILE).is_a? Hash
             puts "\r[Error]: Deployment info exists! ".red
@@ -231,7 +231,7 @@ module Ankus
         #
         if @config[:install_mode] == 'cloud'
           cloud = create_cloud_obj(@config)
-          @config, @config_with_internal_ips = cloud.modify_config_hash(@config, YamlUtils.parse_yaml(NODES_FILE))
+          @config, @config_with_internal_ips = cloud.modify_cloud_config(@config, YamlUtils.parse_yaml(NODES_FILE))
         end
       end # unless options[:run_only]
 
@@ -301,20 +301,18 @@ module Ankus
       # 2. Re-Generate Hiera data
       # 4. Re-Generate ENC data
       # 3. Re-Run puppet on all nodes
-      unless YamlUtils.parse_yaml(NODES_FILE).is_a? Hash
+      @nodes = YamlUtils.parse_yaml(NODES_FILE)
+      unless @nodes.is_a? Hash
         abort 'No cluster found to refresh'.red
       end
       parse_config if @config.nil? or @config.empty?
       puts 'Reloading Configurations ...'
       if @config[:install_mode] == 'cloud'
         cloud = create_cloud_obj(@config)
-        @config, @config_with_internal_ips = cloud.modify_config_hash(@config, YamlUtils.parse_yaml(CLOUD_INSTANCES))
+        @config, @config_with_internal_ips = cloud.modify_cloud_config(@config, @nodes)
       end
-      puppet_server = YamlUtils.parse_yaml(NODES_FILE)[:puppet_server]
-      puppet_clients = YamlUtils.parse_yaml(NODES_FILE)[:puppet_clients]
       puppet = Deploy::Puppet.new(
-          puppet_server,
-          puppet_clients,
+          @nodes,
           @config[:ssh_key],
           @config,
           options[:thread_pool_size],
@@ -326,10 +324,13 @@ module Ankus
           puppet.generate_hiera(@config_with_internal_ips) :
           puppet.generate_hiera(@config)
       @config[:install_mode] == 'cloud' ?
-          puppet.generate_enc(@config_with_internal_ips, NODES_FILE_CLOUD) :
+          puppet.generate_enc(@config_with_internal_ips, NODES_FILE) :
           puppet.generate_enc(@config, NODES_FILE)
       puts 'Initializing Refresh across cluster'.blue
-      puppet.run_puppet_set(puppet_clients)
+      #
+      # Force run puppet on all nodes and update 'last_run' on @nodes
+      #
+      puppet.run!
       puts 'Completed Refreshing Cluster'.blue
     end
 
@@ -572,29 +573,30 @@ module Ankus
       end
       if agree('Are you sure want to destroy the cluster ?  ')
         cloud = create_cloud_obj(config)
-        cloud.delete_instances(YamlUtils.parse_yaml(CLOUD_INSTANCES), options[:delete_volumes])
+        cloud.delete_instances(YamlUtils.parse_yaml(NODES_FILE), options[:delete_volumes])
         FileUtils.rm_rf DATA_DIR
       end
     end
 
+    # invoke ssh process on the instance specified with role
     def ssh_into_instance(role, config)
       if config[:install_mode] == 'cloud'
-        #check tags and show available tags into machine
-        cloud_instances = YamlUtils.parse_yaml(NODES)
-        if cloud_instances.keys.find { |e| /#{role}/ =~ e  }
-          host = find_fqdn_for_tag(cloud_instances, role).first
+        # check tags and show available tags into machine
+        cloud_instances = YamlUtils.parse_yaml(NODES_FILE)
+        host = find_fqdn_for_tag(cloud_instances, role) && find_fqdn_for_tag(cloud_instances, role).first
+        if host
           username = config[:ssh_user]
           private_key = if config[:cloud_platform] == 'aws'
                           "~/.ssh/#{config[:cloud_credentials][:aws_key]}"
                         else
                           # rackspace instances need private file to login
                           config[:cloud_credentials][:rackspace_ssh_key][0..-5]
-                        end
+                        end          
           puts "[Info]: ssh into #{host} as user:#{username} with key:#{private_key}"
           SshUtils.ssh_into_instance(host, username, private_key, 22)
         else
-          puts "No such role found #{role}"
-          puts "Available roles: #{cloud_instances.keys.join(',')}"
+          puts "No such role found: #{role}"
+          puts "Available roles: #{cloud_instances.map { |k, v| v[:tags]}.flatten.uniq}"
         end
       else
         #local mode, build roles from conf
