@@ -6,10 +6,6 @@ module Ankus
   DATA_DIR          = File.expand_path(File.dirname(__FILE__) + '/../../.data')
   DEFAULT_CONFIG    = File.expand_path(File.dirname(__FILE__) + '/../../conf/ankus_conf.yaml')
   NODES_FILE        = "#{DATA_DIR}/nodes.yaml"
-  # TODO: Delete me
-  NODES_MOCK        = "#{DATA_DIR}/mock_nodes.yaml"
-  NODES_FILE_CLOUD  = "#{DATA_DIR}/nodes_cloud.yaml"
-  CLOUD_INSTANCES   = "#{DATA_DIR}/cloud_instances.yaml"
   ENC_ROLES_FILE    =  "#{DATA_DIR}/roles.yaml"
   HIERA_DATA_FILE   = "#{DATA_DIR}/common.yaml"
 
@@ -147,16 +143,86 @@ module Ankus
     hbase_regionserver_dash_port
     hbase_regionserver_jmx_dash_port
   }
+
+  #
+  # Helper functions to lookup values from NODES hash based on various params
+  #
+
+  # Returns fqdn for input tag
+  # @param [Hash] nodes to search for tag in
+  # @param [tag] tag to search
+  # @return [Array] || nil
+  def find_fqdn_for_tag(nodes, tag)
+    found_clients = []
+    nodes.each do |k, v|
+       found_clients << k if v[:tags].grep(/^#{tag}/).any?
+    end
+    if found_clients.length == 0
+      return nil
+    else
+      return found_clients.map { |k| nodes[k][:fqdn] }
+    end
+  end 
+
+  # Returns private_ip for input tag
+  # @param [Hash] nodes to search for tag in
+  # @param [tag] tag to search
+  # @return [Array] || nil
+  def find_pip_for_tag(nodes, tag)
+    found_clients = []
+    nodes.each do |k, v|
+       found_clients << k if v[:tags].grep(/^#{tag}/).any?
+    end
+    if found_clients.length == 0
+      return nil
+    else
+      return found_clients.map { |k| nodes[k][:private_ip] }
+    end
+  end
+
+  # Return hash key for input tag
+  # @param [Hash] nodes to search for tag in
+  # @param [tag] tag to search
+  # @return [Array] || nil  
+  def find_key_for_tag(nodes, tag)
+    found_clients = []
+    nodes.each do |k, v|
+      found_clients << k if v[:tags].grep(/^#{tag}/).any?
+    end
+    if found_clients.length == 0
+      return nil
+    else
+      return found_clients
+    end
+  end
+
+  # Returns nodes hash key for the input fqdn
+  # @param [Hash] nodes to search for tag in
+  # @param [fqdn] fqdn to search
+  # @return [String] => tag
+  def find_key_for_fqdn(nodes, fqdn)
+    nodes.select { |k, v| k if v[:fqdn] == fqdn }.keys.first
+  end
+
+  # Returns nodes hash key for the input fqdn
+  # @param [Hash] nodes to search for tag in
+  # @param [fqdn] fqdn to search
+  # @return [String] => tag
+  def find_key_for_pip(nodes, pip)
+    nodes.select { |k, v| k if v[:private_ip] == pip }.keys.first
+  end
 end
 
 # Monkey Patch some methods to ruby core classes
 class String
+  # Unindent string, useful indenting here-docs
   def undent
     gsub(/^.{#{slice(/^ +/).length}}/, '')
   end
 end
 
 class Hash
+  # Converts all the keys to symbols from strings
   def deep_symbolize
     target = dup
     target.inject({}) do |memo, (key, value)|
@@ -166,12 +232,47 @@ class Hash
     end
   end
 
+  # Converts all the keys to strings from symbols
   def deep_stringify
     target = dup
     target.inject({}) do |memo, (key, value)|
       value = value.deep_stringify if value.is_a?(Hash)
       memo[(key.to_s rescue key) || key] = value
       memo
+    end
+  end
+
+  # Return a hash that includes everything but the given keys
+  def except(*keys)
+    dup.except!(*keys)
+  end
+
+  # Replaces the hash without the given keys.
+  def except!(*keys)
+    keys.each { |key| delete(key) }
+    self
+  end
+
+  # Find the difference between two hashes
+  def diff(other)
+    self.keys.inject({}) do |memo, key|
+      unless self[key] == other[key]
+        memo[key] = [self[key], other[key]] 
+      end
+      memo
+    end
+  end  
+end
+
+#
+# Backport features to ruby 1.8.7
+#
+if RUBY_VERSION < "1.9"
+  class Symbol
+    include Comparable
+
+    def <=>(other)
+      self.to_s <=> other.to_s
     end
   end
 end
