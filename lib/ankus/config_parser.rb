@@ -126,16 +126,14 @@ module Ankus
       common_validator(hash_to_validate)
 
       # force user to use hostname instead of ipaddress
-      nodes = Inventory::Generator.new(@config_file, @parsed_hash).generate
-      ( all_nodes ||= [] ) << nodes[:puppet_server]
-      nodes[:puppet_clients].each {|pc| all_nodes << pc }
-      all_nodes.each do |node|
+      nodes = Inventory::Generator.new(@parsed_hash).generate
+      nodes.keys.each do |node|
         unless node =~ HOSTNAME_REGEX
           puts '[Error]: '.red + "Expecting hostname got ipaddress @ #{node}".red
           @errors_count += 1
         end
       end
-      all_nodes.each do |node|
+      nodes.keys.each do |node|
         unless Ankus::PortUtils.port_open?(node, 22, 2)
           puts '[Error]: '.red + "Node: #{node} is not reachable"
           @errors_count += 1
@@ -802,14 +800,14 @@ module Ankus
 
       if hash_to_validate[:install_mode] == 'local'
         if kafka_deploy != 'disabled'
-          kafka_nodes = kafka_deploy[:kafka_nodes]
-          if kafka_nodes.nil? or kafka_nodes.empty?
-            puts '[Error]: '.red + "'kafka_nodes' should contain list of fqdn(s) on which to install kafka package"
-            @errors_count += 1
-          elsif ! kafka_nodes.is_a? Array
-            puts '[Error]: '.red + "Excepting list (array) of nodes for 'kafka_nodes'"
-            @errors_count += 1
-          end
+          # kafka_nodes = kafka_deploy[:kafka_nodes]
+          # if kafka_nodes.nil? or kafka_nodes.empty?
+          #   puts '[Error]: '.red + "'kafka_nodes' should contain list of fqdn(s) on which to install kafka package"
+          #   @errors_count += 1
+          # elsif ! kafka_nodes.is_a? Array
+          #   puts '[Error]: '.red + "Excepting list (array) of nodes for 'kafka_nodes'"
+          #   @errors_count += 1
+          # end
           kafka_brokers = kafka_deploy[:kafka_brokers]
           if kafka_brokers.nil? or kafka_brokers.empty?
             puts '[Error]: '.red + "'kafka_brokers' should contain list of fqdn(s) which act as kafka broker nodes"

@@ -346,7 +346,7 @@ module Ankus
         abort
       end
       hiera_data = YamlUtils.parse_yaml(HIERA_DATA_FILE)
-      cloud = create_cloud_obj(config)
+      cloud = create_cloud_obj(config) if config[:install_mode] == 'cloud'
       hbase_deploy = if config[:hbase_deploy] == 'disabled'
                       'disabled'
                      else
@@ -363,7 +363,8 @@ module Ankus
 
       (cluster_info ||= '') << 'Ankus Cluster Info'.yellow_on_cyan.bold.underline << "\n"
       if config[:hadoop_deploy] != 'disabled'
-        cluster_info << "\r" << ' #'.green << " Hadoop High Availability Configuration: #{config[:hadoop_deploy][:hadoop_ha]} \n"
+        cluster_info << "\r" << ' #'.green << " Hadoop High Availability Configuration:" + 
+                                              " #{config[:hadoop_deploy][:hadoop_ha]} \n"
         cluster_info << "\r" << ' #'.green << " MapReduce Framework: #{mapreduce} \n"
       else
         cluster_info << "\r" << ' #'.green << " Hadoop Deploy: disabled \n"
@@ -438,7 +439,8 @@ module Ankus
           hms.each do |k, v|
             cluster_info << "\r" << ' *'.cyan << " #{k.capitalize}: #{v.first} \n"
           end
-          urls << "\r" << ' %'.black << " HBaseMaster: http://#{Hash[hms.select {|k,v| k.include? 'hbasemaster1'}].values.flatten.first}:60010 \n"
+          urls << "\r" << ' %'.black << " HBaseMaster: " + 
+                          "http://#{Hash[hms.select {|k,v| k.include? 'hbasemaster1'}].values.flatten.first}:60010 \n"
         end
         if storm_deploy != 'disabled'
           stn = find_fqdn_for_tag(cloud_instances, 'stormnimbus').first
@@ -474,28 +476,37 @@ module Ankus
       else
         #local deployment mode
         cluster_info << "\r" << ' *'.cyan << " Controller: #{config[:controller]}\n"
-        urls << "\r" << ' %'.black << " Ganglia: http://#{config[:controller]}/ganglia \n" if config[:monitoring] == 'enabled'
-        if hiera_data['nagios_server_ostype'].downcase == 'centos'
-          urls << "\r" << ' %'.black << " Nagios: http://#{config[:controller]}/nagios \n" if config[:alerting] == 'enabled'
-        elsif hiera_data['nagios_server_ostype'].downcase == 'ubuntu'
-          urls << "\r" << ' %'.black << " Nagios: http://#{config[:controller]}/nagios3 \n" if config[:alerting] == 'enabled'
+        if config[:monitoring] == 'enabled'
+          urls << "\r" << ' %'.black << " Ganglia: http://#{config[:controller]}/ganglia \n"
         end
-        urls << "\r" << ' %'.black << " LogStash: http://#{config[:controller]}:5601 \n" if config[:log_aggregation] == 'enabled'
+        if config[:alerting] == 'enabled'
+          if hiera_data['nagios_server_ostype'].downcase == 'centos'
+            urls << "\r" << ' %'.black << " Nagios: http://#{config[:controller]}/nagios \n"
+          elsif hiera_data['nagios_server_ostype'].downcase == 'ubuntu'
+            urls << "\r" << ' %'.black << " Nagios: http://#{config[:controller]}/nagios3 \n"
+          end
+        end
+        if config[:log_aggregation] == 'enabled'
+          urls << "\r" << ' %'.black << " LogStash: http://#{config[:controller]}:5601 \n"
+        end
 
         if config[:hadoop_deploy] != 'disabled'
           if config[:hadoop_deploy][:hadoop_ha] == 'enabled'
             cluster_info << "\r" << ' *'.cyan << " Namenode(s): \n"
             cluster_info << "\r" << "\t - Active Namenode: #{config[:hadoop_deploy][:hadoop_namenode].first} \n"
             cluster_info << "\r" << "\t - Standby Namenode: #{config[:hadoop_deploy][:hadoop_namenode].last} \n"
-            urls << "\r" << ' %'.black << " Active Namenode: http://#{config[:hadoop_deploy][:hadoop_namenode].first}:50070 \n"
-            urls << "\r" << ' %'.black << " Standby Namenode: http://#{config[:hadoop_deploy][:hadoop_namenode].last}:50070 \n"
+            urls << "\r" << ' %'.black << " Active Namenode: " + 
+                                          "http://#{config[:hadoop_deploy][:hadoop_namenode].first}:50070 \n"
+            urls << "\r" << ' %'.black << " Standby Namenode:" + 
+                                          " http://#{config[:hadoop_deploy][:hadoop_namenode].last}:50070 \n"
             cluster_info << "\r" << ' *'.cyan << " Journal Quorum: \n"
             config[:hadoop_deploy][:journal_quorum].each do |jn|
               cluster_info << "\r" << "\t - #{jn}\n"
             end
           else
             cluster_info << "\r" << ' *'.cyan << " Namenode: #{config[:hadoop_deploy][:hadoop_namenode].first}\n"
-            cluster_info << "\r" << ' *'.cyan << " Secondary Namenode: #{config[:hadoop_deploy][:hadoop_secondarynamenode]}\n"
+            cluster_info << "\r" << ' *'.cyan << " Secondary Namenode:" + 
+                                                 " #{config[:hadoop_deploy][:hadoop_secondarynamenode]}\n"
             urls << "\r" << ' %'.black << " Namenode: http://#{config[:hadoop_deploy][:hadoop_namenode].first}:50070 \n"
           end
           if config[:hadoop_deploy][:hadoop_ha] == 'enabled' and config[:hbase_deploy] != 'disabled'
@@ -504,7 +515,9 @@ module Ankus
               cluster_info << "\r"<< "\t - #{zk} \n"
             end
           end
-          cluster_info << "\r" << ' *'.cyan << " MapReduce Master: #{config[:hadoop_deploy][:mapreduce][:master]} \n" if config[:hadoop_deploy][:mapreduce] != 'disabled'
+          if config[:hadoop_deploy][:mapreduce] != 'disabled'
+            cluster_info << "\r" << ' *'.cyan << " MapReduce Master: #{config[:hadoop_deploy][:mapreduce][:master]} \n"
+          end
         end
         if config[:hbase_deploy] != 'disabled'
           cluster_info << "\r" << ' *'.cyan << " Hbase Master: #{config[:hbase_deploy][:hbase_master].join(',')} \n"
@@ -529,17 +542,18 @@ module Ankus
             cluster_info << "\r" << ' *'.cyan << " Storm Supervisors: \n"
             config[:storm_deploy][:storm_supervisors].each do |cn|
               cluster_info << "\r" << "\t" << '- '.cyan << cn << "\n"
-            end            
+            end
+            urls << "\r" << ' %'.black << " Storm Master: http://#{config[:storm_deploy][:storm_master]}:8080" 
           end
           if config[:kafka_deploy] != 'disabled'
             cluster_info << "\r" << ' *'.cyan << " Kafka Brokers: \n"
             config[:kafka_deploy][:kafka_brokers].each do |cn|
               cluster_info << "\r" << "\t" << '- '.cyan << cn << "\n"
             end            
-            cluster_info << "\r" << ' *'.cyan << " Kafka Node(s): \n"
-            config[:kafka_deploy][:kafka_nodes].each do |cn|
-              cluster_info << "\r" << "\t" << '- '.cyan << cn << "\n"
-            end            
+            # cluster_info << "\r" << ' *'.cyan << " Kafka Node(s): \n"
+            # config[:kafka_deploy][:kafka_nodes].each do |cn|
+            #   cluster_info << "\r" << "\t" << '- '.cyan << cn << "\n"
+            # end            
           end          
         end
       end
@@ -550,7 +564,8 @@ module Ankus
       if config[:install_mode] == 'cloud'
         if config[:cloud_platform] == 'aws'
           username = config[:cloud_os_type].downcase == 'centos' ? 'root' : 'ubuntu'
-          login_info << "\r" << " (or) using `ssh -i ~/.ssh/#{config[:cloud_credentials][:aws_key]} #{username}@[host]`\n"
+          login_info << "\r" << " (or) using `ssh -i ~/.ssh/#{config[:cloud_credentials][:aws_key]}" + 
+                                " #{username}@[host]`\n"
         elsif config[:cloud_platform] == 'rackspace'
           login_info << "\r" << " (or) using `ssh -i #{config[:cloud_credentials][:rackspace_ssh_key]} root@[host]`\n"
         end
@@ -609,7 +624,9 @@ module Ankus
         if config[:hadoop_deploy][:hadoop_ha] == 'enabled'
           nodes_roles.merge!({ :namenode1 => config[:hadoop_deploy][:hadoop_namenode][0],
                                :namenode2 => config[:hadoop_deploy][:hadoop_namenode][1] })
-          config[:hadoop_deploy][:journal_quorum].each_with_index { |jn, index| nodes_roles["journalnode#{index+1}"] = jn }
+          config[:hadoop_deploy][:journal_quorum].each_with_index do |jn, index| 
+            nodes_roles["journalnode#{index+1}"] = jn 
+          end
         else
           nodes_roles.merge!({ :namenode => config[:hadoop_deploy][:hadoop_namenode][0] })
         end
@@ -617,7 +634,9 @@ module Ankus
           config[:zookeeper_quorum].each_with_index { |zk, index| nodes_roles["zookeeper#{index+1}".to_sym] = zk }
         end
         if config[:hbase_deploy] != 'disabled'
-          config[:hbase_deploy][:hbase_master].each_with_index { |hbm, index| nodes_roles["hbasemaster#{index+1}".to_sym] = hbm }
+          config[:hbase_deploy][:hbase_master].each_with_index do |hbm, index| 
+            nodes_roles["hbasemaster#{index+1}".to_sym] = hbm 
+          end
         end
         config[:slave_nodes].each_with_index { |slave, index| nodes_roles["slaves#{index+1}".to_sym] = slave }
 
