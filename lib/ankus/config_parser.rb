@@ -74,8 +74,6 @@ module Ankus
     def create_req_files
       Dir.mkdir DATA_DIR                unless File.exists? DATA_DIR
       FileUtils.touch NODES_FILE        unless File.exists? NODES_FILE
-      FileUtils.touch NODES_FILE_CLOUD  unless File.exists? NODES_FILE_CLOUD
-      FileUtils.touch CLOUD_INSTANCES   unless File.exists? CLOUD_INSTANCES
       FileUtils.touch ENC_ROLES_FILE    unless File.exists? ENC_ROLES_FILE
       FileUtils.touch HIERA_DATA_FILE   unless File.exists? HIERA_DATA_FILE
     end
@@ -128,16 +126,14 @@ module Ankus
       common_validator(hash_to_validate)
 
       # force user to use hostname instead of ipaddress
-      nodes = Inventory::Generator.new(@config_file, @parsed_hash).generate
-      ( all_nodes ||= [] ) << nodes[:puppet_server]
-      nodes[:puppet_clients].each {|pc| all_nodes << pc }
-      all_nodes.each do |node|
+      nodes = Inventory::Generator.new(@parsed_hash).generate
+      nodes.keys.each do |node|
         unless node =~ HOSTNAME_REGEX
           puts '[Error]: '.red + "Expecting hostname got ipaddress @ #{node}".red
           @errors_count += 1
         end
       end
-      all_nodes.each do |node|
+      nodes.keys.each do |node|
         unless Ankus::PortUtils.port_open?(node, 22, 2)
           puts '[Error]: '.red + "Node: #{node} is not reachable"
           @errors_count += 1
@@ -587,7 +583,10 @@ module Ankus
             @errors_count += 1
           end
           #check journal_nodes for oddity
-          puts '[Warn]:'.yellow + 'journal nodes should be odd number to handle failover\'s, please update when possible' unless journal_quorum.length % 2 == 1
+          unless journal_quorum.length % 2 == 1
+            puts '[Error]:'.red + 'journal nodes should be odd number to handle failover\'s, please update'
+            @errors_count += 1
+          end
           #zookeepers cannot be same
           if zookeeper_quorum.uniq.length != zookeeper_quorum.length
             puts '[Error]:'.red + ' zookeeper\'s cannot be the same'
@@ -700,7 +699,10 @@ module Ankus
             puts '[Error]: '.red + "'zookeeper_quorum' is required for deployment types: 'hadoop_ha' or 'hbase_deploy' or 'kafka_deploy' or 'storm_deploy'"
             @errors_count += 1
           else
-            puts "[Warn]: zookeepers should be odd number to handle failover's, please update when possible" unless zookeeper_quorum.length % 2 == 1
+            unless zookeeper_quorum.length % 2 == 1
+              puts '[Error]:'.red + 'zookeeper nodes should be odd number to handle failover\'s, please update'
+              @errors_count += 1
+            end
           end
         elsif install_mode == 'cloud'
           zookeeper_quorum = hash_to_validate[:zookeeper_quorum_count]
@@ -708,7 +710,10 @@ module Ankus
             puts '[Error]: '.red + "'zookeeper_quorum' is required for deployment types: 'hadoop_ha' or 'hbase_deploy' or 'kafka_deploy' or 'storm_deploy'"
             @errors_count += 1
           else
-            puts "[Warn]: zookeepers should be odd number to handle failover's, please update when possible" unless zookeeper_quorum % 2 == 1
+            unless zookeeper_quorum % 2 == 1
+              puts '[Error]:'.red + 'zookeeper nodes should be odd number to handle failover\'s, please update'
+              @errors_count += 1          
+            end
           end
         end
       end
@@ -795,14 +800,14 @@ module Ankus
 
       if hash_to_validate[:install_mode] == 'local'
         if kafka_deploy != 'disabled'
-          kafka_nodes = kafka_deploy[:kafka_nodes]
-          if kafka_nodes.nil? or kafka_nodes.empty?
-            puts '[Error]: '.red + "'kafka_nodes' should contain list of fqdn(s) on which to install kafka package"
-            @errors_count += 1
-          elsif ! kafka_nodes.is_a? Array
-            puts '[Error]: '.red + "Excepting list (array) of nodes for 'kafka_nodes'"
-            @errors_count += 1
-          end
+          # kafka_nodes = kafka_deploy[:kafka_nodes]
+          # if kafka_nodes.nil? or kafka_nodes.empty?
+          #   puts '[Error]: '.red + "'kafka_nodes' should contain list of fqdn(s) on which to install kafka package"
+          #   @errors_count += 1
+          # elsif ! kafka_nodes.is_a? Array
+          #   puts '[Error]: '.red + "Excepting list (array) of nodes for 'kafka_nodes'"
+          #   @errors_count += 1
+          # end
           kafka_brokers = kafka_deploy[:kafka_brokers]
           if kafka_brokers.nil? or kafka_brokers.empty?
             puts '[Error]: '.red + "'kafka_brokers' should contain list of fqdn(s) which act as kafka broker nodes"

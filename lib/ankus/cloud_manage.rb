@@ -7,12 +7,15 @@ module Ankus
   require 'erb'
 
   class Cloud
+    include Ankus
     # Create a new Cloud class object
     # @param [String] provider => Cloud service provider; aws|rackspace
     # @param [Hash] parsed_config => Configuration that has been already parsed from cloud_configuration file
     # @param [Hash] cloud_credentials => Credentials configurations
-    #     if aws: cloud_credentials => { aws_access_id: '', aws_secret_key: '', aws_machine_type: 'm1.large', aws_region: 'us-west-1', aws_key: 'ankus' }
-    #     if rackspace: cloud_credentials => { rackspace_username: '', rackspace_api_key: '', rackspace_instance_type: '', rackspace_ssh_key: '~/.ssh/id_rsa.pub' }
+    #     if aws: cloud_credentials => { aws_access_id: '', aws_secret_key: '', aws_machine_type: 'm1.large', 
+    #                                    aws_region: 'us-west-1', aws_key: 'ankus' }
+    #     if rackspace: cloud_credentials => { rackspace_username: '', rackspace_api_key: '', 
+    #                                          rackspace_instance_type: '', rackspace_ssh_key: '~/.ssh/id_rsa.pub' }
     # @param [Integer] thread_pool_size => number of threads to use to perform instance creation, volume attachements
     # @param [Boolean] debug => if enabled will print more info to stdout
     # @param [Boolean] mock => if enabled will mock fog, instead of creating actual instances
@@ -24,6 +27,7 @@ module Ankus
       @debug            = debug
       @thread_pool_size = thread_pool_size
       @mock             = mock
+      @nodes            = Hash.new{ |h,k| h[k] = Hash.new(&h.default_proc) }
       raise unless @credentials.is_a?(Hash)
     end
 
@@ -39,98 +43,174 @@ module Ankus
       Ankus::Rackspace.new @credentials[:rackspace_api_key], @credentials[:rackspace_username], @mock
     end
 
-    # Parse cloud_configuration; create instances and return instance mappings
-    # @return [Hash]
-    #   for aws cloud, nodes: { 'tag' => [public_dns_name, private_dns_name], 'tag' => [public_dns_name, private_dns_name], ... }
-    #   for rackspace, nodes: { 'tag(fqdn)' => [public_ip_address, private_ip_address], ... }
-    def create_instances
+    # Create instance definitions
+    def create_cloud_instances
       num_of_slaves   = @parsed_hash[:slave_nodes_count]
       num_of_zks      = @parsed_hash[:zookeeper_quorum_count]
-      nodes_created   = {}
-      nodes_to_create = {}
-      #volume_count, volume_size = calculate_disks
       volume_count    = @parsed_hash[:volumes] != 'disabled' ? @parsed_hash[:volumes][:count] : 0
       volume_size     = @parsed_hash[:volumes] != 'disabled' ? @parsed_hash[:volumes][:size] : 0
+      default_config= { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+      slaves_config = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
 
-      #create nodes to create
-      nodes_to_create['controller'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+      nodes_to_create_masters = {}
+      nodes_to_create_slaves = {}
+      nodes_to_create_masters[:controller] = %w(controller)
       if @parsed_hash[:hadoop_deploy] != 'disabled'
         if @parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
-          nodes_to_create['namenode1']  = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-          nodes_to_create['namenode2']  = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-          nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } if @parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
+          nodes_to_create_masters[:namenode1] = %w(namenode1)
+          nodes_to_create_masters[:namenode2] = %w(namenode2)
+          if @parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
+            nodes_to_create_masters[:jobtracker] = %w(jobtracker)
+          end
         else
-          nodes_to_create['namenode'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+          nodes_to_create_masters[:namenode] = %w(namenode)
         end
         if @parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
-          nodes_to_create['jobtracker'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } #JT and SNN
+          nodes_to_create_masters[:jobtracker] = %w(jobtracker secondarynamenode)
         elsif @parsed_hash[:hadoop_deploy][:mapreduce] and @parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
-          nodes_to_create['snn'] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 } #SNN
+          nodes_to_create_masters[:secondarynamenode] = %w(secondarynamenode)
         end
         if @parsed_hash[:hbase_deploy] != 'disabled'
           @parsed_hash[:hbase_deploy][:hbase_master_count].times do |hm|
-            nodes_to_create["hbasemaster#{hm+1}"] =  { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+            nodes_to_create_masters["hbasemaster#{hm+1}".to_sym] = ["hbasemaster#{hm+1}"]
           end
         end
         num_of_slaves.times do |i|
-          nodes_to_create["slaves#{i+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
+          nodes_to_create_slaves["slaves#{i+1}".to_sym] = ["slaves#{i+1}"]
         end
       end
       if @parsed_hash[:cassandra_deploy] != 'disabled'
-        unless @parsed_hash[:cassandra_deploy][:colocate]
-          # if colocate is not enabled then create separate cassandra instances
+        unless @parsed_hash[:cassandra_deploy][:colocate] # if ! colocate then create separate cassandra instances          
           @parsed_hash[:cassandra_deploy][:number_of_instances].times do |cn|
-            nodes_to_create["cassandra#{cn+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
+            nodes_to_create_slaves["cassandra#{cn+1}".to_sym] = ["cassandra#{cn+1}"]
           end
+          @parsed_hash[:cassandra_deploy][:number_of_seeds].times do |cs|
+            nodes_to_create_slaves["cassandra#{cs+1}".to_sym] << "cassandraseed#{cs+1}"
+          end          
+        else # colocate cassandra instances on hadoop slaves
+          num_of_slaves.times { |i| nodes_to_create_slaves["slaves#{i+1}".to_sym] << "cassandra#{i+1}" }
+          @parsed_hash[:cassandra_deploy][:number_of_seeds].times do |cs|
+            nodes_to_create_slaves["slaves#{cs+1}".to_sym] << "cassandraseed#{cs+1}"
+          end                    
         end
       end
       if @parsed_hash[:kafka_deploy] != 'disabled'
         unless @parsed_hash[:kafka_deploy][:colocate]
           @parsed_hash[:kafka_deploy][:number_of_brokers].times do |kn|
-            nodes_to_create["kafka#{kn+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
+            nodes_to_create_slaves["kafka#{kn+1}".to_sym] = ["kafka#{kn+1}"]
+          end
+        else #colocate daemons in either hadoop or cassandra based on deploy scenario
+          if @parsed_hash[:hadoop_deploy] != 'disabled'
+            @parsed_hash[:kafka_deploy][:number_of_brokers].times do |kn| 
+              nodes_to_create_slaves["slaves#{kn+1}".to_sym] << "kafka#{kn+1}"
+            end
+          else
+            @parsed_hash[:kafka_deploy][:number_of_brokers].times do |kn| 
+              nodes_to_create_slaves["cassandra#{kn+1}".to_sym] << "kafka#{kn+1}"
+            end            
           end
         end
       end
       if @parsed_hash[:storm_deploy] != 'disabled'
-        nodes_to_create["stormnimbus"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+        nodes_to_create_masters[:stormnimbus] = %w(stormnimbus)
         unless @parsed_hash[:storm_deploy][:colocate]
-          @parsed_hash[:storm_deploy][:number_of_supervisors].times do |kn|
-            nodes_to_create["stormworker#{kn+1}"] = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
+          @parsed_hash[:storm_deploy][:number_of_supervisors].times do |sn|
+            nodes_to_create_slaves["stormworker#{sn+1}".to_sym] = ["stormworker#{sn+1}"]
+          end
+        else #colocate daemons in either hadoop or cassandra based on deploy scenario
+          if @parsed_hash[:hadoop_deploy] != 'disabled'
+            @parsed_hash[:storm_deploy][:number_of_supervisors].times do |sn| 
+              nodes_to_create_slaves["slaves#{sn+1}".to_sym] << "stormworker#{sn+1}"
+            end
+          else
+            @parsed_hash[:storm_deploy][:number_of_supervisors].times do |sn|
+              nodes_to_create_slaves["cassandra#{sn+1}".to_sym] << "stormworker#{sn+1}"
+            end            
           end
         end
       end
       #zookeepers
       if @parsed_hash[:hadoop_deploy] != 'disabled' && @parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
         num_of_zks.times do |i|
-          nodes_to_create["zookeeper#{i+1}"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+          nodes_to_create_masters["zookeeper#{i+1}".to_sym] = %w(zookeeper)
         end
-      elsif @parsed_hash[:hbase_deploy] != 'disabled' or @parsed_hash[:kafka_deploy] != 'disabled' or @parsed_hash[:storm_deploy] != 'disabled'
-        unless nodes_to_create.keys.find { |e| /zookeeper/ =~ e }
+      elsif @parsed_hash[:hbase_deploy] != 'disabled' or 
+        @parsed_hash[:kafka_deploy] != 'disabled' or 
+        @parsed_hash[:storm_deploy] != 'disabled'
+        unless nodes_to_create_masters.keys.find { |e| /zookeeper/ =~ e }
           num_of_zks.times do |i|
-            nodes_to_create["zookeeper#{i+1}"] = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+            nodes_to_create_masters["zookeeper#{i+1}".to_sym] = %w(zookeeper)
           end
         end
-      end
+      end 
 
-      pp nodes_to_create if @mock
-
+      # Create node wrapper objects
       if @provider == 'aws'
-        nodes_created = create_on_aws(nodes_to_create, @credentials, @thread_pool_size)
+        nodes_to_create_masters.each do |name, tags|
+          @nodes[name] = create_node_obj(default_config, tags)
+        end 
+        nodes_to_create_slaves.each do |name, tags|
+          @nodes[name] = create_node_obj(slaves_config, tags)
+        end        
       elsif @provider == 'rackspace'
         domain_name = "#{@parsed_hash[:cloud_credentials][:rackspace_cluster_identifier]}.ankus.com"
         # add domain name to roles to form fqdn
-        nodes_to_create_fqdn = {}
-        nodes_to_create.each {|k,v| nodes_to_create_fqdn["#{k}.#{domain_name}"] = v }
-        nodes_created = create_on_rackspace(nodes_to_create_fqdn, @credentials, @thread_pool_size)
+        nodes_to_create_masters_fqdn = {}
+        nodes_to_create_slaves_fqdn = {}
+        nodes_to_create_masters.each {|k,v| nodes_to_create_masters_fqdn["#{k}.#{domain_name}"] = v }
+        nodes_to_create_slaves.each {|k,v| nodes_to_create_slaves_fqdn["#{k}.#{domain_name}"] = v }
+        nodes_to_create_masters_fqdn.each do |name, tags|
+          @nodes[name] = create_node_obj(default_config, tags)
+        end
+        nodes_to_create_slaves_fqdn.each do |name, tags|
+          @nodes[name] = create_node_obj(default_config, tags)
+        end        
       end
-      # returns parse nodes hash
-      nodes_created
+      @nodes
+    end
+
+    # Creates cloud instances on both AWS or Rackspace using the paesed config file
+    # @return [Hash] nodes => contains created node info each node is of the form
+    # { :node_tag =>
+    #   {
+    #    :fqdn                  =>  "fully_qualified_domain_name (or) public ip",
+    #    :private_ip            =>  "internal_dns_name (or) private ip",
+    #    :config                =>  {:os_type=>"CentOS", :volumes=>0, :volume_size=>250},
+    #    :puppet_install_status =>  null,
+    #    :puppet_run_status     =>  null,
+    #    :last_run              =>  null,
+    #    :tags                  =>  ["list of tags for this node"]
+    #   }
+    # }
+    def create_cloud_instances!
+      create_cloud_instances
+      case @provider
+      when 'aws'
+        @nodes = create_aws_instances(@nodes, @credentials, @thread_pool_size)
+      when 'rackspace'
+        @nodes = create_rackspace_instances(@nodes, @credentials, @thread_pool_size)
+      end
+      @nodes
+    end
+
+    # Create instances if the node has no fqdn is assigned
+    # @param [Hash] nodes => merged nodes info
+    def safe_create_instances!(nodes)
+      nodes = nodes.select { |k, v| k if v[:fqdn].empty? }
+      case @provider
+      when 'aws'
+        nodes = create_aws_instances(nodes, @credentials, @thread_pool_size)
+      when 'rackspace'
+        nodes = create_rackspace_instances(nodes, @credentials, @thread_pool_size)
+      end
+      nodes
     end
 
     # Create a single instance and return instance mappings
     # @param [Array] tags => name of the server(s), if aws used as tag | if rackspace used as fqdn
     # @return [Hash] nodes:
-    #   for aws cloud, nodes: { 'tag' => [public_dns_name, private_dns_name], 'tag' => [public_dns_name, private_dns_name] }
+    #   for aws cloud, nodes: { 'tag' => [public_dns_name, private_dns_name], 
+    #                           'tag' => [public_dns_name, private_dns_name] }
     #   for rackspace, nodes: { 'tag(fqdn)' => [public_ip_address, private_ip_address] }
     def create_instances_on_count(tags)
       node_created = {}
@@ -155,9 +235,9 @@ module Ankus
       if @parsed_hash[:cloud_platform] == 'aws'
         aws   = create_aws_connection
         conn  = aws.create_connection
-        nodes_hash.each do |_, nodes_dns_map|
+        nodes_hash.each do |node, node_info|
           threads_pool.schedule do
-            server_dns_name = nodes_dns_map.first
+            server_dns_name = node_info[:fqdn]
             aws.delete_server_with_dns_name(conn, server_dns_name, delete_volumes)
           end
         end
@@ -167,10 +247,18 @@ module Ankus
         conn      = rackspace.create_connection
         nodes_hash.each do |fqdn, _|
           threads_pool.schedule do
-            rackspace.delete_server_with_name(conn, fqdn)
+            rackspace.delete_server_with_name(conn, fqdn, delete_volumes)
           end
         end
         threads_pool.shutdown
+      end
+    end
+
+    def find_internal_ip(nodes, tag)
+      if @provider == 'aws'
+        find_pip_for_tag(nodes, tag)
+      elsif @provider == 'rackspace'
+        find_key_for_tag(nodes, tag)
       end
     end
 
@@ -179,201 +267,122 @@ module Ankus
     # @param [Hash] nodes_hash => nodes hash generated by Cloud#create_on_aws|Cloud#create_on_rackspace
     # @return if rackspace [Hash, Hash] parsed_hash, parsed_internal_ips => which can be used same as local install_mode
     #         if aws [Hash, Hash] parsed_hash, parsed_internal_ips => which can be used same as local install_mode
-    def modify_config_hash(parsed_hash, nodes_hash)
+    def modify_cloud_config(parsed_hash, nodes)
       parsed_hash_internal_ips = Marshal.load(Marshal.dump(parsed_hash))
-      #things to add back to parsed_hash:
-      # ssh_key:
-      # controller:
-      # hadoop_namenode: []
-      # hadoop_secondarynamenode: if hadoop_ha == 'disabled'
-      # zookeeper_quorum: []
-      # journal_quorum: []
-      # mapreduce['master']:
-      # slave_nodes: []
-      # storage_dirs: []
-      # hbase_master: [] if hbase_install == enabled
-      # kafka_nodes: []
-      # kafka_brokers: []
-      # storm_supervisors: []
-      # storm_master: ""
-      parsed_hash[:ssh_key] =  if @provider == 'aws'
-                                  File.expand_path('~/.ssh') + '/' + @credentials[:aws_key]
-                                elsif @provider == 'rackspace'
-                                  File.split(File.expand_path(@credentials[:rackspace_ssh_key])).first + '/' +
-                                  File.basename(File.expand_path(@credentials[:rackspace_ssh_key]), '.pub')
-                                end
+     
+      parsed_hash[:ssh_key]      =  if @provider == 'aws'
+                                      File.expand_path('~/.ssh') + '/' + @credentials[:aws_key]
+                                    elsif @provider == 'rackspace'
+                                      File.split(File.expand_path(@credentials[:rackspace_ssh_key])).first + '/' +
+                                      File.basename(File.expand_path(@credentials[:rackspace_ssh_key]), '.pub')
+                                    end
       parsed_hash[:storage_dirs] =  if parsed_hash[:volumes] != 'disabled'
                                       Array.new(parsed_hash[:volumes][:count] + 1){ |i| "/data/#{i}" }
                                     else
                                       ['/data/0']
                                     end
-      parsed_hash[:controller] = nodes_hash.map { |k,v| v.first if k =~ /controller/ }.compact.first
-
+      parsed_hash[:controller] = find_fqdn_for_tag(nodes, 'controller').first
       if parsed_hash[:hadoop_deploy] != 'disabled'
-        parsed_hash[:hadoop_deploy][:hadoop_namenode]    = nodes_hash.map { |k,v| v.first if k =~ /namenode/ }.compact
-        parsed_hash[:hadoop_deploy][:mapreduce][:master] = nodes_hash.map { |k,v| v.first if k =~ /jobtracker/ }.compact.first if parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
-        if parsed_hash[:hadoop_deploy][:mapreduce] == 'disabled' and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
-          parsed_hash[:hadoop_deploy][:hadoop_secondarynamenode] = nodes_hash.map { |k,v| v.first if k =~ /snn/ }.compact.first
-        elsif parsed_hash[:hadoop_deploy][:mapreduce] and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
-          parsed_hash[:hadoop_deploy][:hadoop_secondarynamenode] = nodes_hash.map { |k,v| v.first if k =~ /jobtracker/ }.compact.first
+        parsed_hash[:hadoop_deploy][:hadoop_namenode] = find_fqdn_for_tag(nodes, 'namenode')
+        if parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
+          parsed_hash[:hadoop_deploy][:mapreduce][:master] = find_fqdn_for_tag(nodes, 'jobtracker').first
         end
-        parsed_hash[:slave_nodes]                     = nodes_hash.map { |k,v| v.first if k =~ /slaves/ }.compact
-        parsed_hash[:hadoop_deploy][:journal_quorum]  = nodes_hash.map { |k,v| v.first if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
-        parsed_hash[:hbase_deploy][:hbase_master]     = nodes_hash.map { |k,v| v.first if k =~ /hbasemaster/ }.compact if parsed_hash[:hbase_deploy] != 'disabled'
+        if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
+          parsed_hash[:hadoop_deploy][:hadoop_secondarynamenode] = find_fqdn_for_tag(nodes, 'secondarynamenode').first
+        end
+        parsed_hash[:slave_nodes] = find_fqdn_for_tag(nodes, 'slaves')
+        if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
+          parsed_hash[:hadoop_deploy][:journal_quorum] = find_fqdn_for_tag(nodes, 'zookeeper')
+        end
+        if parsed_hash[:hbase_deploy] != 'disabled'
+          parsed_hash[:hbase_deploy][:hbase_master] = find_fqdn_for_tag(nodes, 'hbasemaster')
+        end
       end
 
       if parsed_hash[:cassandra_deploy] != 'disabled'
-        parsed_hash[:cassandra_deploy][:cassandra_nodes] =  if ! parsed_hash[:cassandra_deploy][:colocate]
-                                                              nodes_hash.map { |k,v| v.first if k =~ /cassandra/ }.compact
-                                                            elsif parsed_hash[:cassandra_deploy][:colocate]
-                                                              nodes_hash.map { |k,v| v.first if k =~ /slaves/ }.compact
-                                                            end
-        parsed_hash[:cassandra_deploy][:cassandra_seeds] = Array.new(parsed_hash[:cassandra_deploy][:number_of_seeds]){|i| parsed_hash[:cassandra_deploy][:cassandra_nodes][i] }
+        parsed_hash[:cassandra_deploy][:cassandra_nodes] =  find_fqdn_for_tag(nodes, 'cassandra')
+        parsed_hash[:cassandra_deploy][:cassandra_seeds] =  find_fqdn_for_tag(nodes, 'cassandraseed')
       end
 
       if parsed_hash[:kafka_deploy] != 'disabled'
-        parsed_hash[:kafka_deploy][:kafka_nodes] =  if ! parsed_hash[:kafka_deploy][:colocate]
-                                                      nodes_hash.map { |k,v| v.first if k =~ /kafka/ }.compact
-                                                    elsif parsed_hash[:kafka_deploy][:colocate] and parsed_hash[:hadoop_deploy] == 'disabled'
-                                                      nodes_hash.map { |k,v| v.first if k =~ /cassandra/  }.compact
-                                                    elsif parsed_hash[:kafka_deploy][:colocate] and parsed_hash[:hadoop_deploy] != 'disabled'
-                                                      nodes_hash.map { |k,v| v.first if k =~ /slaves/  }.compact
-                                                    end
-        parsed_hash[:kafka_deploy][:kafka_brokers] = Array.new(parsed_hash[:kafka_deploy][:number_of_brokers]) { |i| parsed_hash[:kafka_deploy][:kafka_nodes][i] }
+        parsed_hash[:kafka_deploy][:kafka_brokers] = find_fqdn_for_tag(nodes, 'kafka')
       end
 
       if parsed_hash[:storm_deploy] != 'disabled'
-        parsed_hash[:storm_deploy][:storm_supervisors] =  if ! parsed_hash[:storm_deploy][:colocate]
-                                                            nodes_hash.map { |k,v| v.first if k =~ /stormworker/ }.compact
-                                                          elsif parsed_hash[:storm_deploy][:colocate] and parsed_hash[:hadoop_deploy] == 'disabled'
-                                                            nodes_hash.map { |k,v| v.first if k =~ /cassandra/  }.compact
-                                                          elsif parsed_hash[:storm_deploy][:colocate] and parsed_hash[:hadoop_deploy] != 'disabled'
-                                                            nodes_hash.map { |k,v| v.first if k =~ /slaves/  }.compact
-                                                          end
-        parsed_hash[:storm_deploy][:storm_master] = nodes_hash.map { |k,v| v.first if k =~ /stormnimbus/ }.compact.first
+        parsed_hash[:storm_deploy][:storm_supervisors] =  find_fqdn_for_tag(nodes, 'stormworker')
+        parsed_hash[:storm_deploy][:storm_master] = find_fqdn_for_tag(nodes, 'stormnimbus').first
       end
-
       #zookeepers
-      if parsed_hash[:hadoop_deploy] != 'disabled'
-        parsed_hash[:zookeeper_quorum] = nodes_hash.map { |k,v| v.first if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
+      if parsed_hash[:hadoop_deploy] != 'disabled' and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
+        parsed_hash[:zookeeper_quorum] = find_fqdn_for_tag(nodes, 'zookeeper')
       end
-      if parsed_hash[:hbase_depoy] != 'disabled' or parsed_hash[:kafka_deploy] != 'disabled' or parsed_hash[:storm_deploy] != 'disabled'
-        parsed_hash[:zookeeper_quorum] = nodes_hash.map { |k,v| v.first if k =~ /zookeeper/ }.compact unless parsed_hash.has_key? :zookeeper_quorum
+      if parsed_hash[:hbase_depoy] != 'disabled' or 
+        parsed_hash[:kafka_deploy] != 'disabled' or 
+        parsed_hash[:storm_deploy] != 'disabled'
+        unless parsed_hash.has_key? :zookeeper_quorum
+          parsed_hash[:zookeeper_quorum] = find_fqdn_for_tag(nodes, 'zookeeper')
+        end
       end
 
-      # hash with internal ips
-      if @provider == 'aws' # internal_ips
-        parsed_hash_internal_ips[:ssh_key]    = File.expand_path('~/.ssh') + '/' + @parsed_hash[:cloud_credentials][:aws_key]
-        parsed_hash_internal_ips[:controller] = nodes_hash.map { |k,v| v.last if k =~ /controller/ }.compact.first
-        if parsed_hash[:hadoop_deploy] != 'disabled'
-          parsed_hash_internal_ips[:hadoop_deploy][:hadoop_namenode] = nodes_hash.map { |k,v| v.last if k =~ /namenode/ }.compact
-        parsed_hash_internal_ips[:hadoop_deploy][:mapreduce][:master] = nodes_hash.map { |k,v| v.last if k =~ /jobtracker/ }.compact.first if parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
-          if parsed_hash[:hadoop_deploy][:mapreduce] == 'disabled' and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
-            parsed_hash_internal_ips[:hadoop_deploy][:hadoop_secondarynamenode] = nodes_hash.map { |k,v| v.last if k =~ /snn/ }.compact.first
-          elsif parsed_hash[:hadoop_deploy][:mapreduce] and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
-            parsed_hash_internal_ips[:hadoop_deploy][:hadoop_secondarynamenode] = nodes_hash.map { |k,v| v.last if k =~ /jobtracker/ }.compact.first
-          end
-          parsed_hash_internal_ips[:slave_nodes]                    = nodes_hash.map { |k,v| v.last if k =~ /slaves/ }.compact
-          parsed_hash_internal_ips[:hadoop_deploy][:journal_quorum] = nodes_hash.map { |k,v| v.last if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
-          parsed_hash_internal_ips[:hbase_deploy][:hbase_master]    = nodes_hash.map { |k,v| v.last if k =~ /hbasemaster/ }.compact if parsed_hash[:hbase_deploy] != 'disabled'
+      # If AWS, hash with internal ips should contain private_ip
+      # If RackSpace, hash with internal ips should contain fqdn
+
+      parsed_hash_internal_ips[:ssh_key]  = 
+          if @provider == 'aws'
+            File.expand_path('~/.ssh') + '/' + @credentials[:aws_key]
+          elsif @provider == 'rackspace'
+            File.split(File.expand_path(@credentials[:rackspace_ssh_key])).first + '/' +
+            File.basename(File.expand_path(@credentials[:rackspace_ssh_key]), '.pub')
+          end 
+      parsed_hash_internal_ips[:controller] = find_internal_ip(nodes, 'controller').first
+      if parsed_hash[:hadoop_deploy] != 'disabled'
+        parsed_hash_internal_ips[:hadoop_deploy][:hadoop_namenode] = find_internal_ip(nodes, 'namenode')
+        if parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
+          parsed_hash_internal_ips[:hadoop_deploy][:mapreduce][:master] = find_internal_ip(nodes, 'jobtracker').first
+        end    
+        if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
+          parsed_hash_internal_ips[:hadoop_deploy][:hadoop_secondarynamenode] = find_internal_ip(nodes, 'secondarynamenode').first
         end
-        if parsed_hash[:cassandra_deploy] != 'disabled'
-          parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes] = if ! parsed_hash[:cassandra_deploy][:colocate]
-                                                                            nodes_hash.map { |k,v| v.last if k =~ /cassandra/ }.compact
-                                                                          elsif parsed_hash[:cassandra_deploy][:colocate]
-                                                                            nodes_hash.map { |k,v| v.last if k =~ /slaves/ }.compact
-                                                                          end
-          parsed_hash_internal_ips[:cassandra_deploy][:cassandra_seeds] = Array.new(parsed_hash[:cassandra_deploy][:number_of_seeds]){|i| parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes][i] }
+        parsed_hash_internal_ips[:slave_nodes] = find_internal_ip(nodes, 'slaves')
+        if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
+          parsed_hash_internal_ips[:hadoop_deploy][:journal_quorum] = find_internal_ip(nodes, 'zookeeper')
         end
-        if parsed_hash[:kafka_deploy] != 'disabled'
-          parsed_hash_internal_ips[:kafka_deploy][:kafka_nodes] =  if ! parsed_hash[:kafka_deploy][:colocate]
-                                                                    nodes_hash.map { |k,v| v.last if k =~ /kafka/ }.compact
-                                                                  elsif parsed_hash[:kafka_deploy][:colocate] and parsed_hash[:hadoop_deploy] == 'disabled'
-                                                                    nodes_hash.map { |k,v| v.last if k =~ /cassandra/  }.compact
-                                                                  elsif parsed_hash[:kafka_deploy][:colocate] and parsed_hash[:hadoop_deploy] != 'disabled'
-                                                                    nodes_hash.map { |k,v| v.last if k =~ /slaves/  }.compact
-                                                                  end
-          parsed_hash_internal_ips[:kafka_deploy][:kafka_brokers] = Array.new(parsed_hash[:kafka_deploy][:number_of_brokers]) { |i| parsed_hash_internal_ips[:kafka_deploy][:kafka_nodes][i] }
-        end
-        if parsed_hash[:storm_deploy] != 'disabled'
-          parsed_hash_internal_ips[:storm_deploy][:storm_supervisors] =  if ! parsed_hash[:storm_deploy][:colocate]
-                                                                          nodes_hash.map { |k,v| v.last if k =~ /stormworker/ }.compact
-                                                                        elsif parsed_hash[:storm_deploy][:colocate] and parsed_hash[:hadoop_deploy] == 'disabled'
-                                                                          nodes_hash.map { |k,v| v.last if k =~ /cassandra/  }.compact
-                                                                        elsif parsed_hash[:storm_deploy][:colocate] and parsed_hash[:hadoop_deploy] != 'disabled'
-                                                                          nodes_hash.map { |k,v| v.last if k =~ /slaves/  }.compact
-                                                                        end
-          parsed_hash_internal_ips[:storm_deploy][:storm_master] = nodes_hash.map { |k,v| v.last if k =~ /stormnimbus/ }.compact.first
-        end
-        if parsed_hash[:hadoop_deploy] != 'disabled'
-          parsed_hash_internal_ips[:zookeeper_quorum] = nodes_hash.map { |k,v| v.last if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
-        end
-        if parsed_hash[:hbase_depoy] != 'disabled' or parsed_hash[:kafka_deploy] != 'disabled' or parsed_hash[:storm_deploy] != 'disabled'
-          parsed_hash_internal_ips[:zookeeper_quorum] = nodes_hash.map { |k,v| v.last if k =~ /zookeeper/ }.compact unless parsed_hash_internal_ips.has_key? :zookeeper_quorum
-        end
-      elsif @provider == 'rackspace' # fqdn
-        parsed_hash_internal_ips[:ssh_key] = File.split(File.expand_path(@credentials[:rackspace_ssh_key])).first + '/' +
-                                                        File.basename(File.expand_path(@credentials[:rackspace_ssh_key]), '.pub')
-        parsed_hash_internal_ips[:controller] = nodes_hash.map { |k,_| k if k =~ /controller/ }.compact.first
-        if parsed_hash[:hadoop_deploy] != 'disabled'
-          parsed_hash_internal_ips[:hadoop_deploy][:hadoop_namenode]    = nodes_hash.map { |k,_| k if k =~ /namenode/ }.compact
-          parsed_hash_internal_ips[:hadoop_deploy][:mapreduce][:master] = nodes_hash.map { |k,_| k if k =~ /jobtracker/ }.compact.first if parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
-          if parsed_hash[:hadoop_deploy][:mapreduce] == 'disabled' and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
-            parsed_hash_internal_ips[:hadoop_deploy][:hadoop_secondarynamenode] = nodes_hash.map { |k,_| k if k =~ /snn/ }.compact.first
-          elsif parsed_hash[:hadoop_deploy][:mapreduce] and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'disabled'
-            parsed_hash_internal_ips[:hadoop_deploy][:hadoop_secondarynamenode] = nodes_hash.map { |k,_| k if k =~ /jobtracker/ }.compact.first
-          end
-          parsed_hash_internal_ips[:slave_nodes]                    = nodes_hash.map { |k,_| k if k =~ /slaves/ }.compact
-          parsed_hash_internal_ips[:zookeeper_quorum]               = nodes_hash.map { |k,_| k if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled' or parsed_hash[:hbase_install] != 'disabled'
-          parsed_hash_internal_ips[:hadoop_deploy][:journal_quorum] = nodes_hash.map { |k,_| k if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
-          parsed_hash_internal_ips[:hbase_deploy][:hbase_master]    = nodes_hash.map { |k,_| k if k =~ /hbasemaster/ }.compact if parsed_hash[:hbase_deploy] != 'disabled'
-        end
-        if parsed_hash[:cassandra_deploy] != 'disabled'
-          parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes] = if ! parsed_hash[:cassandra_deploy][:colocate]
-                                                                            nodes_hash.map { |k,_| k if k =~ /cassandra/ }.compact
-                                                                          elsif parsed_hash[:cassandra_deploy][:colocate]
-                                                                            nodes_hash.map { |k,_| k if k =~ /slaves/ }.compact
-                                                                          end
-          parsed_hash_internal_ips[:cassandra_deploy][:cassandra_seeds] = Array.new(parsed_hash[:cassandra_deploy][:number_of_seeds]){|i| parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes][i] }
-        end
-        if parsed_hash[:kafka_deploy] != 'disabled'
-          parsed_hash_internal_ips[:kafka_deploy][:kafka_nodes] =  if ! parsed_hash[:kafka_deploy][:colocate]
-                                                                    nodes_hash.map { |k,_| k if k =~ /kafka/ }.compact
-                                                                  elsif parsed_hash[:kafka_deploy][:colocate] and parsed_hash[:hadoop_deploy] == 'disabled'
-                                                                    nodes_hash.map { |k,_| k if k =~ /cassandra/ }.compact
-                                                                  elsif parsed_hash[:kafka_deploy][:colocate] and parsed_hash[:hadoop_deploy] != 'disabled'
-                                                                    nodes_hash.map { |k,_| k if k =~ /slaves/ }.compact
-                                                                  end          
-          parsed_hash_internal_ips[:kafka_deploy][:kafka_brokers] = Array.new(parsed_hash[:kafka_deploy][:number_of_brokers]) { |i| parsed_hash_internal_ips[:kafka_deploy][:kafka_nodes][i] }
-        end
-        if parsed_hash[:storm_deploy] != 'disabled'
-          parsed_hash_internal_ips[:storm_deploy][:storm_supervisors] =  if ! parsed_hash[:storm_deploy][:colocate]
-                                                                          nodes_hash.map { |k,_| k if k =~ /stormworker/ }.compact
-                                                                        elsif parsed_hash[:storm_deploy][:colocate] and parsed_hash[:hadoop_deploy] == 'disabled'
-                                                                          nodes_hash.map { |k,_| k if k =~ /cassandra/  }.compact
-                                                                        elsif parsed_hash[:storm_deploy][:colocate] and parsed_hash[:hadoop_deploy] != 'disabled'
-                                                                          nodes_hash.map { |k,_| k if k =~ /slaves/  }.compact
-                                                                        end          
-          parsed_hash_internal_ips[:storm_deploy][:storm_master] = nodes_hash.map { |k,_| k if k =~ /stormnimbus/ }.compact
-        end
-        if parsed_hash[:hadoop_deploy] != 'disabled'
-          parsed_hash_internal_ips[:zookeeper_quorum] = nodes_hash.map { |k,_| k if k =~ /zookeeper/ }.compact if parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
-        end
-        if parsed_hash[:hbase_depoy] != 'disabled' or parsed_hash[:kafka_deploy] != 'disabled' or parsed_hash[:storm_deploy] != 'disabled'
-          parsed_hash_internal_ips[:zookeeper_quorum] = nodes_hash.map { |k,_| k if k =~ /zookeeper/ }.compact unless parsed_hash_internal_ips.has_key? :zookeeper_quorum
+        if parsed_hash[:hbase_deploy] != 'disabled'      
+          parsed_hash_internal_ips[:hbase_deploy][:hbase_master] = find_internal_ip(nodes, 'hbasemaster')
         end
       end
-      parsed_hash_internal_ips[:storage_dirs] = parsed_hash[:storage_dirs]
+      if parsed_hash[:cassandra_deploy] != 'disabled'
+        parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes] =  find_internal_ip(nodes, 'cassandra')
+        parsed_hash_internal_ips[:cassandra_deploy][:cassandra_seeds] =  find_internal_ip(nodes, 'cassandraseed')
+      end
+      if parsed_hash[:kafka_deploy] != 'disabled'
+        parsed_hash_internal_ips[:kafka_deploy][:kafka_brokers] = find_internal_ip(nodes, 'kafka')
+      end
+      if parsed_hash[:storm_deploy] != 'disabled'
+        parsed_hash_internal_ips[:storm_deploy][:storm_supervisors] =  find_internal_ip(nodes, 'stormworker')
+        parsed_hash_internal_ips[:storm_deploy][:storm_master] = find_internal_ip(nodes, 'stormnimbus').first
+      end
+      if parsed_hash[:hadoop_deploy] != 'disabled' and parsed_hash[:hadoop_deploy][:hadoop_ha] == 'enabled'
+        parsed_hash_internal_ips[:zookeeper_quorum] = find_internal_ip(nodes, 'zookeeper')
+      end
+      if parsed_hash[:hbase_depoy] != 'disabled' or 
+        parsed_hash[:kafka_deploy] != 'disabled' or 
+        parsed_hash[:storm_deploy] != 'disabled'
+        unless parsed_hash_internal_ips.has_key? :zookeeper_quorum
+          parsed_hash_internal_ips[:zookeeper_quorum] = find_internal_ip(nodes, 'zookeeper') 
+        end
+      end
+
       return parsed_hash, parsed_hash_internal_ips
     end
 
     # Create servers on aws using Ankus::Aws
-    # @param [Hash] nodes_to_create => hash of nodes to create with their info as shown below
-    #      { 'node_tag' => { :os_type => cloud_os_type, :volumes => 2, :volume_size => 50 }, ... }
-    # @param [Hash] credentials: {  aws_access_id: '', aws_secret_key: '', aws_machine_type: 'm1.large', aws_region: 'us-west-1', aws_key: 'ankus'}
+    # @param [Hash] nodes => hash of nodes to create with their info as shown below
+    # @param [Hash] credentials: {  aws_access_id: '', aws_secret_key: '', aws_machine_type: 'm1.large', 
+    #                               aws_region: 'us-west-1', aws_key: 'ankus'}
     # @param [Integer] thread_pool_size => size of the thread pool
-    # @return [Hash] results => { 'instance_tag' => [public_dns_name, private_dns_name], ... }
-    def create_on_aws(nodes_to_create, credentials, thread_pool_size)
+    # @return [Hash] modified ver of nodes
+    def create_aws_instances(nodes, credentials, thread_pool_size)
       #defaults
       threads_pool    = Ankus::ThreadPool.new(thread_pool_size)
       key             = credentials[:aws_key] || 'ankus'
@@ -383,8 +392,7 @@ module Ankus
       conn            = aws.create_connection
       ssh_key         = File.expand_path('~/.ssh') + "/#{key}"
       ssh_user        = @parsed_hash[:ssh_user]
-      results         = {}
-      server_objects  = {} # hash to store server object to tag mapping { tag => server_obj }, used for attaching volumes
+      server_objects  = {} # hash to store server object to tag mapping { tag => server_obj }
 
       if aws.valid_connection?(conn)
         puts "\r[Debug]: successfully authenticated with aws" if @debug
@@ -395,9 +403,9 @@ module Ankus
 
       begin
         SpinningCursor.start do
-          banner "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')}".blue
+          banner "\rCreating servers with roles: " + "#{nodes.keys.join(',')}".blue
           type :dots
-          message "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')}".blue + ' [DONE]'.cyan
+          message "\rCreating servers with roles: " + "#{nodes.keys.join(',')}".blue + ' [DONE]'.cyan
         end
         iops =  if @parsed_hash[:volumes] != 'disabled' and @parsed_hash[:volumes][:type] == 'io1'
                   @parsed_hash[:volumes][:iops]
@@ -409,16 +417,16 @@ module Ankus
                     else
                       'ebs'
                     end
-        nodes_to_create.each do |tag, info|
+        nodes.each do |tag, info|
           server_objects[tag] = aws.create_server!(
             conn,
             tag,
             :key => key,
             :groups => groups,
             :flavor_id => flavor_id,
-            :os_type => info[:os_type],
-            :num_of_vols => info[:volumes],
-            :vol_size => info[:volume_size],
+            :os_type => info[:config][:os_type],
+            :num_of_vols => info[:config][:volumes],
+            :vol_size => info[:config][:volume_size],
             :vol_type => vol_type,
             :iops => iops
           )
@@ -443,25 +451,27 @@ module Ankus
           banner "\rWaiting for cloud instances to complete their boot (which includes mounting the volumes) "
           type :dots
           action do
-            aws.complete_wait(server_objects.values, @cloud_os) #TODO: this method is taking forever, find another way to make sure volumes are properly mounted
+            #TODO: this method is taking forever, find another way to make sure volumes are properly mounted
+            aws.complete_wait(server_objects.values, @cloud_os)
           end
           message "\rWaiting for cloud instances to complete their boot " + '[DONE]'.cyan
         end
       end
       # build the return string
-      nodes_to_create.each do |tag, _|
-        # fill in return hash
-        results[tag] = [ server_objects[tag].dns_name, server_objects[tag].private_dns_name ]
+      nodes.each do |tag, node_info|
+        # fill in nodes hash with public and private dns
+        node_info[:fqdn] = server_objects[tag].dns_name
+        node_info[:private_ip] = server_objects[tag].private_dns_name
       end
       if ! @mock
         puts "\rPartitioning|Formatting attached volumes".blue
         # partition and format attached disks using thread pool
-        nodes_to_create.each do |tag, info|
+        nodes.each do |tag, info|
           threads_pool.schedule do
-            if info[:volumes] > 0
+            if info[:config][:volumes] > 0
               printf "\r[Debug]: Formatting attached volumes on instance #{server_objects[tag].dns_name}\n" if @debug
               #build partition script
-              partition_script = gen_partition_script(info[:volumes], true)
+              partition_script = gen_partition_script(info[:config][:volumes], true)
               tempfile = Tempfile.new('partition')
               tempfile.write(partition_script)
               tempfile.close
@@ -478,7 +488,8 @@ module Ankus
                   @debug
               )
               output = Ankus::SshUtils.execute_ssh!(
-                  "chmod +x /tmp/#{File.basename(tempfile.path)} && sudo sh -c '/tmp/#{File.basename(tempfile.path)} | tee /var/log/bootstrap_volumes.log'",
+                  "chmod +x /tmp/#{File.basename(tempfile.path)} && sudo sh -c '/tmp/#{File.basename(tempfile.path)}" + 
+                    " | tee /var/log/bootstrap_volumes.log'",
                   server_objects[tag].dns_name,
                   ssh_user,
                   ssh_key,
@@ -491,7 +502,8 @@ module Ankus
                 puts "\r#{output[server_objects[tag].dns_name][0]}"
                 puts "\r[Debug]: Stderr on #{server_objects[tag].dns_name}"
                 puts "\r#{output[server_objects[tag].dns_name][1]}"
-                puts "\r[Debug]: Exit code from #{server_objects[tag].dns_name}: #{output[server_objects[tag].dns_name][2]}"
+                puts "\r[Debug]: Exit code from #{server_objects[tag].dns_name}: " + 
+                      "#{output[server_objects[tag].dns_name][2]}"
               end
             else
               # if not waiting for mounting volumes, wait for instances to become sshable
@@ -505,46 +517,53 @@ module Ankus
       else
         # pretend doing some work while mocking
         puts "\rPartitioning/Formatting attached volumes".blue
-        nodes_to_create.each do |tag, info|
+        nodes.each do |tag, info|
           threads_pool.schedule do
-            if info[:volumes] > 0
+            if info[:config][:volumes] > 0
               printf "\r[Debug]: Preping attached volumes on instance #{server_objects[tag].dns_name}\n"
               sleep 5
             else
-              printf "\r[Debug]: Waiting for instance to become ssh'able #{server_objects[tag].dns_name} with ssh_user: #{ssh_user} and ssh_key: #{ssh_key}\n"
+              printf "\r[Debug]: Waiting for instance to become ssh'able #{server_objects[tag].dns_name} " + 
+                     "with ssh_user: #{ssh_user} and ssh_key: #{ssh_key}\n"
             end
           end
         end
         threads_pool.shutdown
       end
-      results
-    end
+      nodes
+    end    
 
     # Create servers on rackspace using Ankus::RackSpace
-    # @param [Hash] nodes_to_create => hash of nodes to create with their info as shown below
-    #      { 'node_tag' => { :os_type => cloud_os_type, :volumes => 2, :volume_size => 100 }, ... }
-    # @param [Hash] #cloud_credentials: { rackspace_username: , rackspace_api_key: , rackspace_instance_type: ,rackspace_ssh_key: '~/.ssh/id_rsa.pub' }
+    # @param [Hash] nodess => hash of nodes to create with their info
+    # @param [Hash] #cloud_credentials: { rackspace_username: , rackspace_api_key: , rackspace_instance_type: ,
+    #                                     rackspace_ssh_key: '~/.ssh/id_rsa.pub' }
     # @param [Integer] thread_pool_size => size of the thread pool
-    # @return [Hash] results => { 'instance_tag(fqdn)' => [public_ip_address, private_ip_address], ... }
-    def create_on_rackspace(nodes_to_create, credentials, thread_pool_size)
+    # @return [Hash] modified variant of nodes with fqdn and private_ip
+    def create_rackspace_instances(nodes, credentials, thread_pool_size)
       threads_pool        = Ankus::ThreadPool.new(thread_pool_size)
-      api_key             = credentials[:rackspace_api_key]
-      username            = credentials[:rackspace_username]
       machine_type        = credentials[:rackspace_instance_type] || 4
       public_ssh_key_path = credentials[:rackspace_ssh_key] || '~/.ssh/id_rsa.pub'
       ssh_key_path        = File.split(public_ssh_key_path).first + '/' + File.basename(public_ssh_key_path, '.pub')
       ssh_user            = @parsed_hash[:ssh_user]
       rackspace           = create_rackspace_connection
       conn                = rackspace.create_connection
-      results             = {}
-      server_objects      = {} # hash to store server object to tag mapping { tag => server_obj }, used for attaching volumes
+      server_objects      = {} # hash to store server object to tag mapping { tag => server_obj }
 
       puts "\r[Debug]: Using ssh_key #{ssh_key_path}" if @debug
-      puts "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')} ...".blue
-      nodes_to_create.each do |tag, info|
-        server_objects[tag] = rackspace.create_server!(conn, tag, public_ssh_key_path, machine_type, info[:os_type])
+      SpinningCursor.start do
+        banner "\rCreating servers with fqdn: " + "#{nodes.keys.join(',')}".blue
+        type :dots
+        message "\rCreating servers with fqdn: " + "#{nodes.keys.join(',')}".blue + ' [DONE]'.cyan
       end
-      puts "\rCreating servers with roles: " + "#{nodes_to_create.keys.join(',')} ".blue + '[DONE]'.cyan
+      nodes.each do |tag, info|
+        server_objects[tag] = rackspace.create_server!(conn, 
+                                  tag, 
+                                  public_ssh_key_path, 
+                                  machine_type, 
+                                  info[:config][:os_type]
+                              )
+      end
+      SpinningCursor.stop
 
       # wait for servers to get created (:state => ACTIVE)
       begin
@@ -561,27 +580,32 @@ module Ankus
       end
 
       # build the return string
-      nodes_to_create.each do |tag, info|
-        # fill in return hash
-        results[tag] = [ server_objects[tag].public_ip_address, server_objects[tag].private_ip_address ]
+      nodes.each do |tag, node_info|
+        # fill in nodes fqdn and private_ip
+        node_info[:fqdn] = server_objects[tag].public_ip_address
+        node_info[:private_ip] = server_objects[tag].private_ip_address
       end
+
       # Attach Volumes
       if ! @mock
         puts "\rPartitioning|Formatting attached volumes".blue
         # parition and format attached disks using thread pool
-        nodes_to_create.each do |tag, info|
+        nodes.each do |tag, info|
           threads_pool.schedule do
-            if info[:volumes] > 0
+            if info[:config][:volumes] > 0
               printf "\r[Debug]: Preping attached volumes on instnace #{server_objects[tag]}\n" if @debug
               # attach specified volumes to server
-              rackspace.attach_volumes!(server_objects[tag], info[:volumes], info[:volume_size])
+              rackspace.attach_volumes!(server_objects[tag], info[:config][:volumes], info[:config][:volume_size])
               # build partition script
-              partition_script = gen_partition_script(info[:volumes])
+              partition_script = gen_partition_script(info[:config][:volumes])
               tempfile = Tempfile.new('partition')
               tempfile.write(partition_script)
               tempfile.close
               # wait for the server to be ssh'able
-              Ankus::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, ssh_user, File.expand_path(ssh_key_path))
+              Ankus::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, 
+                                            ssh_user, 
+                                            File.expand_path(ssh_key_path)
+                                          )
               # upload and execute the partition script on the remote machine
               SshUtils.upload!(
                   tempfile.path,
@@ -593,7 +617,8 @@ module Ankus
                   @debug
               )
               output = Ankus::SshUtils.execute_ssh!(
-                  "chmod +x /tmp/#{File.basename(tempfile.path)} && sudo sh -c '/tmp/#{File.basename(tempfile.path)} | tee /var/log/bootstrap_volumes.log'",
+                  "chmod +x /tmp/#{File.basename(tempfile.path)} && sudo sh -c '/tmp/#{File.basename(tempfile.path)}" +
+                    " | tee /var/log/bootstrap_volumes.log'",
                   server_objects[tag].public_ip_address,
                   ssh_user,
                   File.expand_path(ssh_key_path),
@@ -605,11 +630,15 @@ module Ankus
                 puts "\r#{output[server_objects[tag].public_ip_address][0]}"
                 puts "\r[Debug]: Stdout on #{server_objects[tag].public_ip_address}"
                 puts "\r#{output[server_objects[tag].public_ip_address][1]}"
-                puts "\r[Debug]: Exit code from #{server_objects[tag].public_ip_address}: #{output[server_objects[tag].public_ip_address][2]}"
+                puts "\r[Debug]: Exit code from #{server_objects[tag].public_ip_address}: " + 
+                    " #{output[server_objects[tag].public_ip_address][2]}"
               end
             else
               # if not mounting volumes wait for instances to become available
-              Ankus::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, ssh_user, File.expand_path(ssh_key_path))
+              Ankus::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, 
+                                            ssh_user, 
+                                            File.expand_path(ssh_key_path)
+                                          )
             end
           end
         end
@@ -619,20 +648,21 @@ module Ankus
         #MOCKING
         # pretend doing some work while mocking
         puts "\rPartitioning|Formatting attached volumes".blue
-        nodes_to_create.each do |tag, info|
+        nodes.each do |tag, info|
           threads_pool.schedule do
-            if info[:volumes] > 0
+            if info[:config][:volumes] > 0
               printf "\r[Debug]: Preping attached volumes on instance #{server_objects[tag].public_ip_address}\n"
               sleep 5
             else
-              printf "\r[Debug]: Waiting for instance to become ssh'able #{server_objects[tag].public_ip_address} with ssh_user: #{ssh_user} and ssh_key: #{File.expand_path(ssh_key_path)}\n"
+              printf "\r[Debug]: Waiting for instance to become ssh'able #{server_objects[tag].public_ip_address} " +
+                     "with ssh_user: #{ssh_user} and ssh_key: #{File.expand_path(ssh_key_path)}\n"
             end
           end
         end
         threads_pool.shutdown
       end
-      results
-    end
+      nodes
+    end    
 
     # Builds and returns a shell script for partitioning and resizing root volume(s)
     # @param [Integer] number_of_volumes => number of volumes to partition & mount, this number is used to grep the
@@ -674,9 +704,9 @@ module Ankus
     end
 
     # Builds /etc/hosts file @ file path specified
-    # @param [Hash] nodes_ips_map => { 'tag(fqdn)' => [public_ip_address, private_ip_address], ... }
+    # @param [Hash] nodes => { 'tag(fqdn)' => {:fqdn => '', :private_ip => '', ...}, ... }
     # @return [String] contents of hosts file
-    def build_hosts(nodes_ips_map)
+    def build_hosts(nodes)
       hosts_string = ''
       if @cloud_os.downcase == 'centos'
         hosts_string << "127.0.0.1\tlocalhost localhost.localdomain localhost4 localhost4.localdomain4" << "\n"
@@ -686,10 +716,26 @@ module Ankus
         hosts_string << "::1\tip6-localhost\tip6-loopback" << "\n"
         hosts_string << "fe00::0\tip6-localnet\nff00::0\tip6-mcastprefix\nff02::1\tip6-allnodes\nff02::2\tip6-allrouters" << "\n"
       end
-      nodes_ips_map.each do |fqdn, ip_map|
-        hosts_string << "#{ip_map.first}\t#{fqdn}\t#{fqdn.split('.').first}" << "\n"
+      nodes.each do |fqdn, node_info|
+        hosts_string << "#{node_info[:fqdn]}\t#{fqdn}\t#{fqdn.split('.').first}" << "\n"
       end
       hosts_string
+    end
+
+    # Creates a wrapper around the node object
+    # @param [Hash] config => {:ostype => 'centos', :volumes => 0, :volume_size => 250}
+    # @param [Hash] tags => ['node_tag']
+    # @return [Hash]
+    def create_node_obj(config, tags)
+      {
+        :fqdn => '',
+        :private_ip => '',
+        :config => config,
+        :puppet_install_status => false,
+        :puppet_run_status => false,
+        :last_run => '',
+        :tags => tags
+      }
     end
 
     # Calculates number of disks to insert into vms and their size based on users specified total storage in
