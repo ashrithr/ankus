@@ -89,6 +89,23 @@ controller: 'controller.ops.cw.com'
 #     - 'oozie'
 #
 # ===============DEPLOYMENT SCENARIO 2==================
+#        TO DEPLOY HADOOP (NON-HA) with MapReduce
+# ======================================================
+# hadoop_deploy:
+#   hadoop_ha: 'disabled'
+#   hadoop_namenode:
+#     - 'namenode001.ops.cw.com'
+#   hadoop_secondarynamenode: 'snn.ops.cw.com'
+#   mapreduce:
+#     type: 'mr1'
+#     master: 'jt.ops.cw.com'
+#   hadoop_ecosystem:
+#     - 'hive'
+#     - 'pig'
+#     - 'sqoop'
+#     - 'oozie'
+#
+# ===============DEPLOYMENT SCENARIO 3==================
 # TO DEPLOY HADOOP (just HDFS) suitable for HBase deployments
 # ======================================================
 # hadoop_deploy:
@@ -98,7 +115,7 @@ controller: 'controller.ops.cw.com'
 #   hadoop_secondarynamenode: 'snn.ops.cw.com'
 #   mapreduce: 'disabled'
 #
-# ===============DEPLOYMENT SCENARIO 3==================
+# ===============DEPLOYMENT SCENARIO 4==================
 #              DISABLE HADOOP DEPLOYMENT
 # ======================================================
 # hadoop_deploy: 'disabled'
