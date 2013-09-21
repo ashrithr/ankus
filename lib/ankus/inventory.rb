@@ -37,7 +37,11 @@ module Ankus
       #   }
       # }
       def create_nodes
-        nodes_hash = Hash.new
+        nodes_hash =  if File.exists?(NODES_FILE) && YamlUtils.parse_yaml(NODES_FILE).is_a?(Hash)
+                        YamlUtils.parse_yaml(NODES_FILE)
+                      else 
+                        Hash.new
+                      end
         @config = @config.deep_symbolize
         # Controller
         if @config[:controller] == 'localhost'
@@ -78,7 +82,7 @@ module Ankus
         end
         # Kafka
         if @config[:kafka_deploy] != 'disabled'
-          @config[:kafka_deploy][:kafka_nodes].each_with_index do |kn, i|
+          @config[:kafka_deploy][:kafka_brokers].each_with_index do |kn, i|
             add_or_update_node(nodes_hash, kn, "kafka#{i+1}")
           end
         end
@@ -113,12 +117,14 @@ module Ankus
       # Either creates a new node definition or if node already exists updates the node tag
       def add_or_update_node(nodes, fqdn, tag)
         existing_nodes = []
-        nodes.each { |k,v| existing_nodes << v[:fqdn] }
+        nodes.each do |k,v|
+          existing_nodes << v[:fqdn]
+        end
         existing_nodes.uniq!
         if existing_nodes.include? fqdn
-          nodes[fqdn][:tags] << tag
+          nodes[fqdn][:tags] << tag unless nodes[fqdn][:tags].include?(tag)
         else
-          nodes[fqdn] = create_node(fqdn, tag)
+          nodes[fqdn] = create_node(fqdn, [tag])
         end
         return nodes
       end      
