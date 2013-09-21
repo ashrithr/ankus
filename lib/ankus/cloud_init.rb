@@ -566,14 +566,14 @@ module Ankus
     def wait_for_servers(servers)
       if servers.is_a?(Array)
         servers.each do |server|
-          # check every 5 seconds to see if the server is in the active state for 1600 seconds if not exception
+          # check every 5 seconds to see if the server is in the active state for 1800 seconds if not exception
           # will be raised Fog::Errors::TimeoutError
-          server.wait_for(1600, 5) do
+          server.wait_for(1800, 5) do
             ready?
           end
         end
       else
-        server.wait_for(1600, 5) do
+        server.wait_for(1800, 5) do
           print '.'
           STDOUT.flush
           ready?
@@ -611,16 +611,68 @@ module Ankus
       end
     end
 
+    # Check's the status of the volume, raises exception if volume is still 'in-use'
+    # @param [Fog::Rackspace::BlockStorage::Volume] bs => instance of blockstore class
+    # @param [String] vol_id => id of the volume to verify the status
+    def vol_status!(bs, vol_id)
+      status = bs.get_volume(vol_id).body['volume']['status']
+      unless status == 'available'
+        # puts "vol status is not 'available' it is '#{status}' instead"
+        raise "vol is not avaiable to delete"
+      end
+    end
+
+    # Wait's until the volume get detached (or becomes available to delete), Timeout's at specified time
+    # @param [Fog::Rackspace::BlockStorage::Volume] bs => instance of blockstore class
+    # @param [String] vol_id => id of the volume to verify the status
+    # @param [Integer] timeout => number of seconds in which to raise timeout
+    def wait_for_vol(bs, vol_id, timeout = 120)
+      Timeout::timeout(timeout) do
+        begin
+          vol_status! bs, vol_id
+        rescue
+          puts "sleeping for 5 secs"
+          sleep 5
+          retry
+        end
+      end
+    rescue Timeout::Error
+      raise 'It took more than a min for a volume to become available'
+    end
+
     # Delete a server based on it's fully qualified domain name (or) name given while booting instance
     # @param [Fog::Compute::RackspaceV2::Real] conn => connection object to rackspace
     # @param [String] fqdn => name of the server to delete
-    def delete_server_with_name(conn, fqdn)
+    # @param [Boolean] delete_volumes => whether to delete volumes attached to instance or not
+    def delete_server_with_name(conn, fqdn, delete_volumes = false)
       conn.servers.all.each do |server|
         if server.name == fqdn
-          puts "\r[Info]: ".blue + "Deleting instance with fqdn: #{fqdn}"
+          printf "\r[Info]: ".blue + "Deleting instance with fqdn: #{fqdn}\n"
           server.destroy
+          if delete_volumes
+            # create a new blockstorage connection obj
+            block_storage = Fog::Rackspace::BlockStorage.new(
+                {
+                    :rackspace_username => @rackspace_username,
+                    :rackspace_api_key  => @rackspace_api_key
+                }
+            )
+            printf "\r[Info]: ".blue + "Deleting volumes attached to instance: #{fqdn}\n"
+            volumes_to_del = block_storage.list_volumes.body['volumes'].map do |v| 
+              v['id'] if v['display_name'] =~ /#{fqdn}/ 
+            end
+            if volumes_to_del.is_a?(Array) && volumes_to_del.length != 0
+              volumes_to_del.each do |vol_id|
+                printf "[Info]: ".blue + "waiting for volume to detach from instance: #{fqdn}\n"
+                wait_for_vol(block_storage, vol_id)
+                block_storage.delete_volume(vol_id)
+              end
+            else
+              printf "[Info] ".blue + "no volumes found for the instance #{fqdn}\n"
+            end
+          end
         end
       end
-    end
+    end    
   end
 end

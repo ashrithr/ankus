@@ -127,6 +127,7 @@ module Ankus
               SpinningCursor.start do
                 banner "\rInstalling puppet agents on clients ".blue
                 type :dots
+                output :at_stop
                 message "\rInstalling puppet agents on clients ".blue + '[DONE]'.cyan
               end            
               if ! node_info[:puppet_install_status] # Only install puppet if not already installed
