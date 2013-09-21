@@ -247,7 +247,7 @@ module Ankus
         conn      = rackspace.create_connection
         nodes_hash.each do |fqdn, _|
           threads_pool.schedule do
-            rackspace.delete_server_with_name(conn, fqdn)
+            rackspace.delete_server_with_name(conn, fqdn, delete_volumes)
           end
         end
         threads_pool.shutdown
@@ -550,7 +550,11 @@ module Ankus
       server_objects      = {} # hash to store server object to tag mapping { tag => server_obj }
 
       puts "\r[Debug]: Using ssh_key #{ssh_key_path}" if @debug
-      puts "\rCreating servers with roles: " + "#{nodes.keys.join(',')} ...".blue
+      SpinningCursor.start do
+        banner "\rCreating servers with fqdn: " + "#{nodes.keys.join(',')}".blue
+        type :dots
+        message "\rCreating servers with fqdn: " + "#{nodes.keys.join(',')}".blue + ' [DONE]'.cyan
+      end
       nodes.each do |tag, info|
         server_objects[tag] = rackspace.create_server!(conn, 
                                   tag, 
@@ -559,7 +563,7 @@ module Ankus
                                   info[:config][:os_type]
                               )
       end
-      puts "\rCreating servers with roles: " + "#{nodes.keys.join(',')} ".blue + '[DONE]'.cyan
+      SpinningCursor.stop
 
       # wait for servers to get created (:state => ACTIVE)
       begin

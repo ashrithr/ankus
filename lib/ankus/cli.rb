@@ -578,7 +578,9 @@ module Ankus
       end
     end
 
-    # invoke ssh process on the instance specified with role
+    # Invoke ssh process on the instance specified with role
+    # @param [String] role => role of the instance to perform ssh
+    # @param [Hash] config => configration hash
     def ssh_into_instance(role, config)
       if config[:install_mode] == 'cloud'
         # check tags and show available tags into machine
@@ -588,7 +590,7 @@ module Ankus
           username = config[:ssh_user]
           private_key = if config[:cloud_platform] == 'aws'
                           "~/.ssh/#{config[:cloud_credentials][:aws_key]}"
-                        else
+                        elsif config[:cloud_platform] == 'rackspace'
                           # rackspace instances need private file to login
                           config[:cloud_credentials][:rackspace_ssh_key][0..-5]
                         end          
@@ -620,7 +622,7 @@ module Ankus
         config[:slave_nodes].each_with_index { |slave, index| nodes_roles["slaves#{index+1}".to_sym] = slave }
 
         if nodes_roles.keys.find { |e| /#{role}/ =~ e.to_s } and nodes_roles[role.to_sym] != nil
-          SshUtils.ssh_into_instance(nodes_roles[role.to_sym], @config[:ssh_user], config[:ssh_key], 22)
+          SshUtils.ssh_into_instance(nodes_roles[role.to_sym], config[:ssh_user], config[:ssh_key], 22)
         else
           puts "No such role found #{role}"
           puts "Available roles: #{nodes_roles.keys.join(',')}"
