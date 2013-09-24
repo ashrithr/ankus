@@ -333,13 +333,7 @@ module Ankus
           elsif @provider == 'rackspace'
             File.split(File.expand_path(@credentials[:rackspace_ssh_key])).first + '/' +
             File.basename(File.expand_path(@credentials[:rackspace_ssh_key]), '.pub')
-          end
-      parsed_hash_internal_ips[:storage_dirs] =  
-                                    if parsed_hash[:volumes] != 'disabled'
-                                      Array.new(parsed_hash[:volumes][:count] + 1){ |i| "/data/#{i}" }
-                                    else
-                                      ['/data/0']
-                                    end          
+          end 
       parsed_hash_internal_ips[:controller] = find_internal_ip(nodes, 'controller').first
       if parsed_hash[:hadoop_deploy] != 'disabled'
         parsed_hash_internal_ips[:hadoop_deploy][:hadoop_namenode] = find_internal_ip(nodes, 'namenode')
