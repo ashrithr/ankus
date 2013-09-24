@@ -98,7 +98,7 @@ hadoop_config_mapred_reduce_parallel_copies: 5
 hadoop_config_mapred_reduce_tasks_speculative_execution: 'true'
 # Number of map tasks to run per tasktracker, this gets automatically evaluated by
 # ankus based on the number of cores in a node
-hadoop_config_mapred_tasktracker_map_tasks_maximum: 4
+hadoop_config_mapred_tasktracker_map_tasks_maximum: 2
 # Number of reduce tasks to run per tasktracker, this gets automatically evaluated by
 # ankus based on the number of cores in a node
 hadoop_config_mapred_tasktracker_reduce_tasks_maximum: 2
