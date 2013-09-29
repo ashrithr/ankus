@@ -8,9 +8,9 @@ Gem::Specification.new do |spec|
   spec.version       = Ankus::VERSION
   spec.authors       = ['ashrith']
   spec.email         = ['ashrith@cloudwick.com']
-  spec.summary       = %q{Ankus is a big data deployment and management utility}
+  spec.summary       = %q{Ankus is a deployment & orchestration tool for big-data frameworks}
   spec.description   = "#{spec.summary}"
-  spec.homepage      = ''
+  spec.homepage      = 'https://github.com/ashrithr/ankus'
   spec.license       = 'MIT'
 
   spec.files         = `git ls-files`.split($/)
