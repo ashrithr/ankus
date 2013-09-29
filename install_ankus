@@ -112,24 +112,24 @@ function install_rvm () {
   echo "[*] Installing RVM (Ruby Version Manager)"
   curl -L get.rvm.io | bash -s stable
   [ -f /etc/profile.d/rvm.sh ] && source /etc/profile.d/rvm.sh || source ~/.rvm/scripts/rvm
-  [ -f ~/.bashrc ] && echo 'source ~/.rvm/scripts/rvm' >> ~/.bashrc
+  [ -f ~/.bashrc ] && echo 'source ~/.rvm/scripts/rvm' >> ~/.bashrc || echo 'source ~/.rvm/scripts/rvm' > ~/.bashrc
 }
 
 function install_ruby_193 () {
   echo "[*] Installing Ruby 1.9.3"
-  RVM=~/.rvm/bin/rvm
-  $RVM requirements --verify-downloads 1
-  $RVM || source /etc/profile.d/rvm.sh
-  $RVM install 1.9.3
-  $RVM use 1.9.3 --default
-  $RVM rubygems current
+  # RVM=~/.rvm/bin/rvm
+  source ~/.bashrc
+  rvm requirements --verify-downloads 1
+  rvm install 1.9.3
+  rvm use 1.9.3
+  rvm rubygems current
 }
 
 function install_ankus () {
   echo "[*] Installing Ankus to " ~
-  cd ~ && git clone git://github.com/ashrithr/ankus-cli.git
+  cd ~ && git clone git://github.com/ashrithr/ankus.git
   gem install bundle --no-ri --no-rdoc
-  cd ankus-cli && bundle install
+  cd ankus && bundle install
 }
 
 install_preqs
@@ -137,14 +137,14 @@ install_rvm
 install_ruby_193
 install_ankus
 echo "[*] Installing Ankus completed"
-echo 'Put the following line in start-up script like "~/.bashrc" or "~/.bash_profile"
+echo 'The following line is added to start-up script "~/.bashrc"
 
-source ~/.rvm/scripts/rvm
+"source ~/.rvm/scripts/rvm"
 
-to make sure rvm loads correctly
+to make sure rvm loads correctly. Make sure to source that file before running ankus.
 '
 
 echo 'To run ankus:
-
+source ~/.bashrc && rvm use 1.9.3 --default
 ~/ankus/bin/ankus
 '
