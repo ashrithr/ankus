@@ -1,5 +1,5 @@
-# Ankus
-
+Ankus
+=====
 Ankus is a big-data deployment & orchestration tool. Handles the installation & management of:
 
  - [hadoop](http://hadoop.apache.org/) (hadoop-2.0.0)
@@ -30,17 +30,18 @@ Ankus is a big-data deployment & orchestration tool. Handles the installation & 
 
 ---
 
-![Alt Text](images/ankus_arch.png)
+![Ankus Architecture](images/ankus_arch.png)
 
 ---
 
-## Installation
+Installation
+------------
 
 ###Dependencies
 
 To install ruby 1.9.3 and other dependencies on supported platforms follow these instructions:
 
-- CentOS:
+* **CentOS**:
 
   ```shell
   yum -y install git gcc ruby-devel libxml2 libxml2-devel libxslt libxslt-devel make curl
@@ -53,7 +54,7 @@ To install ruby 1.9.3 and other dependencies on supported platforms follow these
   rvm rubygems current
   ```
 
-- Ubuntu:
+* **Ubuntu**:
 
 	```shell
 	apt-get install -y build-essential libxml2-dev libxslt1-dev libreadline-dev zlib1g-dev git curl
@@ -66,12 +67,18 @@ To install ruby 1.9.3 and other dependencies on supported platforms follow these
 	rvm rubygems current
 	```
 
-- Mac OSX:
+* **Mac OSX**:
 
- 	Requirements:
+ 	*Requirements*:
 
 	- Install XCode Command Line Tools from [connect.apple.com](http://connect.apple.com/) (or) from [Github](https://github.com/kennethreitz/osx-gcc-installer/downloads)
 	- Install [Homebrew](http://mxcl.github.io/homebrew/)
+		
+		```shell
+		ruby -e "$(curl -fsSL https://raw.github.com/mxcl/homebrew/go)"
+		```
+	
+	Install dependencies:
 
 	```shell
 	brew install libxml2 libxslt
@@ -84,8 +91,8 @@ To install ruby 1.9.3 and other dependencies on supported platforms follow these
 	rvm use 1.9.3 --default
 	rvm rubygems current	
 	```
-NOTE: Ankus requires ruby 1.9.2.
 
+NOTE: Ankus requires ruby version >= 1.9.2.
 
 ###Installing Ankus
 
