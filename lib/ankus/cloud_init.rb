@@ -103,6 +103,10 @@ module Ankus
             f.write(key_pair.private_key)
           end
           File.chmod(0600, File.expand_path("~/.ssh/#{options[:key]}"))
+        else
+          unless File.exist?(File.expand_path("~/.ssh/#{options[:key]}"))
+            abort "\r[Error]: ".red + "key '#{options[:key]}' already exists, please change the 'aws_key' name"
+          end
         end
 
         #validate group, create if does not exist and ingest some basic rules
