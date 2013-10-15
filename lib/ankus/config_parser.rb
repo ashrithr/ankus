@@ -928,7 +928,7 @@ module Ankus
       end
       diff_keys = hadoop_conf - HADOOP_CONF_KEYS
       unless diff_keys.empty?
-        puts "[Debug]: Following keys were added additionally by the user to #{hadoop_conf_file}: #{diff_keys}" if debug
+        puts "[Debug]: Following keys were added additionally to #{hadoop_conf_file}: #{diff_keys}" if debug
       end
     end
   end
@@ -945,7 +945,7 @@ module Ankus
       end
       diff_keys = hbase_conf - HBASE_CONF_KEYS
       unless diff_keys.empty?
-        puts "[Debug]: Following keys were added additionally by the user to #{hbase_conf_file}: #{diff_keys}" if debug
+        puts "[Debug]: Following keys were added additionally to #{hbase_conf_file}: #{diff_keys}" if debug
       end
     end
   end

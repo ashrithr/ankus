@@ -415,8 +415,13 @@ module Ankus
           end
           if config[:hadoop_deploy][:mapreduce] != 'disabled'
             jt = find_fqdn_for_tag(cloud_instances, 'jobtracker').first
-            cluster_info << "\r" << ' *'.cyan << " MapReduce Master: #{jt} \n"
-            urls << "\r" << ' %'.black << " MapReduce Master: http://#{jt}:50030 \n"
+            if mapreduce == 'mr1'
+              cluster_info << "\r" << ' *'.cyan << " MapReduce Master: #{jt} \n"
+              urls << "\r" << ' %'.black << " MapReduce Master: http://#{jt}:50030 \n"
+            else
+              cluster_info << "\r" << ' *'.cyan << " Resource Manager: #{jt} \n"
+              urls << "\r" << ' %'.black << " Resource Manager: http://#{jt}:8088 \n"
+            end              
             #hadoop_ecosystem
             if config[:hadoop_deploy][:hadoop_ecosystem] and config[:hadoop_deploy][:hadoop_ecosystem].include?('oozie')
               urls << "\r" << ' %'.black << " Oozie Console: http://#{jt}:11000/oozie \n"

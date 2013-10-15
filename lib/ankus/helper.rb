@@ -42,12 +42,17 @@ module Ankus
 
   HADOOP_CONF_KEYS = %w{
     hadoop_heap_size
+    yarn_heapsize
     hadoop_namenode_opts
     hadoop_jobtracker_opts
     hadoop_secondarynamenode_opts
     hadoop_datanode_opts
     hadoop_tasktracker_opts
     hadoop_balancer_opts
+    yarn_resourcemanager_opts
+    yarn_nodemanager_opts
+    yarn_proxyserver_opts
+    hadoop_job_historyserver_opts
     hadoop_snappy_codec
     hadoop_config_fs_inmemory_size_mb
     hadoop_config_io_file_buffer_size
