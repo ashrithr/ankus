@@ -421,6 +421,7 @@ module Ankus
             else
               cluster_info << "\r" << ' *'.cyan << " Resource Manager: #{jt} \n"
               urls << "\r" << ' %'.black << " Resource Manager: http://#{jt}:8088 \n"
+              urls << "\r" << ' %'.black << " Job History Server: http://#{jt}:19888 \n"
             end              
             #hadoop_ecosystem
             if config[:hadoop_deploy][:hadoop_ecosystem] and config[:hadoop_deploy][:hadoop_ecosystem].include?('oozie')
