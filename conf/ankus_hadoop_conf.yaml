@@ -8,6 +8,7 @@
 ########################################################
 # Heap sizes (JVM Sizes) for all hadoop daemons in MB
 hadoop_heap_size:               '512'
+yarn_heapsize:                  '512'
 # Heap sizes (JVM Size) for individual hadoop daemons (format: -Xmx<SIZE_IN_MB>m)
 hadoop_namenode_opts:           '-Xmx512m'
 hadoop_jobtracker_opts:         '-Xmx512m'
@@ -15,6 +16,11 @@ hadoop_secondarynamenode_opts:  '-Xmx512m'
 hadoop_datanode_opts:           '-Xmx512m'
 hadoop_tasktracker_opts:        '-Xmx512m'
 hadoop_balancer_opts:           '-Xmx512m'
+# Heap sizes for yarn (mr2) daemons (format: -Xmx<SIZE_IN_MB>m)
+yarn_resourcemanager_opts:      '-Xmx512m'
+yarn_nodemanager_opts:          '-Xmx512m'
+yarn_proxyserver_opts:          '-Xmx512m'
+hadoop_job_historyserver_opts:  '-Xmx512m'
 # Compression
 hadoop_snappy_codec: 'disabled'
 # Larger amount of memory allocated for the in-memory file-system used to merge
