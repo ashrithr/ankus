@@ -360,6 +360,7 @@ module Ankus
       cassandra_deploy  =  config[:cassandra_deploy] != 'disabled' ? 'enabled' : 'disabled'
       storm_deploy      =  config[:storm_deploy] != 'disabled' ? 'enabled' : 'disabled'
       kafka_deploy      =  config[:kafka_deploy] != 'disabled' ? 'enabled' : 'disabled'
+      solr_deploy       =  config[:solr_deploy] != 'disabled' ? 'enabled' : 'disabled'
 
       (cluster_info ||= '') << 'Ankus Cluster Info'.yellow_on_cyan.bold.underline << "\n"
       if config[:hadoop_deploy] != 'disabled'
@@ -373,6 +374,7 @@ module Ankus
       cluster_info << "\r" << ' #'.green << " Cassandra Deploy: #{cassandra_deploy} \n"
       cluster_info << "\r" << ' #'.green << " Storm Deploy: #{storm_deploy} \n"
       cluster_info << "\r" << ' #'.green << " Kafka Deploy: #{kafka_deploy} \n"
+      cluster_info << "\r" << ' #'.green << " Solr Deploy: #{solr_deploy} \n"
       cluster_info << "\r" << ' #'.green << " Security: #{config[:security]} \n"
       cluster_info << "\r" << ' #'.green << " Monitoring(with ganglia): #{config[:monitoring]} \n"
       cluster_info << "\r" << ' #'.green << " Altering(with nagios): #{config[:alerting]} \n"
@@ -453,6 +455,10 @@ module Ankus
           cluster_info << "\r" << ' *'.cyan << " Storm Master: #{stn} \n"
           urls << "\r" << ' %'.black << " Storm UI: http://#{stn}:8080 \n"
         end
+        if config[:solr_deploy] != 'disabled'
+          solr_nodes = find_fqdn_for_tag(cloud_instances, 'solr')
+          urls << "\r" << ' %'.black << " Solr Admin: http://#{solr_nodes.sample}:8983/solr \n"
+        end        
         if options[:extended]
           if config[:hadoop_deploy] != 'disabled' or config[:hbase_deploy] != 'disabled'
             cluster_info << "\r" << ' *'.cyan << " Slaves: \n"
@@ -477,6 +483,12 @@ module Ankus
             find_fqdn_for_tag(cloud_instances, 'kafka').each_with_index do |k, i|
               cluster_info << "\r" << "\t" << "- ".cyan << "kafka#{i+1}: #{k}" << "\n"
             end            
+          end
+          if solr_deploy != 'disabled'
+            cluster_info << "\r" << ' *'.cyan << " Solr Nodes: \n"
+            find_fqdn_for_tag(cloud_instances, 'solr').each_with_index do |k, i|
+              cluster_info << "\r" << "\t" << "- ".cyan << "solr#{i+1}: #{k}" << "\n"
+            end
           end
         end
       else
@@ -533,6 +545,9 @@ module Ankus
           cluster_info << "\r" << ' *'.cyan << " Storm Master: #{config[:storm_deploy][:storm_master]} \n"
           urls << "\r" << ' %'.black << " Hbase Master: http://#{config[:storm_deploy][:storm_master]}:8080 \n"
         end
+        if config[:solr_deploy] != 'disabled'
+          urls << "\r" << ' %'.black << "Solr Admin: http://#{config[:solr_deploy][:solr_nodes].sample}:8983/solr \n"
+        end
         if options[:extended]
           cluster_info << "\r" << ' *'.cyan << " Slaves: \n"
           config[:slave_nodes].each do |slave|
@@ -560,6 +575,11 @@ module Ankus
             # config[:kafka_deploy][:kafka_nodes].each do |cn|
             #   cluster_info << "\r" << "\t" << '- '.cyan << cn << "\n"
             # end            
+          end
+          if config[:solr_deploy] != 'disabled'
+            config[:solr_deploy][:solr_nodes].each do |sn|
+              cluster_info << "\r" << "\t" << '- '.cyan << sn << "\n"
+            end
           end          
         end
       end

@@ -59,7 +59,7 @@ cloud_os_type: CentOS
 #    - 'pig'
 #
 # ===============DEPLOYMENT SCENARIO 3==================
-#         TO DEPLOY HADOOP WITH NO MAPREDUCE
+#       TO DEPLOY HADOOP WITH MAPREDUCE DISABLED
 # ======================================================
 #hadoop_deploy:
 #  hadoop_ha: 'disabled'
@@ -90,7 +90,7 @@ hbase_deploy: 'disabled'
 ########################################################
 # Zookeeper Quorum Configuration
 ########################################################
-# Required for hadoop_ha, hbase, kafka, storm deployments
+# Required for hadoop_ha, solr, hbase, kafka, storm deployments
 # zookeeper_quoram_count: specifies the number of zookeeper(s) to launch to 
 #                         coordinate services
 ########################################################
@@ -104,6 +104,38 @@ zookeeper_quorum_count: 1
 #                    if 'hbase_deploy' is enabled, 'regionserver' is initialized
 ########################################################
 slave_nodes_count: 3
+
+########################################################
+# Solr Cluster Configuration
+#   solr_deploy         : specifies the deployment of solr cluster
+#                         possible values: Hash (or) enabled
+#   hdfs_integration    : specifies whether to integrate solr and hdfs (requires 
+#                         deployment of hdfs, see configuring hadoop), if
+#                         enabled solr instances will be deployed on hadoop
+#                         slave nodes
+#                         possible values: enabled (or) disabled
+#   number_of_instances : specifies number of solr instances to deploy
+#                         * only required if hdfs_integration is disabled
+#
+# ===============DEPLOYMENT SCENARIO 1==================
+#         TO DEPLOY SOLR With HDFS Integration
+# ======================================================
+# solr_deploy:
+#   hdfs_integration: enalbed
+#
+# ===============DEPLOYMENT SCENARIO 2==================
+# TO DEPLOY SOLR WithOut HDFS Integration on seperate instances
+# ======================================================
+# solr_deploy:
+#   hdfs_integration: disabled
+#   number_of_instances: 3
+#
+# ===============DEPLOYMENT SCENARIO 1==================
+#               DISABLE SOLR DEPLOYMENT
+# ======================================================
+# solr_deploy: 'disabled'
+########################################################
+solr_deploy: 'disabled'
 
 ########################################################
 # Cassandra Cluster Configuration

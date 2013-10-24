@@ -89,7 +89,7 @@ controller: 'controller.ops.cw.com'
 #     - 'oozie'
 #
 # ===============DEPLOYMENT SCENARIO 2==================
-#        TO DEPLOY HADOOP (NON-HA) with MapReduce
+#       TO DEPLOY HADOOP (NON-HA) with MapReduce
 # ======================================================
 # hadoop_deploy:
 #   hadoop_ha: 'disabled'
@@ -126,13 +126,13 @@ hadoop_deploy: 'disabled'
 ########################################################
 # HBase Cluster configuration
 ########################################################
-# * hbase_install: Specify whether to deploy hbase or not
+# * hbase_deploy: Specify whether to deploy hbase or not
 #                   if enabled will install hbase
 #                   if disabled hbase will not be deployed
-# * hbase_master: if hbase_install is enabled, specify fqdn's of hbase masters 
+# * hbase_master: if hbase_deploy is enabled, specify fqdn's of hbase masters 
 #                 to deploy
 #
-# ===============DEPLOYMENT SCENARIO 2==================
+# ===============DEPLOYMENT SCENARIO 1==================
 #           TO DEPLOY HBASE (with 2 masters)
 # ======================================================
 # hbase_deploy:
@@ -140,7 +140,7 @@ hadoop_deploy: 'disabled'
 #     - 'hbasemaster001.ops.cw.com'
 #     - 'hbasemaster002.ops.cw.com'
 #
-# ===============DEPLOYMENT SCENARIO 3==================
+# ===============DEPLOYMENT SCENARIO 2==================
 #               DISABLE HBASE DEPLOYMENT
 # ======================================================
 # hbase_deploy: 'disabled'
@@ -182,6 +182,46 @@ storage_dirs:
   - '/data/2'
   - '/data/3'
   - '/data/4'
+
+########################################################
+# Solr Cluster configuration
+########################################################
+# * solr_deploy: Specify whether to deploy solr or not
+#                   if enabled will install solr
+#                   if disabled solr will not be deployed
+# * hdfs_intergration: specifies whether to deploy solr with hdfs integration
+#                      or not
+# * solr_nodes: specify fqdn's of solr nodes to deploy, if hdfs_integration is
+#               enabled its optimal to colocate hadoop worker nodes and solr 
+#               nodes
+#
+# ===============DEPLOYMENT SCENARIO 1==================
+#           TO DEPLOY Solr with HDFS Integration
+# ======================================================
+# solr_deploy:
+#   hdfs_integration: enabled
+#   solr_nodes:
+#     - 'worker001.ops.cw.com'
+#     - 'worker002.ops.cw.com'
+#     - 'worker003.ops.cw.com'
+#
+# ===============DEPLOYMENT SCENARIO 1==================
+#        TO DEPLOY Solr without HDFS Integration
+# ======================================================
+# solr_deploy:
+#   hdfs_integration: disabled
+#   solr_nodes:
+#     - 'solr001.ops.cw.com'
+#     - 'solr002.ops.cw.com'
+#     - 'solr003.ops.cw.com'
+#
+# ===============DEPLOYMENT SCENARIO 2==================
+#               DISABLE SOLR DEPLOYMENT
+# ======================================================
+# solr_deploy: 'disabled'
+#
+########################################################
+solr_deploy: 'disabled'
 
 ########################################################
 # Security
