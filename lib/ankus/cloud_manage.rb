@@ -94,6 +94,17 @@ module Ankus
           end                    
         end
       end
+      if @parsed_hash[:solr_deploy] != 'disabled'
+        if @parsed_hash[:solr_deploy][:hdfs_integration] == 'disabled'
+          @parsed_hash[:solr_deploy][:number_of_instances].times do |ss|
+            nodes_to_create_slaves["solr#{ss+1}".to_sym] = ["solr#{ss+1}"]
+          end
+        else
+          @parsed_hash[:slave_nodes_count].times do |sn|
+            nodes_to_create_slaves["slaves#{sn+1}".to_sym] << "solr#{sn+1}"
+          end
+        end
+      end
       if @parsed_hash[:kafka_deploy] != 'disabled'
         unless @parsed_hash[:kafka_deploy][:colocate]
           @parsed_hash[:kafka_deploy][:number_of_brokers].times do |kn|
@@ -136,7 +147,8 @@ module Ankus
         end
       elsif @parsed_hash[:hbase_deploy] != 'disabled' or 
         @parsed_hash[:kafka_deploy] != 'disabled' or 
-        @parsed_hash[:storm_deploy] != 'disabled'
+        @parsed_hash[:storm_deploy] != 'disabled' or
+        @parsed_hash[:solr_deploy] != 'disabled'
         unless nodes_to_create_masters.keys.find { |e| /zookeeper/ =~ e }
           num_of_zks.times do |i|
             nodes_to_create_masters["zookeeper#{i+1}".to_sym] = %w(zookeeper)
@@ -304,6 +316,12 @@ module Ankus
         parsed_hash[:cassandra_deploy][:cassandra_seeds] =  find_fqdn_for_tag(nodes, 'cassandraseed')
       end
 
+      if parsed_hash[:solr_deploy] && parsed_hash[:solr_deploy][:hdfs_integration] == 'disabled'
+        parsed_hash[:solr_deploy][:solr_nodes] = find_fqdn_for_tag(nodes, 'solr')
+      else
+        parsed_hash[:solr_deploy][:solr_nodes] = find_fqdn_for_tag(nodes, 'slaves')
+      end
+
       if parsed_hash[:kafka_deploy] != 'disabled'
         parsed_hash[:kafka_deploy][:kafka_brokers] = find_fqdn_for_tag(nodes, 'kafka')
       end
@@ -360,6 +378,11 @@ module Ankus
       if parsed_hash[:cassandra_deploy] != 'disabled'
         parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes] =  find_internal_ip(nodes, 'cassandra')
         parsed_hash_internal_ips[:cassandra_deploy][:cassandra_seeds] =  find_internal_ip(nodes, 'cassandraseed')
+      end
+      if parsed_hash[:solr_deploy] && parsed_hash[:solr_deploy][:hdfs_integration] == 'disabled'
+        parsed_hash_internal_ips[:solr_deploy][:solr_nodes] = find_internal_ip(nodes, 'solr')
+      else
+        parsed_hash_internal_ips[:solr_deploy][:solr_nodes] = find_internal_ip(nodes, 'slaves')
       end
       if parsed_hash[:kafka_deploy] != 'disabled'
         parsed_hash_internal_ips[:kafka_deploy][:kafka_brokers] = find_internal_ip(nodes, 'kafka')

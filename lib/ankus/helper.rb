@@ -26,6 +26,9 @@ module Ankus
     :hadoop_deploy,
     :hbase_deploy,
     :cassandra_deploy,
+    :solr_deploy,
+    :kafka_deploy,
+    :storm_deploy,
     :security,
     :monitoring,
     :alerting,
@@ -36,6 +39,7 @@ module Ankus
     :hadoop_deploy,
     :hbase_deploy,
     :cassandra_deploy,
+    :solr_deploy,
     :kafka_deploy,
     :storm_deploy
   ]
@@ -215,6 +219,24 @@ module Ankus
   # @return [String] => tag
   def find_key_for_pip(nodes, pip)
     nodes.select { |k, v| k if v[:private_ip] == pip }.keys.first
+  end
+
+  #
+  # Helper Commands
+  #
+  def hadoop_search_commands
+    puts <<-END.gsub(/^ {6}/, '')
+      Usage: solrctl
+
+      * To generate solr config dir
+        - solrctl instancedir --generate $HOME/{COLLECTION_NAME}
+      * To upload the instancedir to zookeeper
+        - solrctl instancedir --create {COLLECTION_NAME} $HOME/{COLLECTION_NAME}
+      * To create the collection, with number of shards specified
+        - solrctl collection --create {COLLECTION_NAME} -s {NUM_OF_SHARDS}
+      * To create the collection, with number of shards and number of replicas specified
+        - solrctl collection --create {COLLECTION_NAME} -s {NUM_OF_SHARDS} -r {NUM_OF_REPLICAS}
+    END
   end
 end
 

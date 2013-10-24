@@ -212,12 +212,20 @@ module Ankus
           #parse num_of_workers
           hiera_hash['number_of_nodes'] = parsed_hash[:slave_nodes].length
         end
-        if parsed_hash[:kafka_deploy] != 'disabled' or parsed_hash[:storm_deploy] != 'disabled'
+        if parsed_hash[:kafka_deploy] != 'disabled' or 
+            parsed_hash[:storm_deploy] != 'disabled' or 
+            parsed_hash[:solr_deploy] != 'disabled'
           unless hiera_hash.has_key? 'zookeeper_ensemble'
             hiera_hash['zookeeper_ensemble'] = parsed_hash[:zookeeper_quorum].map { |zk| zk += ":2181" }.join(",")
           end
           unless hiera_hash.has_key? 'zookeeper_class_ensemble'
             hiera_hash['zookeeper_class_ensemble'] = parsed_hash[:zookeeper_quorum].map { |zk| zk+=":2888:3888" }
+          end
+        end
+        # solr deploy
+        if parsed_hash[:solr_deploy] != 'disabled'
+          if parsed_hash[:solr_deploy][:hdfs_integration] == 'enabled'
+            hiera_hash['hadoop_search_nodes'] = parsed_hash[:slave_nodes]
           end
         end
         #parse journal quorum
@@ -385,6 +393,7 @@ module Ankus
         cassandra_install = @parsed_hash[:cassandra_deploy]
         kafka_install     = @parsed_hash[:kafka_deploy]
         storm_install     = @parsed_hash[:storm_deploy]
+        solr_install      = @parsed_hash[:solr_deploy]
 
         if controller == 'localhost'
           puts "\rInitializing puppet run on controller".blue
@@ -399,7 +408,7 @@ module Ankus
         end
 
         if hadoop_ha == 'enabled' or hbase_install != 'disabled' or kafka_install != 'disabled' or 
-          storm_install != 'disabled'
+          storm_install != 'disabled' or solr_install != 'disabled'
             #parallel puppet run on zks
             puppet_parallel_run(@parsed_hash[:zookeeper_quorum], puppet_run_cmd, 'zookeepers', force)
         end
@@ -485,7 +494,10 @@ module Ankus
 
         # All hadoop & hbase slaves
         if hadoop_install != 'disabled' or hbase_install != 'disabled'
-          puppet_parallel_run(@parsed_hash[:slave_nodes], puppet_run_cmd, 'slaves', force)
+          if solr_install != 'disabled'
+            puppet_single_run(@parsed_hash[:slaves].first, puppet_run_cmd, 'solr_bootstrap', force)
+          end
+            puppet_parallel_run(@parsed_hash[:slave_nodes], puppet_run_cmd, 'slaves', force)
         end
 
         # hbasemasters need service refresh after region servers came online

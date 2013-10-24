@@ -97,6 +97,11 @@ module Ankus
             add_or_update_node(nodes_hash, zk, "zookeeper#{i+1}") 
           end          
         end
+        if @config[:solr_deploy] != 'disabled'
+          @config[:solr_deploy][:solr_nodes].each_with_index do |sn, i|
+            add_or_update_node(nodes_hash, sn, "solr#{i+1}")
+          end
+        end
 
         nodes_hash
       end # end create_nodes
@@ -187,6 +192,8 @@ module Ankus
         end
         cassandra_install   = @config[:cassandra_deploy]
         cassandra_nodes     = @config[:cassandra_deploy][:cassandra_nodes] if cassandra_install != 'disabled'
+        solr_install        = @config[:solr_deploy]
+        solr_nodes          = @config[:solr_deploy][:solr_nodes] if solr_install != 'disabled'
         kafka_install       = @config[:kafka_deploy]
         kafka_brokers       = @config[:kafka_deploy][:kafka_brokers] if kafka_install != 'disabled'
         storm_install       = @config[:storm_deploy]
@@ -200,7 +207,9 @@ module Ankus
             #namenode
             roles_hash[pc]['hadoop::namenode'] = nil if namenode.include? pc
             #zookeepers
-            if @config[:hadoop_deploy][:hadoop_ha] == 'enabled' or @config[:hbase_deploy] != 'disabled'
+            if @config[:hadoop_deploy][:hadoop_ha] == 'enabled' or @config[:hbase_deploy] != 'disabled' or
+                @config[:solr_deploy] != 'disabled' or @config[:kafka_deploy] != 'disabled' or
+                @config[:storm_deploy] != 'disabled'
               zookeepers = @config[:zookeeper_quorum]
               #convert zookeepers array into hash with id as zookeeper and value as its id
               zookeepers_id_hash = Hash[zookeepers.map.each_with_index.to_a]
@@ -267,6 +276,13 @@ module Ankus
           #cassandra
           if cassandra_install != 'disabled'
             roles_hash[pc]['cassandra'] = nil if cassandra_nodes.include? pc
+          end
+          if solr_install != 'disabled'
+            if solr_install[:hdfs_integration] != 'disabled'
+              roles_hash[pc]['hadoop-search::server'] = nil if solr_nodes.include? pc
+            else
+              roles_hash[pc]['solr::server'] = nil if solr_nodes.include? pc
+            end
           end
           if kafka_install != 'disabled'
             roles_hash[pc]['kafka::server'] = nil if kafka_brokers.include? pc

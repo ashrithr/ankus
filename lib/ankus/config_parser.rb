@@ -45,14 +45,14 @@ module Ankus
         puts '[Error]: '.red + 'config file is empty!'
         @errors_count += 1
       end
-      #validate if basic comfiguration parameters are present or not
+      # validate if basic configuration parameters are present or not
       ANKUS_CONF_MAIN_KEYS.each do |key|
         unless hash_to_validate.include?(key)
           puts '[Error]: '.red + "Required key: '#{key}' is not present in the configuration file"
           @errors_count += 1
         end
       end
-      #validate install_mode, it can be 'local|cloud' modes
+      # validate install_mode, it can be 'local|cloud' modes
       case @parsed_hash[:install_mode]
       when 'local'
         local_validator hash_to_validate
@@ -433,6 +433,8 @@ module Ankus
 
       cassandra_validator hash_to_validate
 
+      solr_validator hash_to_validate
+
       kafka_validator hash_to_validate
 
       storm_validator hash_to_validate
@@ -692,11 +694,12 @@ module Ankus
       hbase_install = hash_to_validate[:hbase_deploy]
       kafka_install = hash_to_validate[:kafka_deploy]
       storm_install = hash_to_validate[:storm_deploy]
-      if hadoop_ha == 'enabled' or hbase_install != 'disabled' or kafka_install != 'disabled' or storm_install != 'disabled'
+      solr_install  = hash_to_validate[:solr_deploy]
+      if hadoop_ha == 'enabled' or hbase_install != 'disabled' or kafka_install != 'disabled' or storm_install != 'disabled' or solr_install != 'disabled'
         if install_mode == 'local'
           zookeeper_quorum = hash_to_validate[:zookeeper_quorum]
           if zookeeper_quorum.nil? or zookeeper_quorum.empty?
-            puts '[Error]: '.red + "'zookeeper_quorum' is required for deployment types: 'hadoop_ha' or 'hbase_deploy' or 'kafka_deploy' or 'storm_deploy'"
+            puts '[Error]: '.red + "'zookeeper_quorum' is required for deployment types: 'hadoop_ha' or 'hbase_deploy' or 'solr_deploy' or 'kafka_deploy' or 'storm_deploy'"
             @errors_count += 1
           else
             unless zookeeper_quorum.length % 2 == 1
@@ -706,8 +709,8 @@ module Ankus
           end
         elsif install_mode == 'cloud'
           zookeeper_quorum = hash_to_validate[:zookeeper_quorum_count]
-          if zookeeper_quorum.nil?
-            puts '[Error]: '.red + "'zookeeper_quorum' is required for deployment types: 'hadoop_ha' or 'hbase_deploy' or 'kafka_deploy' or 'storm_deploy'"
+          if zookeeper_quorum.nil? or ! zookeeper_quorum
+            puts '[Error]: '.red + "'zookeeper_quorum' is required for deployment types: 'hadoop_ha','hbase_deploy','solr_deploy','kafka_deploy','storm_deploy'"
             @errors_count += 1
           else
             unless zookeeper_quorum % 2 == 1
@@ -783,6 +786,91 @@ module Ankus
         end
       end
     end #cassandra_validator
+
+    # Validate solr realted conf params
+    # @param [Hash] hash_to_validate
+    def solr_validator(hash_to_validate)
+      puts '[Debug]: calling solr validator' if @debug
+      solr_deploy = hash_to_validate[:solr_deploy]
+      if solr_deploy.nil? or solr_deploy.empty?
+        puts '[Error]:'.red + " 'solr_deploy' is required parameter, valid values: hash|disabled"
+        @errors_count += 1
+      elsif solr_deploy == 'disabled'
+        puts '[Debug]: solr deployment is disabled' if @debug
+      elsif ! solr_deploy.is_a? Hash
+        puts '[Error]: '.red + "unrecognized value set for 'solr_deploy' : #{solr_deploy}"
+        @errors_count += 1
+      end
+
+      # TODO Remove this and add new module of solr that supports non-hdfs-deployments
+      if solr_deploy[:hdfs_integration] == 'disabled'
+        puts '[Not Implemented]'.red + "Feature not yet implemented, work is in progress"
+        @errors_count += 1
+      end
+
+      if hash_to_validate[:install_mode] == 'local'
+        if solr_deploy != 'disabled'
+          hdfs_integration = solr_deploy[:hdfs_integration]
+          if hdfs_integration.nil? or hdfs_integration.empty?
+            puts '[Error]: '.red + "'hdfs_integration' should be either enabled or disabled"
+            @errors_count += 1
+          elsif ! %w(enabled disabled).include?(hdfs_integration)
+            puts '[Error]: '.red + "invalid value for 'hdfs_integration', valid values are either: 'enabled' or 'disabled'"
+            @errors_count += 1
+          end
+          if hdfs_integration == 'disabled'
+            solr_nodes = solr_deploy[:solr_nodes]
+            if solr_nodes.nil? or solr_nodes.empty?
+              puts '[Error]: '.red + "'solr_nodes' should contain list of fqdn(s) on which to deploy solr"
+              @errors_count += 1
+            elsif ! solr_nodes.is_a? Array
+              puts '[Error]: '.red + "Excepting list (array) of nodes for 'solr_nodes'"
+              @errors_count += 1
+            end          
+          else # hdfs intergration enabled, colocate solr on hadoop_nodes
+            if hash_to_validate[:hadoop_deploy] == 'disabled'
+              puts '[Error]: '.red + "'hdfs_integration' requires a valid hadoop deployment"
+              @errors_count += 1
+            end
+            solr_nodes = solr_deploy[:solr_nodes]
+            if solr_nodes.nil? or solr_nodes.empty?
+              puts '[Error]: '.red + "'solr_nodes' should contain list of fqdn(s) on which to deploy solr"
+              @errors_count += 1
+            elsif ! solr_nodes.is_a? Array
+              puts '[Error]: '.red + "Excepting list (array) of nodes for 'solr_nodes'"
+              @errors_count += 1
+            end            
+          end
+        end
+      else
+        #cloud deploy
+        if solr_deploy != 'disabled'
+          hdfs_integration = solr_deploy[:hdfs_integration]
+          if hdfs_integration.nil? or hdfs_integration.empty?
+            puts '[Error]: '.red + "'hdfs_integration' should be either enabled or disabled"
+            @errors_count += 1
+          elsif ! %w(enabled disabled).include?(hdfs_integration)
+            puts '[Error]: '.red + "invalid value for 'hdfs_integration', valid values are either: 'enabled' or 'disabled'"
+            @errors_count += 1
+          end
+          if hdfs_integration == 'disabled'
+            number_of_instances = solr_deploy[:number_of_instances]
+            if number_of_instances.nil?
+              puts '[Error]: '.red + "'number_of_instances' is required when 'hdfs_integration' is disabled"
+              @errors_count += 1
+            elsif ! number_of_instances.is_a? Numeric
+              puts '[Error]: '.red + "'number_of_instances' should be of type Numeric"
+              @errors_count += 1
+            end
+          else
+            if hash_to_validate[:hadoop_deploy] == 'disabled'
+              puts '[Error]: '.red + "'hdfs_integration' requires a valid hadoop deployment"
+              @errors_count += 1
+            end  
+          end
+        end
+      end
+    end #solr_validator
 
     # Validate kafka realted conf params
     # @param [Hash] hash_to_validate
