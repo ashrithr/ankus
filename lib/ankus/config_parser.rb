@@ -803,7 +803,7 @@ module Ankus
       end
 
       # TODO Remove this and add new module of solr that supports non-hdfs-deployments
-      if solr_deploy[:hdfs_integration] == 'disabled'
+      if solr_deploy != 'disabled' && solr_deploy[:hdfs_integration] == 'disabled'
         puts '[Not Implemented]'.red + "Feature not yet implemented, work is in progress"
         @errors_count += 1
       end

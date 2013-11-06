@@ -316,10 +316,12 @@ module Ankus
         parsed_hash[:cassandra_deploy][:cassandra_seeds] =  find_fqdn_for_tag(nodes, 'cassandraseed')
       end
 
-      if parsed_hash[:solr_deploy] && parsed_hash[:solr_deploy][:hdfs_integration] == 'disabled'
-        parsed_hash[:solr_deploy][:solr_nodes] = find_fqdn_for_tag(nodes, 'solr')
-      else
-        parsed_hash[:solr_deploy][:solr_nodes] = find_fqdn_for_tag(nodes, 'slaves')
+      if parsed_hash[:solr_deploy] != 'disabled'
+        if parsed_hash[:solr_deploy][:hdfs_integration] == 'disabled'
+          parsed_hash[:solr_deploy][:solr_nodes] = find_fqdn_for_tag(nodes, 'solr')
+        else
+          parsed_hash[:solr_deploy][:solr_nodes] = find_fqdn_for_tag(nodes, 'slaves')
+        end
       end
 
       if parsed_hash[:kafka_deploy] != 'disabled'
@@ -379,10 +381,12 @@ module Ankus
         parsed_hash_internal_ips[:cassandra_deploy][:cassandra_nodes] =  find_internal_ip(nodes, 'cassandra')
         parsed_hash_internal_ips[:cassandra_deploy][:cassandra_seeds] =  find_internal_ip(nodes, 'cassandraseed')
       end
-      if parsed_hash[:solr_deploy] && parsed_hash[:solr_deploy][:hdfs_integration] == 'disabled'
-        parsed_hash_internal_ips[:solr_deploy][:solr_nodes] = find_internal_ip(nodes, 'solr')
-      else
-        parsed_hash_internal_ips[:solr_deploy][:solr_nodes] = find_internal_ip(nodes, 'slaves')
+      if parsed_hash[:solr_deploy] != 'disabled'
+        if parsed_hash[:solr_deploy][:hdfs_integration] == 'disabled'
+          parsed_hash_internal_ips[:solr_deploy][:solr_nodes] = find_internal_ip(nodes, 'solr')
+        else
+          parsed_hash_internal_ips[:solr_deploy][:solr_nodes] = find_internal_ip(nodes, 'slaves')
+        end
       end
       if parsed_hash[:kafka_deploy] != 'disabled'
         parsed_hash_internal_ips[:kafka_deploy][:kafka_brokers] = find_internal_ip(nodes, 'kafka')
