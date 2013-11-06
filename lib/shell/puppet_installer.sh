@@ -230,9 +230,9 @@ function download_modules () {
     logit "extracting modules"
     tar xzf modules.tar.gz
     if [ $? -eq 0 ]; then
-      mv ankus-cli-modules*/* ${PUPPET_MODULES_PATH}
+      mv ankus-modules*/* ${PUPPET_MODULES_PATH}
       rm -f modules.tar.gz
-      rm -rf ankus-cli-modules*
+      rm -rf ankus-modules*
     fi
   else
     printerr "Failed to download puppet modules from git, aborting"
