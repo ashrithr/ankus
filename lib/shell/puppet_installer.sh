@@ -14,7 +14,7 @@ DOMAIN_NAME=`echo ${PUPPET_SERVER} | cut -d "." -f 2-`
 IP=`ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | grep 'Bcast' | awk '{print $1}'`
 GIT_REPO="https://github.com/ashrithr/ankus-cli-modules.git"
 PUPPET_MODULES_PATH="/etc/puppet/modules"
-PUPPET_MODULES_DOWNLOAD="https://github.com/cloudwicklabs/ankus-modules/archive/v2.0.tar.gz"
+PUPPET_MODULES_DOWNLOAD="https://github.com/cloudwicklabs/ankus-modules/archive/v2.1.tar.gz"
 
 # => OS specific
 OS=''
