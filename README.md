@@ -5,7 +5,7 @@ Ankus is a big-data deployment & orchestration tool. Handles the installation & 
  - [hadoop](http://hadoop.apache.org/) (hadoop-2.0.0)
  - hadoop ecosystem tools: [pig](http://pig.apache.org/) (0.11.x), [hive](http://hive.apache.org/) (0.10.x), [sqoop2](http://sqoop.apache.org/), [oozie](http://oozie.apache.org/) (3.3.x), hadoop-search
  - [hbase](http://hbase.apache.org/) (hbase-0.94)
- - [cassandra](http://cassandra.apache.org/) (cassandra-1.2)
+ - [cassandra](http://cassandra.apache.org/) (cassandra-2.0.x)
  - [kafka](http://kafka.apache.org/) (kafka-0.8)
  - [storm](http://storm-project.net/) (storm-0.8.2)
 
