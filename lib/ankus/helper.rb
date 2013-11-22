@@ -53,6 +53,7 @@ module Ankus
     hadoop_datanode_opts
     hadoop_tasktracker_opts
     hadoop_balancer_opts
+    storage_dirs
     yarn_resourcemanager_opts
     yarn_nodemanager_opts
     yarn_proxyserver_opts
@@ -102,6 +103,17 @@ module Ankus
     hadoop_jobtracker_port
     hadoop_tasktracker_port
     hadoop_datanode_port
+    hadoop_config_yarn_nodemanager_resource_memory_mb
+    hadoop_config_yarn_scheduler_minimum_allocation_mb
+    hadoop_config_yarn_scheduler_maximum_allocation_mb
+    hadoop_config_mapreduce_map_memory_mb
+    hadoop_config_mapreduce_reduce_memory_mb
+    hadoop_config_mapreduce_map_java_opts
+    hadoop_config_mapreduce_reduce_java_opts
+    hadoop_config_yarn_nodemanager_vmem_pmem_ratio
+    hadoop_config_mapreduce_task_io_sort_mb
+    hadoop_config_mapreduce_task_io_sort_factor
+    hadoop_config_mapreduce_reduce_shuffle_parallelcopies
   }
 
   HBASE_CONF_KEYS = %w{
