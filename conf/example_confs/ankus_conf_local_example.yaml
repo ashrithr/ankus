@@ -166,9 +166,6 @@ zookeeper_quorum:
 #  slave_nodes:
 #   list of slave nodes on which hadoop worker daemons will be installed. If 
 #   hbase is enabled hbase worker daemons are also installed on same machines.
-#  storage_dirs:
-#   list of directories where worker nodes will store data, recommended to mount 
-#   each dir on separate volumes for higher throughput
 ########################################################
 slave_nodes:
   - 'worker001.ops.cw.com'
@@ -176,12 +173,6 @@ slave_nodes:
   - 'worker003.ops.cw.com'
   - 'worker004.ops.cw.com'
   - 'worker005.ops.cw.com'
-
-storage_dirs:
-  - '/data/1'
-  - '/data/2'
-  - '/data/3'
-  - '/data/4'
 
 ########################################################
 # Solr Cluster configuration

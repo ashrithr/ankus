@@ -24,6 +24,7 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'thor'
   spec.add_runtime_dependency 'multi_json'
   spec.add_runtime_dependency 'fog'
+  spec.add_runtime_dependency 'unf'
   spec.add_runtime_dependency 'highline'
   spec.add_runtime_dependency 'colored'
   spec.add_runtime_dependency 'net-ssh'
