@@ -5,6 +5,7 @@ module Ankus
   require 'thread'
   require 'timeout'
   require 'pathname'
+  require 'open3'
 
   # ShellUtils - wrapper around shell
   class ShellUtils
@@ -68,6 +69,20 @@ module Ankus
           system(command, :out => [log_file, file_write_mode], :err => [log_file, file_write_mode])
           $?
         end
+      end
+
+      # Runs a command on shell and returns stdout, stderr, and its exit status
+      def system_quietly(*cmd)
+        exit_status=nil
+        err=nil
+        out=nil
+        Open3.popen3(*cmd) do |stdin, stdout, stderr, wait_thread|
+          err = stderr.gets(nil)
+          out = stdout.gets(nil)
+          [stdin, stdout, stderr].each{|stream| stream.send('close')}
+          exit_status = wait_thread.value
+        end
+        return out, err, exit_status
       end
     end
   end
@@ -191,15 +206,19 @@ module Ankus
       # @raises if instance cannot be ssh'ed into
       def sshable?(nodes_arr, ssh_user, ssh_key, port=22)
         if nodes_arr.is_a? String
-          `ssh -t -t -o ConnectTimeout=2 -o StrictHostKeyChecking=no -o BatchMode=yes -o UserKnownHostsFile=/dev/null -p #{port} -i #{ssh_key} #{ssh_user}@#{nodes_arr} "echo" &>/dev/null`
-          unless $?.success?
-            raise "Cannot ssh in to instance: #{instance}"
+          out, err, status = ShellUtils.system_quietly("ssh -t -t -o ConnectTimeout=2 -o StrictHostKeyChecking=no -o" +
+            " BatchMode=yes -o UserKnownHostsFile=/dev/null -p #{port} -i #{ssh_key} #{ssh_user}@#{nodes_arr}" +
+            " \"echo\" &>/dev/null")
+          if status.exitstatus != 0 || err.chomp =~ /Permission denied/
+            raise "Cannot ssh in to instance: #{nodes_arr} with user: #{ssh_user} and key: #{ssh_key}"
           end
         else
           nodes_arr.each do |instance|
-            `ssh -t -t -o ConnectTimeout=2 -o StrictHostKeyChecking=no -o BatchMode=yes -o UserKnownHostsFile=/dev/null -p #{port} -i #{ssh_key} #{ssh_user}@#{instance} "echo" &>/dev/null`
-            unless $?.success?
-              raise "Cannot ssh in to instance: #{instance}"
+            out, err, status = ShellUtils.system_quietly("ssh -t -t -o ConnectTimeout=2 -o StrictHostKeyChecking=no -o"+
+              " BatchMode=yes -o UserKnownHostsFile=/dev/null -p #{port} -i #{ssh_key} #{ssh_user}@#{instance}" +
+              " \"echo\" &>/dev/null")
+            if status.exitstatus != 0 || err.chomp =~ /Permission denied/
+              raise "Cannot ssh in to instance: #{instance} with user: #{ssh_user} and key: #{ssh_key}"
             end
           end
         end
