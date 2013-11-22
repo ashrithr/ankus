@@ -11,9 +11,7 @@ install_mode: 'local'
 # * ssh_user: username used to log into machines, change this if the user is 
 #             not 'root', ssh_user should have password less sudo privileges 
 #             (you can make a user password-less sudo by adding the user to
-#              /etc/sudoers file like this 
-#              `ssh_user  ALL = (ALL) NOPASSWD: ALL` 
-#             )
+#              /etc/sudoers file like this  `ssh_user  ALL=(ALL) NOPASSWD:ALL`)
 ########################################################
 ssh_key: '~/.ssh/id_rsa'         #<<<<<<<<<<<<<< UPDATE THIS
 ssh_user: 'root'                 #<<<<<<<<<<<<<< UPDATE THIS
