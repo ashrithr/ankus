@@ -549,15 +549,21 @@ module Ankus
           urls << "\r" << ' %'.black << "Solr Admin: http://#{config[:solr_deploy][:solr_nodes].sample}:8983/solr \n"
         end
         if options[:extended]
-          cluster_info << "\r" << ' *'.cyan << " Slaves: \n"
-          config[:slave_nodes].each do |slave|
-            cluster_info << "\r" << "\t" << '- '.cyan << slave << "\n"
+          if config[:hadoop_deploy] != 'disabled' or config[:hbase_deploy] != 'disabled'
+            cluster_info << "\r" << ' *'.cyan << " Slaves: \n"
+            config[:slave_nodes].each do |slave|
+              cluster_info << "\r" << "\t" << '- '.cyan << slave << "\n"
+            end
           end
           if config[:cassandra_deploy] != 'disabled'
             cluster_info << "\r" << ' *'.cyan << " Cassandra Node(s): \n"
             config[:cassandra_deploy][:cassandra_nodes].each do |cn|
               cluster_info << "\r" << "\t" << '- '.cyan << cn << "\n"
             end
+            cluster_info << "\r" << ' *'.cyan << " Cassandra Seed Node(s): \n"
+            config[:cassandra_deploy][:cassandra_seeds].each do |cn|
+              cluster_info << "\r" << "\t" << '- '.cyan << cn << "\n"
+            end            
           end
           if config[:storm_deploy] != 'disabled'
             cluster_info << "\r" << ' *'.cyan << " Storm Supervisors: \n"
@@ -643,34 +649,16 @@ module Ankus
         end
       else
         #local mode, build roles from conf
-        nodes_roles = {
-            :controller   => config[:controller],
-            :jobtracker   => config[:hadoop_deploy][:mapreduce][:master],
-        }
-        if config[:hadoop_deploy][:hadoop_ha] == 'enabled'
-          nodes_roles.merge!({ :namenode1 => config[:hadoop_deploy][:hadoop_namenode][0],
-                               :namenode2 => config[:hadoop_deploy][:hadoop_namenode][1] })
-          config[:hadoop_deploy][:journal_quorum].each_with_index do |jn, index| 
-            nodes_roles["journalnode#{index+1}"] = jn 
-          end
+        local_instances = YamlUtils.parse_yaml(NODES_FILE)
+        host = find_fqdn_for_tag(local_instances, role) && find_fqdn_for_tag(local_instances, role).first
+        if host
+          username = config[:ssh_user]
+          private_key = config[:ssh_key]          
+          puts "[Info]: ssh into #{host} as user:#{username} with key:#{private_key}"
+          SshUtils.ssh_into_instance(host, username, private_key, 22)
         else
-          nodes_roles.merge!({ :namenode => config[:hadoop_deploy][:hadoop_namenode][0] })
-        end
-        if config[:hadoop_deploy][:hadoop_ha] == 'enabled' or config[:hbase_deploy] != 'disabled'
-          config[:zookeeper_quorum].each_with_index { |zk, index| nodes_roles["zookeeper#{index+1}".to_sym] = zk }
-        end
-        if config[:hbase_deploy] != 'disabled'
-          config[:hbase_deploy][:hbase_master].each_with_index do |hbm, index| 
-            nodes_roles["hbasemaster#{index+1}".to_sym] = hbm 
-          end
-        end
-        config[:slave_nodes].each_with_index { |slave, index| nodes_roles["slaves#{index+1}".to_sym] = slave }
-
-        if nodes_roles.keys.find { |e| /#{role}/ =~ e.to_s } and nodes_roles[role.to_sym] != nil
-          SshUtils.ssh_into_instance(nodes_roles[role.to_sym], config[:ssh_user], config[:ssh_key], 22)
-        else
-          puts "No such role found #{role}"
-          puts "Available roles: #{nodes_roles.keys.join(',')}"
+          puts "No such role found: #{role}"
+          puts "Available roles: #{cloud_instances.map { |k, v| v[:tags]}.flatten.uniq}"
         end
       end
     end
