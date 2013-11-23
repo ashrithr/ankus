@@ -104,22 +104,22 @@ module Ankus
         hash_to_validate[:ssh_user] = 'root'
       end
       #volumes
-      if hash_to_validate[:storage_dirs].nil? or hash_to_validate[:storage_dirs].empty?
-        puts '[Error]: '.red + "''storage_dirs' is a required property"
-        @errors_count += 1
-      elsif ! hash_to_validate[:storage_dirs].is_a? Array
-        puts '[Error]: '.red + "expecting list(array) of 'storage_dirs'"
-        @errors_count += 1
-      else
-        #validate absolute path
-        require 'pathname'
-        hash_to_validate[:storage_dirs].each do |dir|
-          unless Pathname.new(dir).absolute?
-            puts '[Error]: '.red "Invalid absolute path found in 'storage_dirs' (#{dir})"
-            @errors_count += 1
-          end
-        end
-      end
+      # if hash_to_validate[:storage_dirs].nil? or hash_to_validate[:storage_dirs].empty?
+      #   puts '[Error]: '.red + "''storage_dirs' is a required property"
+      #   @errors_count += 1
+      # elsif ! hash_to_validate[:storage_dirs].is_a? Array
+      #   puts '[Error]: '.red + "expecting list(array) of 'storage_dirs'"
+      #   @errors_count += 1
+      # else
+      #   #validate absolute path
+      #   require 'pathname'
+      #   hash_to_validate[:storage_dirs].each do |dir|
+      #     unless Pathname.new(dir).absolute?
+      #       puts '[Error]: '.red "Invalid absolute path found in 'storage_dirs' (#{dir})"
+      #       @errors_count += 1
+      #     end
+      #   end
+      # end
 
       # call common validator which inturn will call other validators and gets back to check
       # if hosts are up or not
