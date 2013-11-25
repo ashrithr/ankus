@@ -205,7 +205,7 @@ Local deployment mode, is where user provides the instances on which specified r
 Similar to that of cloud deployments, local deployment also has template configuration file that could be used as base line
 
 ```
-cp conf/exmaple_confs/ankus_conf_local_example.yaml conf/ankus_conf.yaml
+cp conf/example_confs/ankus_conf_local_example.yaml conf/ankus_conf.yaml
 ```
 
 Modify the configuration file as per the requirements and then
