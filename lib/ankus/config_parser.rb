@@ -139,6 +139,15 @@ module Ankus
           @errors_count += 1
         end
       end
+      nodes.keys.each do |node|
+        begin 
+          Ankus::SshUtils.sshable?(node, hash_to_validate[:ssh_user], hash_to_validate[:ssh_key])
+        rescue
+          puts '[Error]: '.red + "cannot ssh into instance '#{node}' with user: #{hash_to_validate[:ssh_user]} and " +
+          "key: #{hash_to_validate[:ssh_key]}"
+          @errors_count += 1
+        end
+      end
     end
 
     # Validations specific to cloud install_mode
