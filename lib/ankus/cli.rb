@@ -49,6 +49,10 @@ module Ankus
                   :type => :boolean,
                   :default => false,
                   :desc => 'orchestrates only puppet runs accross cluster'
+    method_option :force,
+                  :type => :boolean,
+                  :default => false,
+                  :desc => 'force run puppet'
     def deploy
       unless options[:reload] or options[:run_only]
         if File.exists? NODES_FILE
@@ -291,7 +295,7 @@ module Ankus
         #
         # => Run only mode
         #
-        puppet.run
+        puppet.run options[:force]
       end
     end
 

@@ -73,16 +73,22 @@ module Ankus
 
       # Runs a command on shell and returns stdout, stderr, and its exit status
       def system_quietly(*cmd)
-        exit_status=nil
-        err=nil
-        out=nil
-        Open3.popen3(*cmd) do |stdin, stdout, stderr, wait_thread|
-          err = stderr.gets(nil)
-          out = stdout.gets(nil)
-          [stdin, stdout, stderr].each{|stream| stream.send('close')}
-          exit_status = wait_thread.value
+        begin
+          exit_status=nil
+          err=nil
+          out=nil
+          Open3.popen3(*cmd) do |stdin, stdout, stderr, wait_thread|
+            err = stderr.gets(nil)
+            out = stdout.gets(nil)
+            [stdin, stdout, stderr].each{|stream| stream.send('close')}
+            exit_status = wait_thread.value
+          end
+          return out, err, exit_status
+        rescue Errno::ENOENT
+          err = "Command not found"
+          exit_status = "255"
+          return out, err, exit_status
         end
-        return out, err, exit_status
       end
     end
   end
@@ -128,6 +134,26 @@ module Ankus
         schedule { throw :exit }
       end
       @pool.map(&:join)
+    end
+  end
+
+  class Printer
+    class << self
+      def info(*args)
+        print "\r[Info]".blue + ": " + args.join(" ") + "\n"
+      end
+
+      def debug(*args)
+        print "\r[Debug]: " + args.join(" ") + "\n"
+      end
+
+      def warn(*args)
+        print "\r[Warn]".yellow + ": " + args.join(" ") + "\n"
+      end    
+
+      def error(*args)
+        print "\r[Error]".red + ": " + args.join(" ") + "\n"
+      end
     end
   end
 
@@ -199,7 +225,7 @@ module Ankus
       # Check if password less ssh has been setup by executing simple echo on ssh'ed side
       # @param [Array] nodes_arr => array of nodes to check
       #        [String] nodes_arr => node to check
-      # @param [String] ssh_user => user to perform ssh as
+      # @param [String] ssh_user => user to ssh as
       # @param [String] ssh_key  => ssh key to use
       # @param [Integer] port    => ssh port (default: 22)
       # @return nil
@@ -209,29 +235,33 @@ module Ankus
           out, err, status = ShellUtils.system_quietly("ssh -t -t -o ConnectTimeout=2 -o StrictHostKeyChecking=no -o" +
             " BatchMode=yes -o UserKnownHostsFile=/dev/null -p #{port} -i #{ssh_key} #{ssh_user}@#{nodes_arr}" +
             " \"echo\" &>/dev/null")
-          if status.exitstatus != 0 || err.chomp =~ /Permission denied/
+          if status.exitstatus != 0 || ( err && err.chomp =~ /Permission denied/ )
             raise "Cannot ssh in to instance: #{nodes_arr} with user: #{ssh_user} and key: #{ssh_key}"
+          else
+            return true
           end
         else
           nodes_arr.each do |instance|
             out, err, status = ShellUtils.system_quietly("ssh -t -t -o ConnectTimeout=2 -o StrictHostKeyChecking=no -o"+
               " BatchMode=yes -o UserKnownHostsFile=/dev/null -p #{port} -i #{ssh_key} #{ssh_user}@#{instance}" +
               " \"echo\" &>/dev/null")
-            if status.exitstatus != 0 || err.chomp =~ /Permission denied/
+            if status.exitstatus != 0 || ( err && err.chomp =~ /Permission denied/ )
               raise "Cannot ssh in to instance: #{instance} with user: #{ssh_user} and key: #{ssh_key}"
+            else
+              return true
             end
           end
         end
       end
 
-      # Wait until a nodes can be sshable, only used for cloud instances
+      # Wait until a node becomes sshable, sanity check for cloud instances
       # @param [String] node => instance to check and wait
       # @param [String] ssh_user => user to perform ssh as
       # @param [String] ssh_key => ssh key to use
       def wait_for_ssh(node, ssh_user, ssh_key)
-        Timeout::timeout(600) do
+        Timeout::timeout(100) do
           begin
-            sshable?([node], ssh_user, ssh_key)
+            sshable?(node, ssh_user, ssh_key)
           rescue
             #puts "Cannot ssh into #{node}, retrying in 10 seconds"
             sleep 10

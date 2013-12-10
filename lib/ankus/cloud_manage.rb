@@ -1,6 +1,5 @@
 =begin
-  Class to manage cloud instances
-  currently supported cloud platforms are aws and rackspace
+  Class to manage cloud instances on aws & rackspace
 =end
 
 module Ankus
@@ -49,8 +48,8 @@ module Ankus
       num_of_zks      = @parsed_hash[:zookeeper_quorum_count]
       volume_count    = @parsed_hash[:volumes] != 'disabled' ? @parsed_hash[:volumes][:count] : 0
       volume_size     = @parsed_hash[:volumes] != 'disabled' ? @parsed_hash[:volumes][:size] : 0
-      default_config= { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
-      slaves_config = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
+      default_config  = { :os_type => @cloud_os, :volumes => 0, :volume_size => 250 }
+      slaves_config   = { :os_type => @cloud_os, :volumes => volume_count, :volume_size => volume_size }
 
       nodes_to_create_masters = {}
       nodes_to_create_slaves = {}
@@ -181,7 +180,8 @@ module Ankus
       @nodes
     end
 
-    # Creates cloud instances on both AWS or Rackspace using the paesed config file
+    # Creates cloud instances using specified cloud provider and the parsed config file
+    # Used for intial creation of instances
     # @return [Hash] nodes => contains created node info each node is of the form
     # { :node_tag =>
     #   {
@@ -196,24 +196,39 @@ module Ankus
     # }
     def create_cloud_instances!
       create_cloud_instances
-      case @provider
-      when 'aws'
-        @nodes = create_aws_instances(@nodes, @credentials, @thread_pool_size)
-      when 'rackspace'
-        @nodes = create_rackspace_instances(@nodes, @credentials, @thread_pool_size)
+      begin
+        case @provider
+        when 'aws'
+          @nodes = create_aws_instances(@nodes, @credentials, @thread_pool_size)
+        when 'rackspace'
+          @nodes = create_rackspace_instances(@nodes, @credentials, @thread_pool_size)
+        end
+      rescue RuntimeError => ex
+        puts "\r[Error]: ".red + "something went wrong provisioning vms on cloud, reason: #{ex}"
+        puts "\r[Info]: rolling back instance(s)"
+        delete_instances(@nodes, true)
+        exit 1
       end
       @nodes
     end
 
     # Create instances if the node has no fqdn is assigned
+    # Used for adding instances to the existing cluster (reload ankus based on config)
     # @param [Hash] nodes => merged nodes info
     def safe_create_instances!(nodes)
       nodes = nodes.select { |k, v| k if v[:fqdn].empty? }
-      case @provider
-      when 'aws'
-        nodes = create_aws_instances(nodes, @credentials, @thread_pool_size)
-      when 'rackspace'
-        nodes = create_rackspace_instances(nodes, @credentials, @thread_pool_size)
+      begin
+        case @provider
+        when 'aws'
+          nodes = create_aws_instances(nodes, @credentials, @thread_pool_size)
+        when 'rackspace'
+          nodes = create_rackspace_instances(nodes, @credentials, @thread_pool_size)
+        end
+      rescue RuntimeError => ex
+        puts "\r[Error]".red + "something went wrong provisioning vms on cloud, reason: #{ex}"
+        puts "\r[Info]: rolling back instance(s)"
+        delete_instances(nodes, true)
+        exit 1
       end
       nodes
     end
@@ -283,7 +298,7 @@ module Ankus
       parsed_hash_internal_ips = Marshal.load(Marshal.dump(parsed_hash))
      
       parsed_hash[:ssh_key]      =  if @provider == 'aws'
-                                      File.expand_path('~/.ssh') + '/' + @credentials[:aws_key]
+                                      File.expand_path('~/.ssh') + '/' + @credentials[:aws_key] 
                                     elsif @provider == 'rackspace'
                                       File.split(File.expand_path(@credentials[:rackspace_ssh_key])).first + '/' +
                                       File.basename(File.expand_path(@credentials[:rackspace_ssh_key]), '.pub')
@@ -430,11 +445,13 @@ module Ankus
       if aws.valid_connection?(conn)
         puts "\r[Debug]: successfully authenticated with aws" if @debug
       else
-        puts "\r[Error]".red + ' failed connecting to aws'
-        exit 1
+        abort "\r[Error]".red + ' failed connecting to aws'
       end
 
       begin
+        # Create key pairs and security groups
+        aws.create_kp_sg!(conn, key, groups)
+
         SpinningCursor.start do
           banner "\rCreating servers with roles: " + "#{nodes.keys.join(',')}".blue
           type :dots
@@ -497,7 +514,7 @@ module Ankus
         node_info[:private_ip] = server_objects[tag].private_dns_name
       end
       if ! @mock
-        puts "\rPartitioning|Formatting attached volumes".blue
+        # puts "\rPartitioning|Formatting attached volumes".blue
         # partition and format attached disks using thread pool
         nodes.each do |tag, info|
           threads_pool.schedule do
@@ -540,6 +557,8 @@ module Ankus
               end
             else
               # if not waiting for mounting volumes, wait for instances to become sshable
+              printf "\r[Debug]: Waiting for instance '#{server_objects[tag].dns_name}' to become ssh'albe using " +
+                     "username: '#{ssh_user}' and key: '#{ssh_key}'\n"
               Ankus::SshUtils.wait_for_ssh(server_objects[tag].dns_name, ssh_user, ssh_key)
             end
           end
@@ -549,7 +568,7 @@ module Ankus
         puts "\r[Debug]: Finished creating and attaching volumes" if @debug
       else
         # pretend doing some work while mocking
-        puts "\rPartitioning/Formatting attached volumes".blue
+        # puts "\rPartitioning/Formatting attached volumes".blue
         nodes.each do |tag, info|
           threads_pool.schedule do
             if info[:config][:volumes] > 0
@@ -621,7 +640,7 @@ module Ankus
 
       # Attach Volumes
       if ! @mock
-        puts "\rPartitioning|Formatting attached volumes".blue
+        # puts "\rPartitioning|Formatting attached volumes".blue
         # parition and format attached disks using thread pool
         nodes.each do |tag, info|
           threads_pool.schedule do
@@ -667,10 +686,11 @@ module Ankus
                     " #{output[server_objects[tag].public_ip_address][2]}"
               end
             else
-              # if not mounting volumes wait for instances to become available
+              # if not mounting volumes; wait for instances to become available
+              printf "\r[Debug]: Waiting for instance #{server_objects[tag].public_ip_address} to become ssh'albe.\n"
               Ankus::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, 
-                                            ssh_user, 
-                                            File.expand_path(ssh_key_path)
+                                           ssh_user, 
+                                           File.expand_path(ssh_key_path)
                                           )
             end
           end

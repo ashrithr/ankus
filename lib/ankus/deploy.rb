@@ -365,7 +365,7 @@ module Ankus
         puppet_parallel_run(@puppet_clients, puppet_run_cmd, 'all nodes', true)
       end
 
-      # Kick off puppet run on all instances orchestrate runs based on configuration
+      # Kick off puppet run on all instances, orchestrate runs based on configuration
       def run(force=false)
         puppet_run_cmd = "sudo sh -c 'puppet agent --onetime --verbose --no-daemonize --no-splay --ignorecache" + 
                          " --no-usecacheonfailure --logdest #{REMOTE_LOG_DIR}/puppet_run.log'"
@@ -419,21 +419,35 @@ module Ankus
           if hadoop_ha == 'enabled'
             if @parsed_hash[:hadoop_deploy][:journal_quorum]
               #parallel puppet run on jns
-              puppet_parallel_run(@parsed_hash[:hadoop_deploy][:journal_quorum], puppet_run_cmd, 'journalnodes', force)
+              puppet_parallel_run(
+                @parsed_hash[:hadoop_deploy][:journal_quorum], 
+                puppet_run_cmd, 
+                'journalnodes', 
+                force)
             end
             # puppet run on nns
-            puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_namenode].first, puppet_run_cmd, 'active_namenode',
+            puppet_single_run(
+              @parsed_hash[:hadoop_deploy][:hadoop_namenode].first, 
+              puppet_run_cmd, 
+              'active_namenode',
               force)
-            puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_namenode].last, puppet_run_cmd, 'standby_namenode',
+            puppet_single_run(
+              @parsed_hash[:hadoop_deploy][:hadoop_namenode].last, 
+              puppet_run_cmd, 
+              'standby_namenode',
               force)
             #
             # => VENDOR_BUG:
-            # parallel run breaks beacuse namenode2 should copy namenode1 dfs.name.dir contents which only happens 
+            # parallel run breaks because namenode2 should copy namenode1 dfs.name.dir contents which only happens 
             # after namenode1 is bootstrapped, caused beacuse of Bug 'HDFS-3752'
             # puppet_parallel_run(@parsed_hash['hadoop_namenode'], puppet_run_cmd, 'namepuppet_clients')
             #
           else
-            puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_namenode].first, puppet_run_cmd, 'namenode', force)
+            puppet_single_run(
+              @parsed_hash[:hadoop_deploy][:hadoop_namenode].first, 
+              puppet_run_cmd, 
+              'namenode', 
+              force)
           end
           if hbase_install != 'disabled'
             hbase_master = @parsed_hash[:hbase_deploy][:hbase_master]
@@ -447,23 +461,30 @@ module Ankus
 
           # init puppet agent on mapreduce master
           if @parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
-            puppet_single_run(@parsed_hash[:hadoop_deploy][:mapreduce][:master], puppet_run_cmd, 'mapreduce_master',
+            puppet_single_run(
+              @parsed_hash[:hadoop_deploy][:mapreduce][:master], 
+              puppet_run_cmd, 
+              'mapreduce_master',
               force)
           else
             #mapreduce is disabled for cloud_deployments, snn will be on diff machine
             unless hadoop_ha == 'enabled'
-              puppet_single_run(@parsed_hash[:hadoop_deploy][:hadoop_secondarynamenode], 
+              puppet_single_run(
+                @parsed_hash[:hadoop_deploy][:hadoop_secondarynamenode], 
                 puppet_run_cmd, 
                 'secondary_namenode',
-                force
-              )
+                force)
             end
           end
         end
 
         # Storm Nimbus
         if storm_install != 'disabled'
-          puppet_single_run(@parsed_hash[:storm_deploy][:storm_master], puppet_run_cmd, 'storm_nimbus', force)
+          puppet_single_run(
+            @parsed_hash[:storm_deploy][:storm_master], 
+            puppet_run_cmd, 
+            'storm_nimbus', 
+            force)
         end
 
         # Cassandra
@@ -474,22 +495,30 @@ module Ankus
           puppet_parallel_run(cassandra_nodes, puppet_run_cmd, 'cassandra', force)
         elsif cassandra_install != 'disabled' and @parsed_hash[:cassandra_deploy][:colocation]
           if cassandra_install != 'disabled'
-            puppet_parallel_run(@parsed_hash[:cassandra_deploy][:cassandra_seeds], 
+            puppet_parallel_run(
+              @parsed_hash[:cassandra_deploy][:cassandra_seeds], 
               puppet_run_cmd, 
               'cassandra_seed_node',
-              force
-            )
+              force)
           end
         end
 
         #Kafka
         if kafka_install != 'disabled' and ! @parsed_hash[:kafka_deploy][:colocation]
-          puppet_parallel_run(@parsed_hash[:kafka_deploy][:kafka_brokers], puppet_run_cmd, 'kafka_brokers', force)
+          puppet_parallel_run(
+            @parsed_hash[:kafka_deploy][:kafka_brokers], 
+            puppet_run_cmd, 
+            'kafka_brokers', 
+            force)
         end
 
         #Storm
         if storm_install != 'disabled' and ! @parsed_hash[:storm_deploy][:colocation]
-          puppet_parallel_run(@parsed_hash[:storm_deploy][:storm_supervisors], puppet_run_cmd, 'kafka_worker', force)
+          puppet_parallel_run(
+            @parsed_hash[:storm_deploy][:storm_supervisors], 
+            puppet_run_cmd, 
+            'kafka_worker', 
+            force)
         end
 
         # All hadoop & hbase slaves
@@ -535,6 +564,7 @@ module Ankus
       # @param [String] instance => node on which puppet should be run
       # @param [String] puppet_run_cmd => command to run on remote client to run puppet
       # @param [String] role => role installing on remote client
+      # @param [Boolean] force => specifies whether to run puppet even if puppet has run previosly with out any errors
       def puppet_single_run(instance, puppet_run_cmd, role, force=false)
         unless @mock
           unless @debug
@@ -592,6 +622,7 @@ module Ankus
       # @param [Array] instances_array => list of instances on which puppet should be run in parallel
       # @param [String] puppet_run_cmd => command to run on remote client to run puppet
       # @param [String] role => role installing on remote client
+      # @param [Boolean] force => specifies whether to run puppet even if puppet has run previosly with out any errors
       def puppet_parallel_run(instances_array, puppet_run_cmd, role, force=false)
         if ! @mock
           SpinningCursor.start do
