@@ -64,58 +64,53 @@ module Ankus
       false
     end
 
-    #Create a single server in aws cloud
-    # @param [Fog::Compute::AWS::Real] conn => fog aws connection object
-    # @param [String] instance_tag => type of the instance being created, used for the creating tags
-    # @param [Hash] opts:
-    #   @option [String] os_type        => type of servers to create (CentOS|Ubuntu)
-    #   @option [String] key            => security key to ingest into system
-    #   @option [Array] groups          => array of security groups to use
-    #   @option [String] flavor_id      => size of instance to create
-    #   @option [Integer] num_of_vols   => number of ebs volumes to create and attach
-    #   @option [Integer] vol_size      => size of the each ebs volumes to create in GB
-    #   @option [Integer] root_vol_size => size of the root ebs volume
-    # @return [Fog::Compute::AWS::Server] server object
-    def create_server!(conn, instance_tag, opts = {})
-      options = {
-          :key => 'ankus',
-          :groups => %w(ankus),
-          :flavor_id => 'm1.medium',
-          :os_type => 'CentOS',
-          :num_of_vols => 0,
-          :vol_size => 50,
-          :root_vol_size => 250,
-          :vol_type => 'ebs',
-          :iops => 0
-      }.merge(opts)
-
-      unless valid_connection?(conn)
-        puts "\r[Error]: Unable to authenticate with AWS, check your credentials"
-        exit 2
-      end
-
+    # Creates required keypair's and security groups required
+    # @param conn [Fog::Compute::AWS::Real] conn => fog aws connection object
+    # @param key => aws key pair to create and ingest into instances
+    # @param groups => aws security groups to create and create basic rules
+    def create_kp_sg!(conn, key, groups)
       unless @mock
-        #validate key, create if does not exist and write it to local system
-        unless conn.key_pairs.get(options[:key])
-          puts "\r[Debug]: Cannot find the key pair specified, creating the key_pair #{options[:key]}"
-          key_pair = conn.key_pairs.create(:name => options[:key])
-          File.open(File.expand_path("~/.ssh/#{options[:key]}"), 'w') do |f|
+        key_path = File.expand_path("~/.ssh/#{key}")
+        # validate key, create if does not exist and write it to local filepath
+        if conn.key_pairs.get(key) # key pairs exists
+          # but file does not exist
+          unless File.exist?(key_path)
+            abort "\r[Error]: ".red + "key '#{key}' already exists but failed to find the key in " +
+                  "'#{key_path}', please change the 'aws_key' name or delete the key in aws"                        
+          else # kp already exists, validate the fingerprint to be sure
+            # check if openssl exists
+            o, e, s = ShellUtils.system_quietly("which openssl")
+            if s.exitstatus == 0
+              out_fp, err_fp, status_fp = ShellUtils.system_quietly("openssl pkcs8 -in #{key_path} -nocrypt " + 
+                                                                    "-topk8 -outform DER | openssl sha1 -c")
+              remote_fp = conn.key_pairs.get(key).fingerprint
+              unless out_fp.chomp == remote_fp
+                abort "\r[Error]: ".red + "key #{key_path} fingerprint does not match remote key_pair fingerprint"
+              end                        
+            else
+              puts "\r[Debug]: Cannot find openssl, its recommended to install " + 
+              "openssl to check fingerprints of keypairs"
+            end
+          end
+        else # key pair does not exist in aws
+          puts "\r[Debug]: Cannot find the key pair specified, creating the key_pair #{key}"
+          if File.exist?(key_path) # but ssh file exists
+            abort "\r[Error]: ".red + "key '#{key}' already exists, please rename '#{key_path}'"
+          end
+          key_pair = conn.key_pairs.create(:name => key)
+          File.open(File.expand_path("~/.ssh/#{key}"), 'w') do |f|
             f.write(key_pair.private_key)
           end
-          File.chmod(0600, File.expand_path("~/.ssh/#{options[:key]}"))
-        else
-          unless File.exist?(File.expand_path("~/.ssh/#{options[:key]}"))
-            abort "\r[Error]: ".red + "key '#{options[:key]}' already exists, please change the 'aws_key' name"
-          end
+          File.chmod(0600, File.expand_path("~/.ssh/#{key}"))          
         end
 
-        #validate group, create if does not exist and ingest some basic rules
-        options[:groups].each do |group|
+        # validate group, create if does not exist and ingest some basic rules
+        groups.each do |group|
           unless conn.security_groups.get(group)
             conn.security_groups.create(:name => group, :description => 'group managed by ankus')
           end
         end
-        options[:groups].each do |group|
+        groups.each do |group|
           sec_group = conn.security_groups.get(group)
           #check and authorize for ssh port
           authorized = sec_group.ip_permissions.detect do |ip_permission|
@@ -173,6 +168,37 @@ module Ankus
             end
           end
         end
+      end
+    end
+
+    # Create a single server in aws cloud
+    # @param [Fog::Compute::AWS::Real] conn => fog aws connection object
+    # @param [String] instance_tag => type of the instance being created, used for the creating tags
+    # @param [Hash] opts:
+    #   @option [String] os_type        => type of servers to create (CentOS|Ubuntu)
+    #   @option [String] key            => security key to ingest into system
+    #   @option [Array] groups          => array of security groups to use
+    #   @option [String] flavor_id      => size of instance to create
+    #   @option [Integer] num_of_vols   => number of ebs volumes to create and attach
+    #   @option [Integer] vol_size      => size of the each ebs volumes to create in GB
+    #   @option [Integer] root_vol_size => size of the root ebs volume
+    # @return [Fog::Compute::AWS::Server] server object
+    def create_server!(conn, instance_tag, opts = {})
+      options = {
+          :key => 'ankus',
+          :groups => %w(ankus),
+          :flavor_id => 'm1.medium',
+          :os_type => 'CentOS',
+          :num_of_vols => 0,
+          :vol_size => 50,
+          :root_vol_size => 250,
+          :vol_type => 'ebs',
+          :iops => 0
+      }.merge(opts)
+
+      unless valid_connection?(conn)
+        puts "\r[Error]: Unable to authenticate with AWS, check your credentials"
+        exit 2
       end
 
       case options[:os_type].downcase
