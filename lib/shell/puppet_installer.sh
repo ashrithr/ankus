@@ -358,7 +358,17 @@ if [ "${PS_SETUP}" == "1" ]; then
   chown -R puppet /etc/puppet/rack
   chmod -R 755 /etc/puppet/rack
   if [[ ${OS} =~ centos || ${OS} =~ redhat ]]; then
-    cp /usr/share/puppet/ext/rack/files/config.ru /etc/puppet/rack
+    if [ -f /usr/share/puppet/ext/rack/config.ru ]; then
+      cp /usr/share/puppet/ext/rack/config.ru /etc/puppet/rack
+    elif [ -f /usr/share/puppet/ext/rack/files/config.ru ]; then
+      cp /usr/share/puppet/ext/rack/files/config.ru /etc/puppet/rack
+    else
+      echo "Cannot find 'config.ru' file, trying to download file from puppet source"
+      cd /tmp && wget http://downloads.puppetlabs.com/puppet/puppet-3.1.1.tar.gz
+      tar -xzf puppet-3.1.1.tar.gz
+      cp puppet-3.1.1/ext/rack/files/config.ru /etc/puppet/rack
+      rm -rf /tmp/puppet*
+    fi
   elif [[ ${OS} =~ ubuntu ]]; then
     cd /tmp && wget http://downloads.puppetlabs.com/puppet/puppet-3.1.1.tar.gz
     tar -xzf puppet-3.1.1.tar.gz
