@@ -768,7 +768,6 @@ module Ankus
         if cassandra_deploy != 'disabled'
           colocate = cassandra_deploy[:colocate]
           if colocate.nil?
-            puts "[Debug]: defaulting colocate for cassandra"
             hash_to_validate[:cassandra_deploy][:colocate] = false
           elsif ! (colocate.is_a? TrueClass or colocate.is_a? FalseClass)
             puts '[Error]: '.red + "invalid value found for 'colocate', valid values are yes|no"
