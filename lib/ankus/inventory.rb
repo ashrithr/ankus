@@ -171,7 +171,7 @@ module Ankus
         roles_hash = Hash.new
 
         roles_hash[@ps]                     = {}
-        roles_hash[@ps]['java']             = nil
+        # roles_hash[@ps]['java']             = nil
         roles_hash[@ps]['nagios::server']   = nil if @config[:alerting] == 'enabled'
         roles_hash[@ps]['ganglia::server']  = nil if @config[:monitoring] == 'enabled'
         roles_hash[@ps]['kerberos::server'] = nil if @config[:security] == 'kerberos'
