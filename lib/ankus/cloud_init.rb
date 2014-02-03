@@ -1,7 +1,18 @@
+# Copyright 2013, Cloudwick, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 =begin
   Cloud initializer class to create cloud instances in aws, rackspace
-  TODO 1. accommodate for google cloud compute, openstack
-       2. move each class to their seperate files
 =end
 module Ankus
   class Aws
@@ -10,7 +21,7 @@ module Ankus
     # @param [String] secret_key => aws secret_key
     # @param [String] region => aws region to connect to
     # @return [Ankus::Aws] aws connection object
-    def initialize(access_id, secret_key, region = 'us-west-1', mock = false)
+    def initialize(access_id, secret_key, region, log, mock = false)
       @aws_access_id  = access_id
       @aws_secret_key = secret_key
       @region         = region
@@ -40,6 +51,7 @@ module Ankus
           'ap-northeast-1'  => 'ami-57109956',  #Tokyo
           'sa-east-1'       => 'ami-a4fb5eb9',  #Sao Paulo
       }
+      @log            = log
       @mock           = mock  #if enabled will enable Fog.mock!
     end
 
@@ -71,31 +83,33 @@ module Ankus
     def create_kp_sg!(conn, key, groups)
       unless @mock
         key_path = File.expand_path("~/.ssh/#{key}")
-        # validate key, create if does not exist and write it to local filepath
+        # validate key, create if does not exist and write it to local file path
         if conn.key_pairs.get(key) # key pairs exists
           # but file does not exist
           unless File.exist?(key_path)
-            abort "\r[Error]: ".red + "key '#{key}' already exists but failed to find the key in " +
-                  "'#{key_path}', please change the 'aws_key' name or delete the key in aws"                        
-          else # kp already exists, validate the fingerprint to be sure
+            @log.error + "Key '#{key}' already exists but failed to find the key in " +
+                "'#{key_path}', please change the 'aws_key' name or delete the key in aws to recreate the key"
+            abort
+          else # file already exists, validate the fingerprint to be sure
             # check if openssl exists
-            o, e, s = ShellUtils.system_quietly("which openssl")
+            _, _, s = ShellUtils.system_quietly('which openssl')
             if s.exitstatus == 0
-              out_fp, err_fp, status_fp = ShellUtils.system_quietly("openssl pkcs8 -in #{key_path} -nocrypt " + 
-                                                                    "-topk8 -outform DER | openssl sha1 -c")
+              out_fp, _, _ = ShellUtils.system_quietly("openssl pkcs8 -in #{key_path} -nocrypt " +
+                                                                    '-topk8 -outform DER | openssl sha1 -c')
               remote_fp = conn.key_pairs.get(key).fingerprint
               unless out_fp.chomp == remote_fp
-                abort "\r[Error]: ".red + "key #{key_path} fingerprint does not match remote key_pair fingerprint"
+                @log.error "key #{key_path} fingerprint does not match remote key_pair fingerprint"
+                abort
               end                        
             else
-              puts "\r[Debug]: Cannot find openssl, its recommended to install " + 
-              "openssl to check fingerprints of keypairs"
+              @log.warn 'Cannot find openssl, its recommended to install openssl to check fingerprints of the keypair(s)'
             end
           end
         else # key pair does not exist in aws
-          puts "\r[Debug]: Cannot find the key pair specified, creating the key_pair #{key}"
+          @log.debug "Cannot find the key pair specified, creating the key_pair #{key}" if @debug
           if File.exist?(key_path) # but ssh file exists
-            abort "\r[Error]: ".red + "key '#{key}' already exists, please rename '#{key_path}'"
+            @log.error "Key '#{key}' already exists, please rename|delete '#{key_path}' to proceed"
+            exit 1
           end
           key_pair = conn.key_pairs.create(:name => key)
           File.open(File.expand_path("~/.ssh/#{key}"), 'w') do |f|
@@ -197,7 +211,7 @@ module Ankus
       }.merge(opts)
 
       unless valid_connection?(conn)
-        puts "\r[Error]: Unable to authenticate with AWS, check your credentials"
+        @log.error 'Unable to authenticate with AWS, check your credentials'
         exit 2
       end
 
@@ -233,7 +247,7 @@ module Ankus
           )
           return server
         else
-          puts "\r[Error]: Provided OS not supported by Ankus yet!"
+          @log.error 'Provided OS not supported by Ankus yet!'
           exit 2
       end
     end
@@ -267,7 +281,7 @@ module Ankus
       base = 'sde' #sdf-p
       volumes.times do |i|
         base = base.next!
-        puts "\rAttaching volume: #{base} (size: #{size}) to serer: #{server.dns_name}"
+        @log.info "Attaching volume: #{base} (size: #{size}) to serer: #{server.dns_name}"
         volume = conn.volumes.create(:size => size, :availability_zone => server.availability_zone, :device => "/dev/#{base}")
         volume.reload
         volume.wait_for { ready? }
@@ -352,12 +366,15 @@ module Ankus
     # @param [String] instance_id => id of the instance to delete
     def delete_server_with_id(conn, instance_id)
       response = conn.servers.get(instance_id)
-      abort "InstanceId Not found :#{instance_id}" unless response
+      unless response
+        @log.error "InstanceId Not found :#{instance_id}"
+        exit 1
+      end
       if response.state == 'terminated'
-        puts "\rInstance is already in terminated state"
+        @log.warn 'Instance is already in terminated state'
       else
         response.destroy
-        puts "\rTerminated Instance: #{instance_id}"
+        @log.info "Terminated Instance: #{instance_id}"
       end
     end
 
@@ -369,16 +386,16 @@ module Ankus
       block_mappings = []
       server = conn.servers.all('dns-name' => dns_name).first
       if server
-        printf "\r[Info]: ".blue + "Terminating instance with dns_name: #{dns_name}\n"
+        @log.info "Terminating instance with dns_name: #{dns_name}"
         server.destroy if server.state == 'running'
         block_mappings << server.block_device_mapping
         if delete_volumes
-          printf "\r[Info]: ".blue + "Deleting volumes attached to instance: #{dns_name}\n"
+          @log.info "Deleting volumes attached to instance: #{dns_name}"
           unless block_mappings.length == 0
             block_mappings.each do |bm|
               bm.each do |vol_info|
                 vol = conn.volumes.get(vol_info['volumeId'])
-                printf "\r[Info]:".blue + " waiting for volume to detach from instance: #{dns_name}\n"
+                @log.info "waiting for volume to detach from instance: #{dns_name}"
                 vol.wait_for { vol.state == 'available' }
                 vol.destroy if vol_info['deleteOnTermination'] != 'true'
               end
@@ -386,7 +403,8 @@ module Ankus
           end
         end
       else
-        abort "No server found with dns_name: #{dns_name}"
+        @log.error "No server found with dns_name: #{dns_name}"
+        exit 1
       end
     end
 
@@ -427,7 +445,7 @@ module Ankus
             :flavor_id            => flavor_id,
             :key_name             => key_name,
             :groups               => groups,
-            :block_device_mapping => map_devices(num_of_volumes, size_of_volumes, root_volume_size, root_ebs_name, vol_type, iops)
+            :block_device_mapping => map_ebs_devices(num_of_volumes, size_of_volumes, root_volume_size, root_ebs_name, vol_type, iops)
         )
         server.save
         server.reload
@@ -450,10 +468,10 @@ module Ankus
     # @param [Integer] size_per_vol => size of each volume in GB
     # @param [Integer] root_ebs_size => size of the root device (should be able to run `resize2fs /dev/sda` to re-claim re-sized space)
     # @param [String] root_ebs_name => device name of the root (default: /dev/sda)
-    # @param [String] vol_type => type of the volume being create standrad or io1 (iops provisioned)
+    # @param [String] vol_type => type of the volume being create standard or io1 (iops provisioned)
     # @param [String] iops => input output operations per second for io1 type devices (should be between 1-4000)
     # @return [Hash] block_device_mapping => Array of block to device mappings
-    def map_devices(num_of_vols, size_per_vol, root_ebs_size, root_ebs_name = '/dev/sda', vol_type = 'ebs', iops = 0)
+    def map_ebs_devices(num_of_vols, size_per_vol, root_ebs_size, root_ebs_name = '/dev/sda', vol_type = 'ebs', iops = 0)
       block_device_mapping = []
       # change the root ebs size only if root_ebs_size > 0 i.e, user should not pass 0 to resize root
       unless root_ebs_size == 0
@@ -484,17 +502,24 @@ module Ankus
       block_device_mapping
     end
 
+    def map_instance_storage_devices()
+
+    end
+
   end
 
   class Rackspace
 
     # @param [String] api_key => rackspace api_key to use
     # @param [String] user_name => rackspace username to use
-    def initialize(api_key, user_name, mock = false)
+    # @param [Log4r] log => logger object to use for logging
+    # @param [Boolean] mock => whether to enable mocking
+    def initialize(api_key, user_name, log, mock = false)
       @rackspace_api_key = api_key
       @rackspace_username = user_name
       @centos_image_id = 'da1f0392-8c64-468f-a839-a9e56caebf07' #CentOS 6.3 @ dfw
       @ubuntu_image_id = 'e4dbdba7-b2a4-4ee5-8e8f-4595b6d694ce' #ubuntu 12.04 LTS @ dfw
+      @log = log
       @mock = mock
     end
 
@@ -507,7 +532,7 @@ module Ankus
                            :version            => :v2
                        })
     rescue Excon::Errors::Unauthorized
-      puts "\r[Error]: '.red + 'Invalid Rackspace Credentials"
+      @log.error 'Invalid Rackspace Credentials'
       exit 1
     end
 
@@ -559,7 +584,7 @@ module Ankus
           server.reload if @mock
           return server
         else
-          puts "\r[Error]: OS not supported"
+          @log.error 'OS not yet supported, contact support@cloudwick.com'
           exit 2
       end
     end
@@ -648,7 +673,8 @@ module Ankus
       status = bs.get_volume(vol_id).body['volume']['status']
       unless status == 'available'
         # puts "vol status is not 'available' it is '#{status}' instead"
-        raise "vol is not avaiable to delete"
+        @log.error 'vol is not avaiable to delete'
+        exit 2
       end
     end
 
@@ -661,13 +687,13 @@ module Ankus
         begin
           vol_status! bs, vol_id
         rescue
-          puts "sleeping for 5 secs"
+          @log.debug "sleeping for 5 secs"
           sleep 5
           retry
         end
       end
     rescue Timeout::Error
-      raise 'It took more than a min for a volume to become available'
+      @log.error 'It took more than a min for a volume to become available'
     end
 
     # Delete a server based on it's fully qualified domain name (or) name given while booting instance
@@ -677,7 +703,7 @@ module Ankus
     def delete_server_with_name(conn, fqdn, delete_volumes = false)
       conn.servers.all.each do |server|
         if server.name == fqdn
-          printf "\r[Info]: ".blue + "Deleting instance with fqdn: #{fqdn}\n"
+          @log.info "Deleting instance with fqdn: #{fqdn}\n"
           server.destroy
           if delete_volumes
             # create a new blockstorage connection obj
@@ -687,18 +713,18 @@ module Ankus
                     :rackspace_api_key  => @rackspace_api_key
                 }
             )
-            printf "\r[Info]: ".blue + "Deleting volumes attached to instance: #{fqdn}\n"
+            @log.info "Deleting volumes attached to instance: #{fqdn}\n"
             volumes_to_del = block_storage.list_volumes.body['volumes'].map do |v| 
               v['id'] if v['display_name'] =~ /#{fqdn}/ 
             end
             if volumes_to_del.is_a?(Array) && volumes_to_del.length != 0
               volumes_to_del.each do |vol_id|
-                printf "[Info]: ".blue + "waiting for volume to detach from instance: #{fqdn}\n"
+                @log.info "waiting for volume to detach from instance: #{fqdn}\n"
                 wait_for_vol(block_storage, vol_id)
                 block_storage.delete_volume(vol_id)
               end
             else
-              printf "[Info] ".blue + "no volumes found for the instance #{fqdn}\n"
+              @log.info "No volumes found for the instance #{fqdn}\n"
             end
           end
         end

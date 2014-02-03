@@ -1,25 +1,43 @@
+# Copyright 2013, Cloudwick, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 module Ankus
   # Command line interface for ankus
   class CLI < Thor
     require 'ankus/helper'
-
+    require 'ankus/logging'
     include Ankus
+
+    # Setup Logging
+    $logger = Log4r::Logger.new('Ankus')
+    outputter = Log4r::StdoutOutputter.new('stdout')
+    outputter.formatter = Log4r::PatternFormatter.new(:pattern => '%d %L %m')
+    $logger.outputters = [ outputter ]
+    $logger.level = Log4r::DEBUG
 
     class_option :config,
                  :type => :string,
                  :desc => 'optionally pass path to config file',
                  :default => DEFAULT_CONFIG
-
     class_option :debug,
                  :type => :boolean,
                  :desc => 'print more to the console',
                  :default => false
-
     class_option :thread_pool_size,
                  :type => :numeric,
                  :desc => 'size of the thread pool',
                  :default => 10
-
     class_option :mock,
                  :type => :boolean,
                  :desc => 'mock the creating of instances in cloud (debug mode)',
@@ -27,14 +45,14 @@ module Ankus
 
     desc 'parse', 'Parse the config file for errors'
     def parse
-      puts "Parsing config file '#{options[:config]}' ... "
+      $logger.info "Parsing config file '#{options[:config]}' ... "
       parse_config
-      puts 'Parsing config file ... ' + '[OK]'.green.bold
+      $logger.info 'Parsing config file ... ' + '[OK]'.green
     end
 
     desc 'version', 'Show the version'
     def version
-      puts "Ankus Deployment Tool - Version: #{Ankus::VERSION}"
+      puts "Version: #{Ankus::VERSION}"
     end
 
     desc 'deploy', 'Deploy components specified in config'
@@ -42,13 +60,13 @@ module Ankus
                   :desc => 'flag to specify whether to add nodes to the existing cluster',
                   :default => false
     method_option :reload,
-                  :desc => 'reloads deployment with respect to any changes to config',
+                  :desc => 'reloads deployment with respect to any changes to configuration files',
                   :type => :boolean,
                   :default => false
     method_option :run_only,
                   :type => :boolean,
                   :default => false,
-                  :desc => 'orchestrates only puppet runs accross cluster'
+                  :desc => 'orchestrates only puppet runs across cluster'
     method_option :force,
                   :type => :boolean,
                   :default => false,
@@ -57,8 +75,8 @@ module Ankus
       unless options[:reload] or options[:run_only]
         if File.exists? NODES_FILE
           if YamlUtils.parse_yaml(NODES_FILE).is_a? Hash
-            puts "\r[Error]: Deployment info exists! ".red
-            puts "\rIf to update|change the deployment try using " + "deploy --reload".blue
+            $logger.error 'Deployment info exists!'
+            $logger.warn 'If to update|change the deployment try using ' + 'deploy --reload'.bold
             exit 1
           end
         end
@@ -101,16 +119,17 @@ module Ankus
       if @config.nil? or @config.empty?
         parse_config
       end
-      raise 'Only applicable for cloud deployments' if @config['install_mode'] == 'local'
+      if @config['install_mode'] == 'local'
+        $logger.fatal 'Only applicable for cloud deployments'
+        exit 1
+      end
       destroy_cluster(@config, options)
     end
 
     private
 
     def parse_config
-      @config = ConfigParser.new(options[:config], options[:debug]).parse_config
-      HadoopConfigParser.new(HADOOP_CONF, options[:debug])
-      HBaseConfigParser.new(HBASE_CONF, options[:debug])
+      @config = ConfigParser.new(options[:config], $logger, options[:debug]).parse_config
     end
 
     def create_cloud_obj(config)
@@ -118,6 +137,7 @@ module Ankus
           config[:cloud_platform],
           config,
           config[:cloud_credentials],
+          $logger,
           options[:thread_pool_size],
           options[:debug],
           options[:mock]
@@ -125,22 +145,23 @@ module Ankus
     end
 
     def initiate_deployment(options)
-      size = `stty size 2>/dev/null`
-      cols =  if $? == 0
-                size.split.map { |x| x.to_i }.reverse.first
-              else
-                80
-              end
+      #size = `stty size 2>/dev/null`
+      #cols =  if $? == 0
+      #          size.split.map { |x| x.to_i }.reverse.first
+      #        else
+      #          80
+      #        end
       if options[:mock]
-        puts '*' * cols
-        puts 'MOCKING'.center(cols, ' ')
-        puts '*' * cols
+        #puts '*' * cols
+        #puts 'MOCKING'.center(cols, ' ')
+        #puts '*' * cols
+        $logger.info 'MOCKING deployment'.bold
       end
-      options[:run_only] ? puts('Orchestrating puppet runs') : puts('Starting deployment')
+      options[:run_only] ? $logger.info('Orchestrating puppet runs') : $logger.info('Starting deployment')
       if @config.nil? or @config.empty?
-        puts 'Parsing config file ...'
+        $logger.info 'Parsing config file ...'
         parse_config
-        puts 'Parsing config file ... ' + '[OK]'.green.bold
+        $logger.info 'Parsing config file ... ' + '[OK]'.green
       end
 
       unless options[:run_only]
@@ -174,11 +195,11 @@ module Ankus
             new_nodes_config = cloud.create_cloud_instances # just create instance definitions
             diff = new_nodes_config.keys - old_nodes_config.keys
             if diff.empty?
-              puts '[Info]: No new nodes have to be created based on the new configuration'
+              $logger.info 'No new nodes have to be created based on the new configuration'
               exit 0
             else
-              puts '[Info]: New nodes have to be created based on the new configuration provided'
-              puts '[Info]: Creating new instances ' +  "#{diff.join(',')}".blue
+              $logger.info 'New nodes have to be created based on the new configuration provided'
+              $logger.info 'Creating new instances ' +  "#{diff.join(',')}".blue
               # create new instances and add them back to old nodes
               nodes = old_nodes_config.merge!(cloud.safe_create_instances!(new_nodes_config.merge(old_nodes_config)))
             end
@@ -190,7 +211,7 @@ module Ankus
           end
           YamlUtils.write_yaml(nodes, NODES_FILE)
           if options[:mock] and options[:debug]
-            puts '[Debug]: ' + 'Nodes Hash'.blue
+            $logger.debug 'Nodes Hash'.blue
             pp YamlUtils.parse_yaml(NODES_FILE)
             puts
           end
@@ -202,10 +223,10 @@ module Ankus
           # with private dns (ip's)
           @config, @config_with_internal_ips = cloud.modify_cloud_config(@config, nodes)
           if options[:mock] and options[:debug]
-            puts '[Debug]: ' + 'Parsed Hash'.blue
+            $logger.debug 'Parsed Hash'.blue
             pp @config
             puts
-            puts '[Debug]: ' + 'Parsed hash with internal ip(s)'.blue
+            $logger.debug 'Parsed hash with internal ip(s)'.blue
             pp @config_with_internal_ips
             puts
           end
@@ -217,7 +238,7 @@ module Ankus
             hosts_file.write(hosts_map)
             hosts_file.close
             if options[:mock] and options[:debug]
-              puts '[Debug]: ' + 'Hosts file'.blue
+              $logger.debug 'Hosts file'.blue
               pp hosts_map
             end
           end
@@ -249,6 +270,7 @@ module Ankus
                 @nodes,                       # puppet nodes hash
                 @config[:ssh_key],            # ssh_key to use
                 @config,                      # parsed config hash
+                $logger,                      # logger instance
                 options[:thread_pool_size],   # number of threads to use
                 @config[:ssh_user],           # ssh_user
                 options[:debug],              # enabled debud mode
@@ -276,7 +298,7 @@ module Ankus
               puppet.generate_enc(@config_with_internal_ips, NODES_FILE) :
               puppet.generate_enc(@config, NODES_FILE)
         rescue SocketError
-          puts '[Error]:'.red + " Problem doing ssh into servers: #{$!}"
+          $logger.error " Cannot ssh into server: #{$!}"
         ensure
           # make sure to remove the temp hosts file generated if cloud provider is rackspace
           hosts_file.unlink if @config[:cloud_platform] == 'rackspace'
@@ -290,7 +312,11 @@ module Ankus
         #
         # => display deployment info
         #
-        deployment_info @config unless options[:reload]
+        $logger.info 'Deployment complete, to check deployment information use `info` subcommand'
+        # deployment_info @config unless options[:reload]
+        if options[:mock] # if mocking delete the data dir contents
+          FileUtils.rm_rf(Dir.glob("#{DATA_DIR}/*"))
+        end
       else
         #
         # => Run only mode
@@ -310,7 +336,7 @@ module Ankus
         abort 'No cluster found to refresh'.red
       end
       parse_config if @config.nil? or @config.empty?
-      puts 'Reloading Configurations ...'
+      $logger.info 'Reloading Configurations ...'
       if @config[:install_mode] == 'cloud'
         cloud = create_cloud_obj(@config)
         @config, @config_with_internal_ips = cloud.modify_cloud_config(@config, @nodes)
@@ -330,12 +356,12 @@ module Ankus
       @config[:install_mode] == 'cloud' ?
           puppet.generate_enc(@config_with_internal_ips, NODES_FILE) :
           puppet.generate_enc(@config, NODES_FILE)
-      puts 'Initializing Refresh across cluster'.blue
+      $logger.info 'Initializing Refresh across cluster'
       #
       # Force run puppet on all nodes and update 'last_run' on @nodes
       #
       puppet.run!
-      puts 'Completed Refreshing Cluster'.blue
+      $logger.info 'Completed Refreshing Cluster'
     end
 
     # Prints the cluster information
@@ -343,10 +369,7 @@ module Ankus
     def deployment_info(config)
       # check for files in DATA_DIR if does not exists, we can assume user hasn't deployed a cluster yet
       unless YamlUtils.parse_yaml(NODES_FILE).is_a? Hash
-        puts 'No cluster details found'.red
-        puts <<-EOS.undent
-          Deploy a cluster by running `ankus deploy`
-        EOS
+        $logger.error 'No cluster details found, to deploy a cluster use `deploy` subcommand'
         abort
       end
       hiera_data = YamlUtils.parse_yaml(HIERA_DATA_FILE)
@@ -368,7 +391,7 @@ module Ankus
 
       (cluster_info ||= '') << 'Ankus Cluster Info'.yellow_on_cyan.bold.underline << "\n"
       if config[:hadoop_deploy] != 'disabled'
-        cluster_info << "\r" << ' #'.green << " Hadoop High Availability Configuration:" + 
+        cluster_info << "\r" << ' #'.green << ' Hadoop High Availability Configuration:' +
                                               " #{config[:hadoop_deploy][:hadoop_ha]} \n"
         cluster_info << "\r" << ' #'.green << " MapReduce Framework: #{mapreduce} \n"
       else
@@ -620,7 +643,8 @@ module Ankus
     # destroy the instances in the cloud
     def destroy_cluster(config, options)
       unless YamlUtils.parse_yaml(NODES_FILE).is_a? Hash
-        abort 'No cluster found to delete'.red
+        $logger.error 'No cluster found to delete'
+        abort
       end
       if agree('Are you sure want to destroy the cluster ?  ')
         cloud = create_cloud_obj(config)
@@ -645,11 +669,11 @@ module Ankus
                           # rackspace instances need private file to login
                           config[:cloud_credentials][:rackspace_ssh_key][0..-5]
                         end          
-          puts "[Info]: ssh into #{host} as user:#{username} with key:#{private_key}"
+          $logger.info "ssh into #{host} as user:#{username} with key:#{private_key}"
           SshUtils.ssh_into_instance(host, username, private_key, 22)
         else
-          puts "No such role found: #{role}"
-          puts "Available roles: #{cloud_instances.map { |k, v| v[:tags]}.flatten.uniq}"
+          $logger.warn "No such role found: #{role}"
+          $logger.info "Available roles: #{cloud_instances.map { |k, v| v[:tags]}.flatten.uniq}"
         end
       else
         #local mode, build roles from conf
@@ -658,11 +682,11 @@ module Ankus
         if host
           username = config[:ssh_user]
           private_key = config[:ssh_key]          
-          puts "[Info]: ssh into #{host} as user:#{username} with key:#{private_key}"
+          $logger.info "ssh into #{host} as user:#{username} with key:#{private_key}"
           SshUtils.ssh_into_instance(host, username, private_key, 22)
         else
-          puts "No such role found: #{role}"
-          puts "Available roles: #{cloud_instances.map { |k, v| v[:tags]}.flatten.uniq}"
+          $logger.warn "No such role found: #{role}"
+          $logger.info "Available roles: #{cloud_instances.map { |k, v| v[:tags]}.flatten.uniq}"
         end
       end
     end

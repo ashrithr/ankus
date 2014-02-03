@@ -1,3 +1,17 @@
+# Copyright 2013, Cloudwick, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 =begin
   Helper module for ankus
 =end
@@ -6,9 +20,8 @@ module Ankus
   DATA_DIR          = File.expand_path(File.dirname(__FILE__) + '/../../.data')
   DEFAULT_CONFIG    = File.expand_path(File.dirname(__FILE__) + '/../../conf/ankus_conf.yaml')
   NODES_FILE        = "#{DATA_DIR}/nodes.yaml"
-  ENC_ROLES_FILE    =  "#{DATA_DIR}/roles.yaml"
+  ENC_ROLES_FILE    = "#{DATA_DIR}/roles.yaml"
   HIERA_DATA_FILE   = "#{DATA_DIR}/common.yaml"
-
   PUPPET_INSTALLER  = File.expand_path(File.dirname(__FILE__) + '/../shell/puppet_installer.sh')
   ENC_SCRIPT        = File.expand_path(File.dirname(__FILE__) + '/../../bin/ankus_puppet_enc')
   GETOSINFO_SCRIPT  = File.expand_path(File.dirname(__FILE__) + '../../shell/get_osinfo.sh')
@@ -29,6 +42,7 @@ module Ankus
     :solr_deploy,
     :kafka_deploy,
     :storm_deploy,
+    :zookeeper_deploy,
     :security,
     :monitoring,
     :alerting,
@@ -41,7 +55,8 @@ module Ankus
     :cassandra_deploy,
     :solr_deploy,
     :kafka_deploy,
-    :storm_deploy
+    :storm_deploy,
+    :zookeeper_deploy
   ]
 
   HADOOP_CONF_KEYS = %w{
@@ -53,7 +68,6 @@ module Ankus
     hadoop_datanode_opts
     hadoop_tasktracker_opts
     hadoop_balancer_opts
-    storage_dirs
     yarn_resourcemanager_opts
     yarn_nodemanager_opts
     yarn_proxyserver_opts
@@ -165,6 +179,49 @@ module Ankus
     hbase_regionserver_jmx_dash_port
   }
 
+  AWS_INSTANCE_TYPES = {
+      'm1.small'    => { :cpu => 1, :memory => 1.7, :instance_storage => { :count => 1, :size => 160 } },
+      'm1.medium'   => { :cpu => 1, :memory => 3.75, :instance_storage => { :count => 1, :size => 410 } },
+      'm1.large'    => { :cpu => 2, :memory => 7.5, :instance_storage => { :count => 2, :size => 420 } },
+      'm1.xlarge'   => { :cpu => 4, :memory => 15, :instance_storage => { :count => 4, :size => 420 } },
+      'm3.medium'   => { :cpu => 1, :memory => 3.75, :instance_storage => { :count => 1, :size => 4 } },
+      'm3.large'    => { :cpu => 2, :memory => 7, :instance_storage => { :count => 1, :size => 32 } },
+      'm3.xlarge'   => { :cpu => 4, :memory => 15, :instance_storage => { :count => 2, :size => 40 } },
+      'm3.2xlarge'  => { :cpu => 8, :memory => 30, :instance_storage => { :count => 2, :size => 80 } },
+      'm2.xlarge'   => { :cpu => 2, :memory => 17.1, :instance_storage => { :count => 1, :size => 420 } },
+      'm2.2xlarge'  => { :cpu => 4, :memory => 34.2, :instance_storage => { :count => 1, :size => 850 } },
+      'm2.4xlarge'  => { :cpu => 8, :memory => 68.4, :instance_storage => { :count => 2, :size => 840 } },
+      'hi1.4xlarge' => { :cpu => 16, :memory => 60.5, :instance_storage => { :count => 2, :size => 1024 } },
+      'hi1.8xlarge' => { :cpu => 16, :memory => 117, :instance_storage => { :count => 24, :size => 2048 } },
+      'c1.medium'   => { :cpu => 2, :memory => 1.7, :instance_storage => { :count => 1, :size => 350 } },
+      'c1.xlarge'   => { :cpu => 8, :memory => 7, :instance_storage => { :count => 4, :size => 420 } },
+      'c3.large'    => { :cpu => 2, :memory => 3.75, :instance_storage => { :count => 2, :size => 16 } },
+      'c3.xlarge'   => { :cpu => 4, :memory => 7.5, :instance_storage => { :count => 2, :size => 40 } },
+      'c3.2xlarge'  => { :cpu => 8, :memory => 15, :instance_storage => { :count => 2, :size => 80 } },
+      'c3.4xlarge'  => { :cpu => 16, :memory => 30, :instance_storage => { :count => 2, :size => 160 } },
+      'c3.8xlarge'  => { :cpu => 32, :memory => 60, :instance_storage => { :count => 2, :size => 320 } },
+  }
+
+  RS_INSTANCE_TYPES = {
+      '2'                 => { :cpu => 1, :memory => 0.512, :system_disk => { :size => 20 } },
+      '3'                 => { :cpu => 1, :memory => 1, :system_disk => { :size => 40 } },
+      '4'                 => { :cpu => 2, :memory => 2, :system_disk => { :size => 80 } },
+      '5'                 => { :cpu => 2, :memory => 4, :system_disk => { :size => 160 } },
+      '6'                 => { :cpu => 4, :memory => 8, :system_disk => { :size => 320 } },
+      '7'                 => { :cpu => 6, :memory => 15, :system_disk => { :size => 620 } },
+      '8'                 => { :cpu => 8, :memory => 30, :system_disk => { :size => 1200 } },
+      'performance1-1'    => { :cpu => 1, :memory => 1, :system_disk => { :size => 20 } },
+      'performance1-2'    => { :cpu => 2, :memory => 2, :system_disk => { :size => 40 }, :data_disk => {:count => 1, :size => 20} },
+      'performance1-4'    => { :cpu => 4, :memory => 4, :system_disk => { :size => 40 }, :data_disk => {:count => 1, :size => 40} },
+      'performance1-8'    => { :cpu => 8, :memory => 8, :system_disk => { :size => 40 }, :data_disk => {:count => 1, :size => 80} },
+      'performance2-15'   => { :cpu => 4, :memory => 15, :system_disk => { :size => 40 }, :data_disk => {:count => 1, :size => 150} },
+      'performance2-30'   => { :cpu => 8, :memory => 30, :system_disk => { :size => 40 }, :data_disk => {:count => 1, :size => 300} },
+      'performance2-60'   => { :cpu => 16, :memory => 60, :system_disk => { :size => 40 }, :data_disk => {:count => 2, :size => 300} },
+      'performance2-90'   => { :cpu => 24, :memory => 90, :system_disk => { :size => 40 }, :data_disk => {:count => 3, :size => 300} },
+      'performance2-120'  => { :cpu => 32, :memory => 120, :system_disk => { :size => 40 }, :data_disk => {:count => 4, :size => 300} },
+
+  }
+
   #
   # Helper functions to lookup values from NODES hash based on various params
   #
@@ -179,9 +236,9 @@ module Ankus
        found_clients << k if v[:tags].grep(/^#{tag}/).any?
     end
     if found_clients.length == 0
-      return nil
+      nil
     else
-      return found_clients.map { |k| nodes[k][:fqdn] }
+      found_clients.map { |k| nodes[k][:fqdn] }
     end
   end 
 
@@ -195,9 +252,9 @@ module Ankus
        found_clients << k if v[:tags].grep(/^#{tag}/).any?
     end
     if found_clients.length == 0
-      return nil
+      nil
     else
-      return found_clients.map { |k| nodes[k][:private_ip] }
+      found_clients.map { |k| nodes[k][:private_ip] }
     end
   end
 
@@ -211,9 +268,9 @@ module Ankus
       found_clients << k if v[:tags].grep(/^#{tag}/).any?
     end
     if found_clients.length == 0
-      return nil
+      nil
     else
-      return found_clients
+      found_clients
     end
   end
 
@@ -225,10 +282,9 @@ module Ankus
     nodes.select { |k, v| k if v[:fqdn] == fqdn }.keys.first
   end
 
-  # Returns nodes hash key for the input fqdn
+  # Returns nodes hash key for the input private ip
   # @param [Hash] nodes to search for tag in
-  # @param [fqdn] fqdn to search
-  # @return [String] => tag
+  # @return [String] => pip private ip to lookup
   def find_key_for_pip(nodes, pip)
     nodes.select { |k, v| k if v[:private_ip] == pip }.keys.first
   end
@@ -306,7 +362,7 @@ end
 #
 # Backport features to ruby 1.8.7
 #
-if RUBY_VERSION < "1.9"
+if RUBY_VERSION < '1.9'
   class Symbol
     include Comparable
 
