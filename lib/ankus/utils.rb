@@ -1,3 +1,17 @@
+# Copyright 2013, Cloudwick, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 module Ankus
   require 'timeout'
   require 'net/ssh'
@@ -85,8 +99,8 @@ module Ankus
           end
           return out, err, exit_status
         rescue Errno::ENOENT
-          err = "Command not found"
-          exit_status = "255"
+          err = 'Command not found'
+          exit_status = '255'
           return out, err, exit_status
         end
       end
@@ -138,21 +152,22 @@ module Ankus
   end
 
   class Printer
+    @time = Time.now.strftime("%Y-%m-%d %H:%M:%S")
     class << self
       def info(*args)
-        print "\r[Info]".blue + ": " + args.join(" ") + "\n"
+        print "\r#{@time} " + '[Info]'.blue + ':: ' + args.join(' ') + "\n"
       end
 
       def debug(*args)
-        print "\r[Debug]: " + args.join(" ") + "\n"
+        print "\r#{@time} "+ '[Debug]: '.cyan + ':: ' + args.join(' ') + "\n"
       end
 
       def warn(*args)
-        print "\r[Warn]".yellow + ": " + args.join(" ") + "\n"
+        print "\r#{@time} " + '[Warn]'.yellow + ':: ' + args.join(' ') + "\n"
       end    
 
       def error(*args)
-        print "\r[Error]".red + ": " + args.join(" ") + "\n"
+        print "\r#{@time} " + '[Error]'.red + ':: ' + args.join(' ') + "\n"
       end
     end
   end
@@ -269,7 +284,7 @@ module Ankus
           end
         end
       rescue Timeout::Error
-        raise 'It took more than 10 mins waiting for servers to become ssh\'able. Aborting!!!'
+        raise 'It took more than 10 minutes waiting for servers to become ssh\'able. Aborting!!!'
       end
 
       # Execute single command on remote machine over ssh protocol using net-ssh gem
@@ -277,14 +292,15 @@ module Ankus
       # @param [String] host => ipaddress|hostname on which to execute the command on
       # @param [String] ssh_user => user to ssh as
       # @param [String] ssh_key => private ssh key to use
+      # @param [Log4r] log => logger instance to use
       # @param [Integer] ssh_port => ssh port (default:22)
       # @param [Boolean] debug => if enabled will print out the output of the command to stdout
       # @return [Hash] { 'host' => [stdout, stderr, exit_code] }
-      def execute_ssh!(command, host, ssh_user, ssh_key, ssh_port=22, debug=false)
+      def execute_ssh!(command, host, ssh_user, ssh_key, log, ssh_port=22, debug=false)
         begin
           result = {}
           Net::SSH.start(host, ssh_user, :port => ssh_port, :keys => ssh_key, :auth_methods => %w(publickey)) do |ssh|
-            result[host] = ssh_exec!(ssh, command, debug)
+            result[host] = ssh_exec!(ssh, command, log, debug)
           end
         rescue Net::SSH::HostKeyMismatch => e
           e.remember_host!
@@ -301,20 +317,21 @@ module Ankus
       # @param [String] host => host on which the commands should be executed
       # @param [String] ssh_user => user to ssh as
       # @param [String] ssh_key => private ssh key to use
+      # @param [LOg4r] log => logger instance
       # @param [Integer] ssh_port => ssh port (default:22)
       # @param [Boolean] debug => if enabled will print out the output of the command to stdout
       # @return [Hash] { 'command' => [stdout, stderr, exit_code], 'command' => [stdout, stderr, exit_code], ... }
-      def execute_ssh_cmds(commands, host, ssh_user, ssh_key, ssh_port=22, debug=false)
+      def execute_ssh_cmds(commands, host, ssh_user, ssh_key, log, ssh_port=22, debug=false)
         begin
           results = {}
           begin
             Net::SSH.start(host, ssh_user, :port => ssh_port, :keys => ssh_key, :auth_methods => %w(publickey)) do |ssh|
               commands.each { |command|
-                puts "\r[Debug]: Running '#{command}' on server '#{host}'" if debug
-                results[command] = ssh_exec!(ssh, command, debug)
+                log.debug "Running '#{command}' on server '#{host}'" if debug
+                results[command] = ssh_exec!(ssh, command, log, debug)
                 if debug
                   command_output = results[command]
-                  puts "\r[Debug]: Exit code of running '#{command}' is: #{command_output[2]}"
+                  log.debug "Exit code of running '#{command}' is: #{command_output[2]}"
                 end
               }
             end
@@ -331,9 +348,10 @@ module Ankus
       # Execute single command on remote server and capture its stdout, stderr, exit_code
       # @param [Net::SSH] ssh => net-ssh object to process on
       # @param [String] command => command to execute
+      # @param [Log4r] log => logger instance to use
       # @param [Boolean] debug => append hostname to command output if enabled
       # @return [Array] => [stdout, stderr, exit_code]
-      def ssh_exec!(ssh, command, debug=false)
+      def ssh_exec!(ssh, command, log, debug=false)
         stdout_data = ''
         stderr_data = ''
         exit_code = nil
@@ -348,12 +366,12 @@ module Ankus
 
               channel.on_data do |_, data|
                 stdout_data += data
-                data.lines.map(&:chomp).each { |d| puts "\r[#{ssh.host}]:".blue + "#{d}" }if debug
+                data.lines.map(&:chomp).each { |d| log.debug "[#{ssh.host}]:".blue + "#{d}" } if debug
               end
 
               channel.on_extended_data do |_,type,data|
                 stderr_data += data
-                data.lines.map(&:chomp).each { |d| puts "\r[#{ssh.host}]:".yellow + "#{d}" }if debug
+                data.lines.map(&:chomp).each { |d| log.debug "[#{ssh.host}]:".yellow + "#{d}" }if debug
               end
 
               channel.on_request('exit-status') do |_,data|

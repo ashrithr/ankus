@@ -37,4 +37,5 @@ module Ankus
   require 'ankus/cloud_manage'
   require 'ankus/deploy'
   require 'ankus/errors'
+  require 'ankus/logging'
 end
