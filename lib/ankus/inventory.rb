@@ -1,10 +1,23 @@
+# Copyright 2013, Cloudwick, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 module Ankus
   module Inventory
     include Ankus
 
     # Generates server inventory files based on the hash passed from configuration parser
     class Generator
-      # @param [String] config_file => path to the config file
       # @param [Hash] config => parsed configuration hash
       def initialize(config)
         @config  = config
@@ -51,22 +64,22 @@ module Ankus
         end
         # Hadoop and HBase
         if @config[:hadoop_deploy] != 'disabled'
-          @config[:hadoop_deploy][:hadoop_namenode].each_with_index do |nn, i|
+          @config[:hadoop_deploy][:namenode].each_with_index do |nn, i|
             add_or_update_node(nodes_hash, nn, "namenode#{i+1}")
           end
           if @config[:hadoop_deploy][:hadoop_ha] == 'enabled' or @config[:hbase_deploy] != 'disabled'
-            @config[:zookeeper_quorum].each_with_index do |zk, i|
+            @config[:zookeeper_deploy][:quorum].each_with_index do |zk, i|
               add_or_update_node(nodes_hash, zk, "zookeeper#{i+1}") 
             end
           end
           if @config[:hadoop_deploy][:mapreduce] != 'disabled'
-            add_or_update_node(nodes_hash, @config[:hadoop_deploy][:mapreduce][:master], "jobtracker") 
+            add_or_update_node(nodes_hash, @config[:hadoop_deploy][:mapreduce][:master], 'jobtracker')
           end
           if @config[:hadoop_deploy][:hadoop_ha] == 'disabled'
-            add_or_update_node(nodes_hash, @config[:hadoop_deploy][:hadoop_secondarynamenode], "secondarynamenode") 
+            add_or_update_node(nodes_hash, @config[:hadoop_deploy][:secondarynamenode], 'secondarynamenode')
           end
           if @config[:hbase_deploy] != 'disabled'
-            @config[:hbase_deploy][:hbase_master].each_with_index do |hm, i|
+            @config[:hbase_deploy][:master].each_with_index do |hm, i|
               add_or_update_node(nodes_hash, hm, "hbasemaster#{i+1}")   
             end
           end
@@ -76,29 +89,29 @@ module Ankus
         end
         # Cassandra
         if @config[:cassandra_deploy] != 'disabled'
-          @config[:cassandra_deploy][:cassandra_nodes].each_with_index do |cn, i|
+          @config[:cassandra_deploy][:nodes].each_with_index do |cn, i|
             add_or_update_node(nodes_hash, cn, "cassandra#{i+1}")
           end
         end
         # Kafka
         if @config[:kafka_deploy] != 'disabled'
-          @config[:kafka_deploy][:kafka_brokers].each_with_index do |kn, i|
+          @config[:kafka_deploy][:brokers].each_with_index do |kn, i|
             add_or_update_node(nodes_hash, kn, "kafka#{i+1}")
           end
         end
         if @config[:storm_deploy] != 'disabled'
-          @config[:storm_deploy][:storm_supervisors].each_with_index do |sp, i|
+          @config[:storm_deploy][:supervisors].each_with_index do |sp, i|
             add_or_update_node(nodes_hash, sp, "storm#{i+1}")
           end
-          add_or_update_node(nodes_hash, @config[:storm_deploy][:storm_master], 'stormnimbus')
+          add_or_update_node(nodes_hash, @config[:storm_deploy][:master], 'stormnimbus')
         end
         if @config[:kafka_deploy] != 'disabled' or @config[:storm_deploy] != 'disabled'
-          @config[:zookeeper_quorum].each_with_index do |zk, i|
+          @config[:zookeeper_deploy][:quorum].each_with_index do |zk, i|
             add_or_update_node(nodes_hash, zk, "zookeeper#{i+1}") 
           end          
         end
         if @config[:solr_deploy] != 'disabled'
-          @config[:solr_deploy][:solr_nodes].each_with_index do |sn, i|
+          @config[:solr_deploy][:nodes].each_with_index do |sn, i|
             add_or_update_node(nodes_hash, sn, "solr#{i+1}")
           end
         end
@@ -122,7 +135,7 @@ module Ankus
       # Either creates a new node definition or if node already exists updates the node tag
       def add_or_update_node(nodes, fqdn, tag)
         existing_nodes = []
-        nodes.each do |k,v|
+        nodes.each do |_,v|
           existing_nodes << v[:fqdn]
         end
         existing_nodes.uniq!
@@ -151,17 +164,27 @@ module Ankus
       # @param [Hash] config => parsed configuration file
       # @param [String] puppet_server => fqdn of puppet server
       # @param [Array] puppet_clients => list of puppet clients
-      def initialize(nodes_file, roles_file, config, puppet_server, puppet_clients)
+      # @param [Log4r] log => logger object to use
+      # @param [Boolean] mock => whether mocking is enabled
+      def initialize(nodes_file, roles_file, config, puppet_server, puppet_clients, log, mock)
         @nodes_file   = nodes_file
         @roles_file   = roles_file
         @config       = config
         @ps           = puppet_server
         @pcs          = puppet_clients
+        @log          = log
+        @mock         = mock
       end
 
       # Write out the mapping created by 'create_enc_roles()' into @roles_file
       def generate
-        YamlUtils.write_yaml(create_enc_roles, @roles_file)
+        enc_data =create_enc_roles
+        if @mock
+          @log.debug 'ENC data'
+          pp enc_data
+        else
+          YamlUtils.write_yaml(enc_data, @roles_file)
+        end
       end
 
       private
@@ -180,45 +203,45 @@ module Ankus
         # puppet clients
         hadoop_install      = @config[:hadoop_deploy]
         if hadoop_install != 'disabled'
-          namenode            = @config[:hadoop_deploy][:hadoop_namenode]
-          secondary_namenode  = @config[:hadoop_deploy][:hadoop_secondarynamenode]
+          namenode            = @config[:hadoop_deploy][:namenode]
+          secondary_namenode  = @config[:hadoop_deploy][:secondarynamenode]
           mapreduce           = @config[:hadoop_deploy][:mapreduce]
           mapreduce_type      = @config[:hadoop_deploy][:mapreduce][:type] if mapreduce != 'disabled'
           mapreduce_master    = @config[:hadoop_deploy][:mapreduce][:master] if mapreduce != 'disabled'
-          hadoop_ecosystem    = @config[:hadoop_deploy][:hadoop_ecosystem]
-          slave_nodes         = @config[:slave_nodes]
+          hadoop_ecosystem    = @config[:hadoop_deploy][:ecosystem]
+          slave_nodes         = @config[:worker_nodes]
           hbase_install       = @config[:hbase_deploy]
-          hbase_master        = @config[:hbase_deploy][:hbase_master] if hbase_install != 'disabled'
+          hbase_master        = @config[:hbase_deploy][:master] if hbase_install != 'disabled'
         end
         cassandra_install   = @config[:cassandra_deploy]
-        cassandra_nodes     = @config[:cassandra_deploy][:cassandra_nodes] if cassandra_install != 'disabled'
+        cassandra_nodes     = @config[:cassandra_deploy][:nodes] if cassandra_install != 'disabled'
         solr_install        = @config[:solr_deploy]
-        solr_nodes          = @config[:solr_deploy][:solr_nodes] if solr_install != 'disabled'
+        solr_nodes          = @config[:solr_deploy][:nodes] if solr_install != 'disabled'
         kafka_install       = @config[:kafka_deploy]
-        kafka_brokers       = @config[:kafka_deploy][:kafka_brokers] if kafka_install != 'disabled'
+        kafka_brokers       = @config[:kafka_deploy][:brokers] if kafka_install != 'disabled'
         storm_install       = @config[:storm_deploy]
-        storm_master        = @config[:storm_deploy][:storm_master] if storm_install != 'disabled'
-        storm_supervisors   = @config[:storm_deploy][:storm_supervisors] if storm_install != 'disabled'
+        storm_master        = @config[:storm_deploy][:master] if storm_install != 'disabled'
+        storm_supervisors   = @config[:storm_deploy][:supervisors] if storm_install != 'disabled'
         @pcs.each do |pc|
           roles_hash[pc] = {}
-          #java
-          roles_hash[pc]['java'] = nil
+          # Java
+          # roles_hash[pc]['java'] = nil
           if hadoop_install != 'disabled'
-            #namenode
+            # Namenode
             roles_hash[pc]['hadoop::namenode'] = nil if namenode.include? pc
-            #zookeepers
-            if @config[:hadoop_deploy][:hadoop_ha] == 'enabled' or @config[:hbase_deploy] != 'disabled' or
+            # Zookeepers
+            if @config[:hadoop_deploy][:ha] == 'enabled' or @config[:hbase_deploy] != 'disabled' or
                 @config[:solr_deploy] != 'disabled' or @config[:kafka_deploy] != 'disabled' or
                 @config[:storm_deploy] != 'disabled'
-              zookeepers = @config[:zookeeper_quorum]
-              #convert zookeepers array into hash with id as zookeeper and value as its id
+              zookeepers = @config[:zookeeper_deploy][:quorum]
+              # Convert zookeepers array into hash with id as zookeeper and value as its id
               zookeepers_id_hash = Hash[zookeepers.map.each_with_index.to_a]
               if zookeepers.include? pc
                 roles_hash[pc]['zookeeper::server'] = { 'myid' => zookeepers_id_hash[pc] }
               end
             end
-            #journal nodes
-            if @config[:hadoop_deploy][:hadoop_ha] == 'enabled'
+            # Journal nodes
+            if @config[:hadoop_deploy][:ha] == 'enabled'
               journal_nodes = @config[:hadoop_deploy][:journal_quorum]
               roles_hash[pc]['hadoop::journalnode'] = nil if journal_nodes.include? pc
             else
