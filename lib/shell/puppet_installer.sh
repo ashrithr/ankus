@@ -1,86 +1,265 @@
-#!/usr/bin/env bash
+#!/bin/bash
+#
+# Author:: Ashrith Mekala (<ashrith@cloudwick.com>)
+# Description:: Script to install puppet server/client
+#               * puppetdb for stored configs
+#               * passenger for scaling puppet server
+#               * postgresql (dependency for puppetdb)
+#               * autosigning for puppet clients belonging to same domain
+# Supported OS:: CentOS, Redhat, Ubuntu
+# Version: 0.3
+#
+# Copyright 2013, Cloudwick, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-# ---
-# Script to install puppet and its dependencies
-# Author: Ashrith (ashrith at cloudwick dot com)
-# ---
+####
+## Configuration Variables (change these, only if you know what you are doing)
+####
+puppet_modules_path="/etc/puppet/modules"
+puppet_modules_download="https://github.com/cloudwicklabs/ankus-modules/archive/v2.1.tar.gz"
+debug="false"
 
-# => Globals
-CLR="\033[01;32m"
-CLR_RED="\033[1;31m"
-CLR_END="\033[0m"
-PUPPET_SERVER=`hostname --fqdn`
-DOMAIN_NAME=`echo ${PUPPET_SERVER} | cut -d "." -f 2-`
-IP=`ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | grep 'Bcast' | awk '{print $1}'`
-GIT_REPO="https://github.com/ashrithr/ankus-cli-modules.git"
-PUPPET_MODULES_PATH="/etc/puppet/modules"
-PUPPET_MODULES_DOWNLOAD="https://github.com/cloudwicklabs/ankus-modules/archive/v2.1.tar.gz"
+### !!! DONT CHANGE BEYOND THIS POINT. DOING SO MAY BREAK THE SCRIPT !!!
 
-# => OS specific
-OS=''
-VER=''
-INSTALL=''
-if [ -f /usr/bin/lsb_release ] ; then
-  OS=$( lsb_release -sd | tr '[:upper:]' '[:lower:]' | tr '"' ' ' | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } print $i; } }' )
-  VER=$( lsb_release -sd | tr '[:upper:]' '[:lower:]' | tr '"' ' ' | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } } }')
-else
-  OS=$( cat `ls /etc/*release | grep "redhat\|SuSE"` | head -1 | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } print $i; } }' | tr '[:upper:]' '[:lower:]' )
-  VER=$( cat `ls /etc/*release | grep "redhat\|SuSE"` | head -1 | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } } }' | tr '[:upper:]' '[:lower:]')
-fi
+####
+## Global Variables (script-use only)
+####
+# os specific variables
+declare os
+declare os_str
+declare os_version
+declare os_codename
+declare os_arch
+declare package_manager
+declare puppet_server_package
+declare puppet_client_package
 
-OS=$( echo ${OS} | sed -e "s/ *//g")
+# colors
+clr_blue="\x1b[34m"
+clr_green="\x1b[32m"
+clr_yellow="\x1b[33m"
+clr_red="\x1b[31m"
+clr_cyan="\x1b[36m"
+clr_end="\x1b[0m"
 
-ARCH=`uname -m`
-if [[ "xi686" == "x${ARCH}" || "xi386" == "x${ARCH}" ]]; then
-  ARCH="i386"
-fi
-if [[ "xx86_64" == "x${ARCH}" || "xamd64" == "x${ARCH}" ]]; then
-  ARCH="x86_64"
-fi
+# log files
+stdout_log="/tmp/puppet-install.stdout"
+stderr_log="/tmp/puppet-install.stderr"
 
-# => Set packages based on OS detected
-if [[ ${OS} =~ centos || ${OS} =~ redhat ]]; then
-  INSTALL="yum"
-  PUPPET_PKG="puppet-server"
-  APACHE_PKG=httpd
-  PUPPET_DAEMON="puppetmaster"
-  PSQL_CONFIG="/var/lib/pgsql/data/pg_hba.conf"
-  PSQL_DATA_CONF="/var/lib/pgsql/data/postgresql.conf"
-  PUPPET_DB_DEFAULT="/etc/sysconfig/puppetdb"
-  PASSENGER_CONF_PATH="/etc/httpd/conf.d/puppet.conf"
-  RUBY_PATH="/usr/lib/ruby"
-  RUBY_EXEC="/usr/bin/ruby"
-elif [[ ${OS} =~ ubuntu ]]; then
-  INSTALL="apt-get"
-  PUPPET_PKG="puppetmaster"
-  APACHE_PKG=apache2
-  PUPPET_DAEMON="puppetmaster"
-  PSQL_CONFIG="/etc/postgresql/9.1/main/pg_hba.conf"
-  PSQL_DATA_CONF="/etc/postgresql/9.1/main/postgresql.conf"
-  PUPPET_DB_DEFAULT="/etc/default/puppetdb"
-  PASSENGER_CONF_PATH="/etc/apache2/sites-available/puppetmasterd"
-  RUBY_PATH="/var/lib"
-  RUBY_EXEC="/usr/bin/ruby1.8"
-fi
+####
+## Utility functions
+####
 
-# => Functions
-function printclr () {
-  echo -e ${CLR}"[${USER}][`date`] - ${1}"${CLR_END}
+function print_banner () {
+  echo -e "\n* Logging enabled, check '${clr_cyan}${stdout_log}${clr_end}' for stdout and '${clr_cyan}${stderr_log}${clr_end}' for stderr output.\n"
 }
 
-function printerr () {
-  echo -e ${CLR_RED}"[${USER}][`date`] - [ERROR] ${1}"${CLR_END}
+function print_error () {
+  printf "${clr_red}E${clr_end} -- $@\n"
 }
 
-function logit () {
-  echo -e ${CLR}"[${USER}][`date`] - ${1}"${CLR_END}
+function print_warning () {
+  printf "${clr_yellow}W${clr_end} -- $@\n"
+}
+
+function print_info () {
+  printf "${clr_green}I${clr_end} -- $@\n"
+}
+
+function execute () {
+  local full_redirect="1>>$stdout_log 2>>$stderr_log"
+  /bin/bash -c "$@ $full_redirect"
+  ret=$?
+  if [[ $debug = "true" ]]; then
+    if [ $ret -ne 0 ]; then
+      print_warning "Executed command \'$@\', returned non-zero code: $ret"
+    else
+      print_info "Executed command \'$@\', returned successfully."
+    fi
+  fi
+  return $ret
+}
+
+function check_for_root () {
+  if [ "$(id -u)" != "0" ]; then
+   print_error "Please run with super user privileges."
+   exit 1
+  fi
+}
+
+function get_system_info () {
+  print_info "Collecting system configuration..."
+  
+  os=`uname -s`
+  if [[ "$os" = "SunOS" ]] ; then
+    os="Solaris"
+    os_arch=`uname -p`
+  elif [[ "$os" = "Linux" ]] ; then
+    if [[ -f /etc/lsb-release ]] ; then
+      os_str=$( lsb_release -sd | tr '[:upper:]' '[:lower:]' | tr '"' ' ' | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } print $i; } }' )
+      os_version=$( lsb_release -sd | tr '[:upper:]' '[:lower:]' | tr '"' ' ' | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } } }')
+      if [[ $os_str =~ ubuntu ]]; then
+        os="ubuntu"
+        if grep -q precise /etc/lsb-release; then
+          os_codename="precise"
+        elif grep -q lucid /etc/lsb-release; then
+          os_codename="lucid"
+        else
+          print_error "Sorry, only precise & lucid systems are supported by this script. Exiting."
+          exit 1
+        fi
+      else
+        print_error "OS: $os_str is not yet supported, contanct support@cloudwicklabs.com"
+        exit 1        
+      fi
+    else
+      os_str=$( cat `ls /etc/*release | grep "redhat\|SuSE"` | head -1 | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } print $i; } }' | tr '[:upper:]' '[:lower:]' )
+      os_version=$( cat `ls /etc/*release | grep "redhat\|SuSE"` | head -1 | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } } }' | tr '[:upper:]' '[:lower:]')
+      if [[ $os_str =~ centos ]]; then
+        os="centos"
+      elif [[ $os_str =~ redhat ]]; then
+        os="redhat"
+      else
+        print_error "OS: $os_str is not yet supported, contanct support@cloudwicklabs.com"
+        exit 1
+      fi
+    fi
+    os=$( echo $os | sed -e "s/ *//g")
+    os_arch=`uname -m`
+    if [[ "xi686" == "x${os_arch}" || "xi386" == "x${os_arch}" ]]; then
+      os_arch="i386"
+    fi
+    if [[ "xx86_64" == "x${os_arch}" || "xamd64" == "x${os_arch}" ]]; then
+      os_arch="x86_64"
+    fi
+  elif [[ "$os" = "Darwin" ]]; then
+    type -p sw_vers &>/dev/null
+    [[ $? -eq 0 ]] && {
+      os="macosx"
+      os_version=`sw_vers | grep 'ProductVersion' | cut -f 2`
+    } || {
+      os="macosx"
+    }
+  fi
+
+  if [[ $os =~ centos || $os =~ redhat ]]; then
+    package_manager="yum"
+  elif [[ $os =~ ubuntu ]]; then
+    package_manager="apt-get"
+  elif [[ $os =~ macosx ]]; then
+    package_manager="brew"
+  else
+    print_error "Unsupported package manager. Please contact support@cloudwicklabs.com."
+    exit 1
+  fi
+}
+
+####
+## Script specific functions
+####
+
+function check_preqs () {
+  check_for_root
+  print_info "Checking your system prerequisites..."
+
+  for command in curl vim git wget; do
+    type -P $command &> /dev/null || {
+      print_warning "Command $command not found"
+      print_info "Attempting to install $command..."
+      execute "${package_manager} -y install $command" # brew does not have -y
+      if [[ $? -ne 0 ]]; then
+        print_warning "Could not install $command. This may cause issues."
+      fi
+    } 
+  done
+}
+
+function add_epel_repo () {
+  execute "ls -la /etc/yum.repos.d/*epel*"
+  if [[ $? -ne 0 ]]; then
+    print_info "Adding the EPEL repository to yum configuration..."
+    if [[ $os_version -eq 5 ]]; then
+      execute "curl -o epel.rpm -L http://download.fedoraproject.org/pub/epel/5/$os_arch/epel-release-5-4.noarch.rpm"
+      execute "rpm -i epel.rpm"
+      execute "rm -f epel.rpm"
+    elif [[ $os_version -eq 6 ]]; then
+      execute "curl -o epel.rpm -L http://download.fedoraproject.org/pub/epel/6/$os_arch/epel-release-6-8.noarch.rpm"
+      execute "rpm -i epel.rpm"
+      execute "rm -f epel.rpm"
+    fi
+  fi  
+}
+
+function add_puppetlabs_repo () {
+  case "$os" in
+    centos|redhat)
+      add_epel_repo
+      if [[ ! -f /etc/yum.repos.d/puppetlabs.repo ]]; then
+        print_info "Adding puppetlabs repo to yum repositories list..."
+        if [[ $os_version -eq 5 ]]; then
+          execute "rpm -i http://yum.puppetlabs.com/el/5/products/$os_arch/puppetlabs-release-5-7.noarch.rpm"
+        elif [[ $os_version -eq 6 ]]; then
+          execute "rpm -i http://yum.puppetlabs.com/el/6/products/$os_arch/puppetlabs-release-6-7.noarch.rpm"
+        fi        
+        sed -i 's/gpgcheck=1/gpgcheck=0/g' /etc/yum.repos.d/puppetlabs.repo
+      fi
+      ;;
+    ubuntu)
+      if [[ ! -f /etc/apt/sources.list.d/puppetlabs.list ]]; then
+        print_info "Adding puppetlabs repo to apt sources list"
+        execute "curl -sO http://apt.puppetlabs.com/puppetlabs-release-${os_codename}.deb"
+        execute "dpkg -i puppetlabs-release-${os_codename}.deb"
+        execute "rm -f puppetlabs-release-${os_codename}.deb"
+        print_info "Refreshing apt packages list..."
+        execute "apt-get update"
+      fi
+      ;;
+    *)
+      print_error "$os is not yet supported, please contact support@cloudwicklabs.com."
+      exit 1
+      ;;
+  esac
+}
+
+function stop_iptables () {
+  case "$os" in
+    centos|redhat)
+      print_info "Stopping ip tables..."
+      execute "service iptables stop"
+      ;;
+    ubuntu)
+      print_info "Disabling ufw..."
+      execute "ufw disable"
+      ;;
+    *)
+      print_error "$os is not supported yet."
+      exit 1
+      ;;
+  esac
+}
+
+function stop_selinux () {
+  if [[ -f /etc/selinux/config ]]; then
+    print_info "Disabling selinux..."
+    execute "/usr/sbin/setenforce 0"
+    execute "sed -i.old s/SELINUX=enforcing/SELINUX=disabled/ /etc/selinux/config"
+  fi
 }
 
 # Retries a command a configurable number of times with backoff.
-#
 # The retry count is given by ATTEMPTS (default 5), the initial backoff
 # timeout is given by TIMEOUT in seconds (default 1.)
-#
 # Successive backoff's double the timeout.
 function with_backoff () {
   local max_attempts=${ATTEMPTS-5}
@@ -93,334 +272,250 @@ function with_backoff () {
     "$@"
     exitCode=$?
 
-    if [[ ${exitCode} == 0 ]]
-    then
+    if [[ ${exitCode} == 0 ]] ;then
       break
     fi
-    echo "Failure! Retrying in $timeout.." 1>&2
+    print_warning "Failure! Retrying in $timeout.." 1>&2
     sleep ${timeout}
     attempt=$(( attempt + 1 ))
     timeout=$(( timeout * 2 ))
   done
   if [[ $exitCode != 0 ]]
   then
-    echo "You've failed me for the last time! ($@)" 1>&2
+    print_error "Command for the last time! ($@)" 1>&2
   fi
   return ${exitCode}
 }
 
-function install_epel_repo () {
-  if [[ ${OS} =~ centos || ${OS} =~ redhat ]]; then
-    if [ -f /etc/yum.repos.d/epel.repo ]; then
-      logit "[DEBUG]: epel repo already exists, uisng existing epel repo"
-    else
-      if [ "${VER}" == "6" ]; then
-        logit "[DEBUG]: Installing epel 6 repo"
-        rpm -ivh http://linux.mirrors.es.net/fedora-epel/6/`arch`/epel-release-6-8.noarch.rpm
-      elif [ "${VER}" == "5" ]; then
-        logit "[DEBUG]: installing epel 5 repo"
-        rpm -ivh http://linux.mirrors.es.net/fedora-epel/5/`arch`/epel-release-5-4.noarch.rpm
-      fi
-    fi
-  elif [[ ${OS} =~ ubuntu ]]; then
-    logit "[DEBUG]: Performing ${INSTALL} update to refresh the repos"
-    ${INSTALL} update
-  fi
-}
-
-function install_puppet_repo () {
-  if [[ ${OS} =~ centos || ${OS} =~ redhat ]]; then
-    logit "[DEBUG]: installing puppetlabs repo"
-    rpm -ivh http://yum.puppetlabs.com/el/6/products/`arch`/puppetlabs-release-6-5.noarch.rpm
-  elif [[ ${OS} =~ ubuntu ]]; then
-    logit "[DEBUG]: installing puppetlabs repo"
-    wget http://apt.puppetlabs.com/puppetlabs-release-precise.deb && dpkg -i puppetlabs-release-precise.deb
-    apt-get update
-  else
-    printerr "[Fatal] Unknown OS. This script does not yet support the ${OS}, Aborting!"
-    exit 2
-  fi
-}
-
-function disable_gpgcheck () {
-  if [[ ${OS} =~ centos || ${OS} =~ redhat ]]; then
-    local files="epel.repo puppetlabs.repo epel-testing.repo"
-    for f in ${files}; do
-      sed -i 's/gpgcheck=1/gpgcheck=0/' /etc/yum.repos.d/${f}
-    done
-    yum clean all &> /dev/null
-  fi
-}
-
-function stop_iptables () {
-  if [[ ${OS} =~ centos || ${OS} =~ redhat ]]; then
-    printclr "Stopping IPTables and Disabling SELinux"
-    /etc/init.d/iptables stop
-    chkconfig iptables off
-    sed -i 's/SELINUX=enforcing/SELINUX=disabled/' /etc/sysconfig/selinux
-    /usr/sbin/setenforce 0
-    rm -f /selinux/enforce
-  elif [[ ${OS} =~ ubuntu ]]; then
-    printclr "Stopping IPTables"
-    ufw disable
-  else
-    printerr "[Fatal] Unknown OS. This script does not yet support the ${OS}, Aborting!"
-  exit 2
-fi
-}
-
-function install_postgres () {
-  logit "Installing Postgresql"
-  if [[ ${OS} =~ centos || ${OS} =~ redhat ]]; then
-    ${INSTALL} -y install postgresql postgresql-server postgresql-devel
-    [ $? -ne 0 ] && ( printerr "[Fatal]: Falied to install postgresql" && exit 2 ) || ( printclr "Installing Postgresql Suceeded" )
-    service postgresql initdb
-    ( service postgresql start ) && ( chkconfig postgresql on )
-  elif [[ ${OS} =~ ubuntu ]]; then
-    ${INSTALL} -y install postgresql libpq-dev
-    [ $? -ne 0 ] && ( printerr "[Fatal]: Falied to install postgresql" && exit 2 ) || ( printclr "Installing Postgresql Suceeded" )
-  fi
-  logit "Creating postgresql users and databases"
-  cat > ${PSQL_CONFIG} <<\PSQLDELIM
-# TYPE  DATABASE    USER        CIDR-ADDRESS          METHOD
-local all all trust
-host all all 127.0.0.1/32 trust
-host all all ::1/128 trust
-host puppetdb puppetdb 0.0.0.0/0 trust
-host hive_metastore hiveuser 0.0.0.0/0 trust
-host oozie oozie 0.0.0.0/0 trust
-host hue hue 0.0.0.0/0 trust
-PSQLDELIM
-  echo "listen_addresses = '0.0.0.0'" >> ${PSQL_DATA_CONF}
-  logit "[Debug]: Setting up postgresql for puppetdb and ankus"
-  service postgresql restart #restart postgresql to take effects
-  psql -U postgres -d template1 <<\END
-  create user puppetdb with password 'puppetdb';
-  create database puppetdb with owner puppetdb;
-  create user hiveuser with password 'hiveuser';
-  create database hive_metastore with owner hiveuser;
-  alter database hive_metastore SET standard_conforming_strings = off;
-  create user oozie with password 'oozie';
-  create database oozie with owner oozie;
-  create user hue with password 'hue';
-  create database hue with owner hue;
-END
-  logit "Reloading postgresql"
-  service postgresql restart
-}
-
 function download_modules () {
-  type -P git &> /dev/null || {
-    logit "git command not found, installing"
-    ${INSTALL} -y install git
-  }
-  type -P wget &> /dev/null || {
-    logit "wget command not found, installing"
-    ${INSTALL} -y install wget
-  }
-  if [ ! -d ${PUPPET_MODULES_PATH} ]; then
-    logit "puppet modules directory not found, creating"
-    mkdir -p ${PUPPET_MODULES_PATH}
+  if [ ! -d ${puppet_modules_path} ]; then
+    print_info "Puppet modules directory not found, creating"
+    mkdir -p ${puppet_modules_path}
   fi
   cd /etc/puppet
-  logit "Downloading deployment modules"
-  with_backoff wget --no-check-certificate --quiet -O modules.tar.gz ${PUPPET_MODULES_DOWNLOAD}
+  print_info "Downloading deployment modules ..."
+  with_backoff wget --no-check-certificate --quiet -O modules.tar.gz ${puppet_modules_download}
   if [ $? -eq 0 ]; then
-    logit "sucessfully downloaded puppet modules from git"
-    logit "extracting modules"
+    print_info "Sucessfully downloaded puppet modules from git"
+    print_info "Extracting modules ..."
     tar xzf modules.tar.gz
     if [ $? -eq 0 ]; then
-      mv ankus-modules*/* ${PUPPET_MODULES_PATH}
+      mv ankus-modules*/* ${puppet_modules_path}
       rm -f modules.tar.gz
       rm -rf ankus-modules*
     fi
   else
-    printerr "Failed to download puppet modules from git, aborting"
+    print_error "Failed to download puppet modules from git, aborting!!!"
     exit 2
+  fi
+}
+
+function install_puppet_apt_module () {
+  print_info "Installing puppetlabs apt module ..."
+  execute "puppet module install puppetlabs/apt"
+  if [[ $? -eq 0 ]]; then
+    print_info "Sucessfully installed puppetlabs apt module"
+  else
+    print_error "Failed to install puppetlabs apt module"
   fi
 }
 
 function create_log_dir () {
-  ankus_log_dir="/var/log/ankus"
+  local ankus_log_dir="/var/log/ankus"
   if [ ! -d ${ankus_log_dir} ]; then
-    logit "Creating ankus dir structure"
+    print_info "Creating ankus log directory structure"
     mkdir -p ${ankus_log_dir}
   fi
 }
 
-function usage () {
-script=$0
-cat << USAGE
-Syntax
-`basename ${script}` -s -c -J {-Xmx512m|-Xmx256m} -P {psql_password} -H {ps_hostname} -h
-
--s: puppet server setup
--c: puppet client setup
--J: JVM Heap Size for puppetdb
--P: postgresql password for puppetdb user
--H: puppet server hostname | mcollective sever hostname (for client setup)
--h: show help
-
-USAGE
-exit 1
+function check_if_postgres_is_installed () {
+  print_info "Checking to see if postgres is installed..."
+  case "$os" in
+    centos|redhat)
+      execute "rpm -q postgresql-server"
+      return $?
+      ;;
+    ubuntu)
+      execute "dpkg --list | grep postgresql"
+      return $?
+      ;;
+    *)
+      print_error "$os is not supported yet."
+      exit 1
+      ;;
+  esac  
 }
 
-function quit () {
-  code=$1
-  printclr "cleaning up..."
-  exit ${code}
+function install_postgres () {
+  check_if_postgres_is_installed
+  if [[ $? -eq 0 ]]; then
+    print_info "Package postgres is already installed. Skipping installation step."
+    return
+  fi
+  print_info "Installing postgres..."
+  case "$os" in
+    centos|redhat)
+      execute "$package_manager install -y postgresql postgresql-server postgresql-devel"
+      if [[ $? -ne 0 ]]; then
+        print_error "Failed installing postgresql-server, stopping."
+        exit 1
+      fi
+      print_info "Initalizing postgresql db..."
+      execute "service postgresql initdb"
+      ;;
+    ubuntu)
+      execute "$package_manager install -y postgresql libpq-dev"
+      if [[ $? -ne 0 ]]; then
+        print_error "Failed installing postgresql, stopping."
+        exit 1
+      fi      
+      ;;
+    *)
+    print_error "$os is not yet supported"
+    exit 1
+  esac  
 }
 
-############################
-#Main Logic
-############################
+function configure_postgres () {
+  local file_change="false"
+  print_info "Configuring postgres..."
+  case "$os" in
+    centos|redhat)
+      local psql_config="/var/lib/pgsql/data/pg_hba.conf"
+      local psql_data_conf="/var/lib/pgsql/data/postgresql.conf"
+      sed -e "s|local *all *postgres .*|local    all         postgres                   trust|g" \
+          -e "s|local *all *all .*|local    all         all                   trust|g" \
+          -e "s|host *all *all *127.0.0.1/32 .*|host    all         all        127.0.0.1/32           trust|g" \
+          -e "s|host *all *all *::1/128 .*|host    all         all        ::1/128           trust|g" \
+          -i $psql_config      
+      execute "grep puppetdb $psql_config"
+      if [[ $? -ne 0 ]]; then
+        file_change="true"
+        echo 'host puppetdb puppetdb 0.0.0.0/0 trust' >> $psql_config
+      fi
+      execute "grep \"listen_addresses = '0.0.0.0'\" $psql_data_conf"
+      if [[ $? -ne 0 ]]; then
+        file_change="true"
+        echo "listen_addresses = '0.0.0.0'" >> $psql_data_conf
+      fi      
+      ;;
+    ubuntu)
+      local psql_config="/etc/postgresql/9.*/main/pg_hba.conf"
+      local psql_data_conf="/etc/postgresql/9.*/main/postgresql.conf"
+      sed -e "s|local *all *postgres .*|local    all         postgres                   trust|g" \
+          -e "s|local *all *all .*|local    all         all                   trust|g" \
+          -e "s|host *all *all *127.0.0.1/32 .*|host    all         all        127.0.0.1/32           trust|g" \
+          -e "s|host *all *all *::1/128 .*|host    all         all        ::1/128           trust|g" \
+          -i $psql_config
+      execute "grep puppetdb $psql_config"
+      if [[ $? -ne 0 ]]; then
+        file_change="true"
+        echo 'host  puppetdb  puppetdb  0.0.0.0/0   trust' >> $psql_config
+      fi
+      execute "grep \"listen_addresses = '0.0.0.0'\" $psql_data_conf"
+      if [[ $? -ne 0 ]]; then
+        file_change="true"
+        echo "listen_addresses = '0.0.0.0'" >> $psql_data_conf
+      fi      
+      ;;
+    *)
+    print_error "$os is not yet supported"
+    exit 1
+  esac
+  if [[ "$file_change" = "true" ]]; then
+    print_info "Restarting postgresql to reload config"
+    execute "service postgresql restart"
+  fi
+}
 
-trap "quit 3" SIGINT SIGQUIT SIGTSTP
+function start_postgres () {
+  local service="postgresql"
+  local service_count=$(ps -ef | grep -v grep | grep postmaster | wc -l)
+  if [[ $service_count -gt 0 && "$force_restart" = "true" ]]; then
+    print_info "Restarting service $service..."
+    execute "service $service restart"
+  elif [[ $service_count -gt 0 ]]; then
+    print_info "Service $service is already running. Skipping start step."
+  else
+    print_info "Starting service $service..."
+    execute "service $service start"
+  fi
+}
 
-#only root can run this script
-if [ "$(id -u)" != "0" ]; then
-   echo "This script must be run as root"
-   exit 1
-fi
+function configure_postgres_users () {
+  sudo -u postgres psql template1 <<END 1>>$stdout_log 2>>$stderr_log
+create user puppetdb with password '$postgresql_password';
+create database puppetdb with owner puppetdb;
+END
+}
 
-#check number of arguments
-if [ $# -eq 0 ];
-then
-  printerr "Arguments required"
-  usage
-fi
-
-#parse command line options
-while getopts j:M:S:P:H:schmd opts
-do
-  case ${opts} in
-    s)
-    PS_SETUP=1
+function check_if_puppet_server_is_installed () {
+  print_info "Checking to see if puppet is installed..."
+  case "$os" in
+    centos|redhat)
+      execute "rpm -q puppet-server"
+      return $?
       ;;
-    h)
-    usage
+    ubuntu)
+      execute "dpkg --list | grep puppetmaster"
+      return $?
       ;;
-    c)
-    PC_SETUP=1
-      ;;
-    J)
-    JVM_SIZE=${OPTARG}
-      ;;
-    P)
-    PSQL_PWD=${OPTARG}
-      ;;
-    H)
-    PS_MC_HN=${OPTARG}
-      ;;
-    \?)
-    usage
+    *)
+      print_error "$os is not supported yet."
+      exit 1
       ;;
   esac
-done
+}
 
-#setup default values for cmd line args
-if [ -z ${JVM_SIZE} ];
-then
-  #jvm size for puppetdb
-  JVM_SIZE="-Xmx192m"
-fi
-
-if [ -z ${PSQL_PWD} ];
-then
-  #password for psql puppetdb user
-  PSQL_PWD="puppetdb"
-fi
-
-# => Manage Repos
-install_epel_repo
-install_puppet_repo
-disable_gpgcheck
-stop_iptables
-create_log_dir
-if [[ ${OS} =~ centos || ${OS} =~ redhat ]]; then
-  yum clean all
-fi
-
-#puppet server setup
-if [ "${PS_SETUP}" == "1" ]; then
-  printclr "Installing puppet server packages"
-  ${INSTALL} -y install ${PUPPET_PKG} puppet
-  if [ $? -ne 0 ]; then
-    printerr "failed installing puppet"
-    exit 2
+function install_puppet_server () {
+  check_if_puppet_server_is_installed
+  if [[ $? -eq 0 ]]; then
+    print_info "Package puppet is already installed. Skipping installation step."
+    return
   fi
-  #dir structure and permissions
-  printclr "Creating required dir structure"
-  mkdir -p /var/lib/puppet/ssl
-  chown puppet.puppet /var/lib/puppet/ssl
-  mkdir -p /etc/puppet/rack/{public,tmp}
-  mkdir -p /etc/puppet/enc
-  chown -R puppet /etc/puppet/rack
-  chmod -R 755 /etc/puppet/rack
-  if [[ ${OS} =~ centos || ${OS} =~ redhat ]]; then
-    if [ -f /usr/share/puppet/ext/rack/config.ru ]; then
-      cp /usr/share/puppet/ext/rack/config.ru /etc/puppet/rack
-    elif [ -f /usr/share/puppet/ext/rack/files/config.ru ]; then
-      cp /usr/share/puppet/ext/rack/files/config.ru /etc/puppet/rack
-    else
-      echo "Cannot find 'config.ru' file, trying to download file from puppet source"
-      cd /tmp && wget http://downloads.puppetlabs.com/puppet/puppet-3.1.1.tar.gz
-      tar -xzf puppet-3.1.1.tar.gz
-      cp puppet-3.1.1/ext/rack/files/config.ru /etc/puppet/rack
-      rm -rf /tmp/puppet*
-    fi
-  elif [[ ${OS} =~ ubuntu ]]; then
-    cd /tmp && wget http://downloads.puppetlabs.com/puppet/puppet-3.1.1.tar.gz
-    tar -xzf puppet-3.1.1.tar.gz
-    cp puppet-3.1.1/ext/rack/files/config.ru /etc/puppet/rack
-    rm -rf /tmp/puppet*
-  fi
-  chown puppet /etc/puppet/rack/config.ru
-  ln -s /var/lib/puppet/ssl /etc/puppet/ssl
+  add_puppetlabs_repo
+  print_info "Installing puppet server package..."
+  case "$os" in
+    centos|redhat)
+      execute "$package_manager install -y puppet-server"
+      if [[ $? -ne 0 ]]; then
+        print_error "Failed installing puppet-server, stopping."
+        exit 1
+      fi
+      ;;
+    ubuntu)
+      execute "$package_manager install -y puppetmaster"
+      if [[ $? -ne 0 ]]; then
+        print_error "Failed installing puppetmaster, stopping."
+        exit 1
+      fi      
+      ;;
+    *)
+    print_error "$os is not yet supported"
+    exit 1
+  esac
+}
 
-  #download puppet modules
-  download_modules
-  #install puppetlabs-apt which we require
-  puppet module install puppetlabs/apt
+function configure_puppet_server () {
+  local eth0_ip_address=$(ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | grep 'Bcast' | awk '{print $1}')
+  local puppet_server_fqdn=$(hostname --fqdn)
 
-  #start puppet services if not using apache passenger
-  #puppet resource service puppet ensure=running enable=true
-  #puppet resource service puppetmaster ensure=running enable=true
-
-cat > /etc/puppet/puppet.conf << END
+  cat > /etc/puppet/puppet.conf <<END
 [main]
   logdir = /var/log/puppet
   rundir = /var/run/puppet
   ssldir = \$vardir/ssl
-  server = PUPPET_SERVER_PH
+  server = $puppet_server_fqdn
 
 [agent]
   classdir = \$vardir/classes.txt
   localconfig = \$vardir/localconfig
 
-[master]
-  ssl_client_header = SSL_CLIENT_S_DN
-  ssl_client_verify_header = SSL_CLIENT_VERIFY
 END
+}
 
-sed -e s,PUPPET_SERVER_PH,${PUPPET_SERVER},g -i /etc/puppet/puppet.conf
-
-#Allow auto signing of clients by puppet master which belonging to same domain
-echo "*.${DOMAIN_NAME}" > /etc/puppet/autosign.conf
-
-  #run puppet once without passenger, required for generating initial certificates.
-  printclr "Intializing puppetmaster run for generating certificates"
-  if [[ ${OS} =~ centos || ${OS} =~ redhat ]]; then
-    /etc/init.d/puppetmaster start
-    /etc/init.d/puppetmaster stop
-  elif [[ ${OS} =~ ubuntu ]]; then
-    service puppetmaster stop
-  fi
-  chmod g+w /var/lib/puppet/ssl/ca/private/*
-  chmod g+w /var/lib/puppet/ssl/ca/ca*pem
-
-#create hiera configuration
-cat > /etc/puppet/hiera.yaml <<\HIERADELIM
+function configure_hiera () {
+  cat > /etc/puppet/hiera.yaml <<\HIERADELIM
 ---
 :hierarchy:
  - %{operatingsystem}
@@ -430,38 +525,187 @@ cat > /etc/puppet/hiera.yaml <<\HIERADELIM
 :yaml:
  :datadir: '/etc/puppet/hieradata'
 HIERADELIM
-mkdir -p /etc/puppet/hieradata
-#######################
-# => Passenger Setup
-#######################
-printclr "Installing dependecies for passenger"
-if [[ $OS =~ centos || $OS =~ redhat ]]; then
-  yum -y install httpd httpd-devel ruby-devel rubygems mod_ssl.x86_64 curl-devel openssl-devel gcc-c++ zlib-devel make
-  rm -rf /etc/httpd/conf.d/ssl.conf
-  rm -rf /etc/httpd/conf.d/welcome.conf
-  chkconfig httpd on
-elif [[ ${OS} =~ ubuntu ]]; then
-  apt-get -y install apache2 ruby1.8-dev rubygems libcurl4-openssl-dev libssl-dev zlib1g-dev apache2-prefork-dev \
-    libapr1-dev libaprutil1-dev
-  if [ $? -ne 0 ]; then
-    printerr "failed installing dependencies"
-    exit 2
+  if [[ ! -d /etc/puppet/hieradata ]]; then
+    mkdir -p /etc/puppet/hieradata
   fi
-  a2enmod ssl
-  a2enmod headers
-  update-rc.d -f puppetmaster remove  #making sure puppetmaster does not start using init scripts
-fi
-printclr "Installing passenger"
-gem install --no-rdoc --no-ri rack
-gem install --no-rdoc --no-ri passenger --version=3.0.18
-if [[ $OS =~ centos || $OS =~ redhat ]]; then
-  /usr/bin/passenger-install-apache2-module -a
-elif [[ ${OS} =~ ubuntu ]]; then
-  /usr/local/bin/passenger-install-apache2-module -a
-fi
-printclr "Configuring passenger"
-#passenger conf file for puppet
-cat > ${PASSENGER_CONF_PATH} << DELIM
+}
+
+function configure_enc () {
+  local enc_dir="/etc/puppet/enc"
+  if [[ ! -d $enc_dir ]]; then
+    mkdir -p $enc_dir
+  fi
+  execute "grep 'node_terminus = exec' $enc_dir"
+  if [[ $? -ne 0 ]]; then
+      echo "  node_terminus = exec
+  external_nodes = /etc/puppet/enc/ankus_puppet_enc" >> /etc/puppet/puppet.conf
+  fi
+}
+
+function configure_autosign_certificates () {
+  local puppet_server_fqdn=$(hostname --fqdn)
+  local domain_name=$(echo $puppet_server_fqdn | cut -d "." -f 2-)
+  echo "*.${domain_name}" > /etc/puppet/autosign.conf
+}
+
+function start_puppet_server () {
+  print_info "Starting puppet master service..."
+  execute "puppet resource service puppetmaster ensure=running"
+}
+
+function stop_puppet_server () {
+  print_info "Stopping puppet master service..."
+  execute "puppet resource service puppetmaster ensure=stopped" 
+}
+
+function check_if_puppet_client_is_installed () {
+  print_info "Checking to see if puppet agent is installed..."
+  case "$os" in
+    centos|redhat)
+      execute "rpm -q puppet"
+      return $?
+      ;;
+    ubuntu)
+      execute "dpkg --list | grep puppet"
+      return $?
+      ;;
+    *)
+      print_error "$os is not supported yet."
+      exit 1
+      ;;
+  esac
+}
+
+function install_puppet_client () {
+  check_if_puppet_client_is_installed
+  if [[ $? -eq 0 ]]; then
+    print_info "Package puppet is already installed. Skipping installation step."
+    return
+  fi
+  add_puppetlabs_repo
+  print_info "Installing puppet agent package..."
+  execute "$package_manager install -y puppet"
+  if [[ $? -ne 0 ]]; then
+    print_error "Failed installing puppet, stopping."
+    exit 1
+  fi  
+}
+
+function configure_puppet_client () {
+  print_info "Configuring puppet agent..."
+  cat > /etc/puppet/puppet.conf <<END
+[main]
+  logdir = /var/log/puppet
+  rundir = /var/run/puppet
+  ssldir = \$vardir/classes.txt
+[agent]
+  classdir = \$vardir/classes.txt
+  localconfig = \$vardir/localconfig
+  server = $puppet_server_hostname
+  pluginsync = true
+END
+}
+
+function start_puppet_client () {
+  print_info "Setting up cron job to start puppet agent"
+  execute "puppet resource cron puppet-agent ensure=present user=root minute=30 command='/usr/bin/puppet agent --onetime --no-daemonize --splay'"
+}
+
+function check_if_passenger_is_installed () {
+  print_info "Checking if passenger is already installed..."
+  execute "gem list | grep passenger"
+  return $?
+}
+
+function test_puppet_run () {
+  print_info "Executing test puppet run"
+  execute "puppet agent --test --noop"
+  if [[ $? -eq 0 ]]; then
+    print_info "Sucessfully executed puppet run"
+  else
+    print_warning "Failed executing test puppet run"
+  fi
+}
+
+function install_dependencies_for_passenger () {
+  print_info "Installing dependencies for passenger..."
+  case "$os" in
+    centos|redhat)
+      execute "$package_manager -y install httpd httpd-devel ruby-devel rubygems mod_ssl.x86_64 curl-devel openssl-devel gcc-c++ zlib-devel make"
+      if [[ -f /etc/httpd/conf.d/ssl.conf ]]; then
+        execute "rm -f /etc/httpd/conf.d/ssl.conf"
+      fi
+      if [[ -f /etc/httpd/conf.d/welcome.conf ]]; then
+        execute "rm -f /etc/httpd/conf.d/welcome.conf"
+      fi
+      execute "chkconfig httpd on"
+      ;;
+    ubuntu)
+      execute "$package_manager -y install apache2 ruby1.8-dev rubygems libcurl4-openssl-dev libssl-dev zlib1g-dev apache2-prefork-dev libapr1-dev libaprutil1-dev"
+      execute "a2enmod ssl"
+      execute "a2enmod headers"
+      execute "update-rc.d -f puppetmaster remove"
+      ;;
+    *)
+      print_error "$os is not supported yet."
+      exit 1
+      ;;
+  esac  
+}
+
+function install_passenger () {
+  check_if_passenger_is_installed
+  if [[ $? -eq 0 ]]; then
+    print_info "Gem passenger is already installed. Skipping installation step."
+    return
+  fi
+  install_dependencies_for_passenger
+  execute "gem install --no-rdoc --no-ri rack"
+  execute "gem install --no-rdoc --no-ri passenger --version=3.0.18"
+  if [[ $? -ne 0 ]]; then
+    print_error "Failed installing passenger gem, stopping."
+    exit 1
+  fi
+  print_info "Setting up passenger as apache module, this might take a while..."
+  case "$os" in
+    centos|redhat)
+      execute "/usr/bin/passenger-install-apache2-module -a"
+      ;;
+    ubuntu)
+      execute "/usr/local/bin/passenger-install-apache2-module -a"
+      ;;
+  esac    
+}
+
+function configure_passenger () {
+  print_info "Configuring passenger..."
+  local puppet_server_fqdn=$(hostname --fqdn)
+  local puppet_server_fqdn_lowercase=$(echo $puppet_server_fqdn | tr '[:upper:]' '[:lower:]')
+  local puppet_conf="/etc/puppet/puppet.conf"
+  local passenger_conf
+  local ruby_path
+  local ruby_exec
+  case "$os" in
+    centos|redhat)
+      passenger_conf="/etc/httpd/conf.d/puppet.conf"
+      ruby_path="/usr/lib/ruby"
+      ruby_exec="/usr/bin/ruby"
+      ;;
+    ubuntu)
+      passenger_conf="/etc/apache2/sites-available/puppetmasterd"
+      ruby_path="/var/lib"
+      ruby_exec="/usr/bin/ruby1.8"
+      ;;
+  esac
+  execute "grep ssl_client_header $puppet_conf"
+  if [[ $? -ne 0 ]]; then  
+    cat >> $puppet_conf <<DELIM
+[master]
+  ssl_client_header = SSL_CLIENT_S_DN
+  ssl_client_verify_header = SSL_CLIENT_VERIFY  
+DELIM
+  fi
+  cat > $passenger_conf <<DELIM
 # you probably want to tune these settings
 PassengerHighPerformance on
 PassengerMaxPoolSize 12
@@ -474,36 +718,36 @@ RailsAutoDetect Off
 Listen 8140
 
 <VirtualHost *:8140>
-        LoadModule passenger_module ${RUBY_PATH}/gems/1.8/gems/passenger-3.0.18/ext/apache2/mod_passenger.so
-        PassengerRoot ${RUBY_PATH}/gems/1.8/gems/passenger-3.0.18
-        PassengerRuby ${RUBY_EXEC}
+        LoadModule passenger_module ${ruby_path}/gems/1.8/gems/passenger-3.0.18/ext/apache2/mod_passenger.so
+        PassengerRoot ${ruby_path}/gems/1.8/gems/passenger-3.0.18
+        PassengerRuby ${ruby_exec}
         LoadModule ssl_module modules/mod_ssl.so
 
         SSLEngine on
         SSLProtocol -ALL +SSLv3 +TLSv1
         SSLCipherSuite ALL:!ADH:RC4+RSA:+HIGH:+MEDIUM:-LOW:-SSLv2:-EXP
 
-        SSLCertificateFile      /etc/puppet/ssl/certs/PUPPET_SERVER_PH.pem
-        SSLCertificateKeyFile   /etc/puppet/ssl/private_keys/PUPPET_SERVER_PH.pem
-        SSLCertificateChainFile /etc/puppet/ssl/ca/ca_crt.pem
-        SSLCACertificateFile    /etc/puppet/ssl/ca/ca_crt.pem
+        SSLCertificateFile      /var/lib/puppet/ssl/certs/${puppet_server_fqdn_lowercase}.pem
+        SSLCertificateKeyFile   /var/lib/puppet/ssl/private_keys/${puppet_server_fqdn_lowercase}.pem
+        SSLCertificateChainFile /var/lib/puppet/ssl/ca/ca_crt.pem
+        SSLCACertificateFile    /var/lib/puppet/ssl/ca/ca_crt.pem
         # If Apache complains about invalid signatures on the CRL, you can try disabling
         # CRL checking by commenting the next line, but this is not recommended.
-        SSLCARevocationFile     /etc/puppet/ssl/ca/ca_crl.pem
+        SSLCARevocationFile     /var/lib/puppet/ssl/ca/ca_crl.pem
         SSLVerifyClient optional
         SSLVerifyDepth  1
         SSLOptions +StdEnvVars
 
-        # This header needs to be set if using a load balancer or proxy
+        # This header needs to be set if using a loadbalancer or proxy
         RequestHeader unset X-Forwarded-For
 
         RequestHeader set X-SSL-Subject %{SSL_CLIENT_S_DN}e
         RequestHeader set X-Client-DN %{SSL_CLIENT_S_DN}e
         RequestHeader set X-Client-Verify %{SSL_CLIENT_VERIFY}e
 
-        DocumentRoot /etc/puppet/rack/public/
+        DocumentRoot /usr/share/puppet/rack/puppetmasterd/public
         RackBaseURI /
-        <Directory /etc/puppet/rack/>
+        <Directory /usr/share/puppet/rack/puppetmasterd/>
                 Options None
                 AllowOverride None
                 Order allow,deny
@@ -511,88 +755,136 @@ Listen 8140
         </Directory>
 </VirtualHost>
 DELIM
-sed -i "s/PUPPET_SERVER_PH/${PUPPET_SERVER}/g" ${PASSENGER_CONF_PATH}
+  # tell rack how to spawn puppet master processes
+  if [[ ! -d /usr/share/puppet/rack/puppetmasterd ]]; then
+    execute "mkdir -p /usr/share/puppet/rack/puppetmasterd/{public,tmp}"
+    if [[ ! -f /usr/share/puppet/rack/puppetmasterd/config.ru ]]; then
+      execute "cd /usr/share/puppet/rack/puppetmasterd/ && curl -O https://raw.github.com/puppetlabs/puppet/master/ext/rack/config.ru"
+      execute "chown puppet:puppet /usr/share/puppet/rack/puppetmasterd/config.ru"
+    fi
+  fi
+  print_info "Restarting apache to reload config..."
+  case "$os" in
+    centos|redhat)
+      execute "service httpd restart"
+      ;;
+    ubuntu)
+      execute "a2ensite puppetmasterd"
+      execute "service apache2 restart"
+      ;;
+  esac
+}
 
-  #restart httpd and check if puppet is handled by passenger
-  printclr "Restarting httpd and verifying puppet run using passenger"
-  if [[ ${OS} =~ ubuntu ]]; then
-    a2ensite puppetmasterd  #enable the site puppetmasted
-    service ${APACHE_PKG} restart
+function check_passenger_status () {
+  execute "netstat -plunt | grep 8140"
+  if [[ $? -eq 0 ]]; then
+    print_info "Puppet server is running through passenger..."
   else
-    service ${APACHE_PKG} start
+    print_error "Puppet server failed starting using passenger. Exiting"
+    exit 1
   fi
+}
 
-  netstat -plunt | grep 8140 &> /dev/null
-  if [ $? -eq 0 ]; then
-    printclr "Puppet master is running through passenger..."
-  else
-    printerr "Puppet master is not running somthing went wrong with apache passenger loading."
+function restart_apache () {
+  print_info "Restarting apache to reload config..."
+  case "$os" in
+    centos|redhat)
+      execute "service httpd restart"
+      ;;
+    ubuntu)
+      execute "a2ensite puppetmasterd"
+      execute "service apache2 restart"
+      ;;
+  esac
+}
+
+function check_if_puppetdb_is_installed () {
+  print_info "Checking to see if puppetdb is installed..."
+  case "$os" in
+    centos|redhat)
+      execute "rpm -q puppetdb"
+      return $?
+      ;;
+    ubuntu)
+      execute "dpkg --list | grep puppetdb"
+      return $?
+      ;;
+    *)
+      print_error "$os is not supported yet."
+      exit 1
+      ;;
+  esac  
+}
+
+function install_puppetdb () {
+  check_if_puppetdb_is_installed
+  if [[ $? -eq 0 ]]; then
+    print_info "Package puppetdb is already installed. Skipping installation step."
+    return
   fi
-  passenger-status | grep PID | sort
-
-  printclr "Testing puppet agent run with apche passenger:"
-  puppet agent --test
-  [ $? -eq 0 ] && printclr "Puppet agent run suceeded" || printerr "Puppet agent run failed"
-
-  #######################
-  # => PUPPETDB Setup
-  #######################
-  printclr "Installing postgresql"
-  install_postgres
-  printclr "Setting up PUPPETDB for stored configurations"
-  if [[ ${OS} =~ centos || ${OS} =~ redhat ]]; then
-    yum -y install puppetdb puppetdb-terminus
-  elif [[ ${OS} =~ ubuntu ]]; then
-    apt-get -y install puppetdb puppetdb-terminus
+  print_info "Installing puppetdb package"
+  execute "$package_manager -y install puppetdb puppetdb-terminus"
+  if [[ $? -ne 0 ]]; then
+    print_error "Failed installing puppetdb, stopping."
+    exit 1
   fi
-#configure jvm heap size for puppetdb
-cat > ${PUPPET_DB_DEFAULT} <<\PUPPETDBDELIM
+}
+
+function configure_puppetdb () {
+  local puppetdb_default
+  local puppet_server_fqdn=$(hostname --fqdn)
+  case "$os" in
+    centos|redhat)
+      puppetdb_default="/etc/sysconfig/puppetdb"
+      ;;
+    ubuntu)
+      puppetdb_default="/etc/default/puppetd"
+      ;;
+    *)
+      print_error "$os is not supported yet."
+      exit 1
+      ;;
+  esac
+  cat > ${puppetdb_default} <<PUPPETDBDELIM
 JAVA_BIN="/usr/bin/java"
-JAVA_ARGS="JAVAHEAPSIZE_PH -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/var/log/puppetdb/puppetdb-oom.hprof "
+JAVA_ARGS="${puppetdb_jvm_size} -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/var/log/puppetdb/puppetdb-oom.hprof "
 USER="puppetdb"
 INSTALL_DIR="/usr/share/puppetdb"
 CONFIG="/etc/puppetdb/conf.d"
 PUPPETDBDELIM
 
-sed -e s,JAVAHEAPSIZE_PH,${JVM_SIZE},g -i ${PUPPET_DB_DEFAULT}
-
-#check to see if psql is allowing connections
-#psql -h localhost puppetdb puppetdb
-
-cat > /etc/puppetdb/conf.d/database.ini <<\PUPPETDBDELIM
+  cat > /etc/puppetdb/conf.d/database.ini <<PUPPETDBDELIM
 [database]
 classname = org.postgresql.Driver
 subprotocol = postgresql
 subname = //localhost:5432/puppetdb
 username = puppetdb
-password = PASSWORD_PH
+password = ${postgresql_password}
+# gc-interval = 60
 log-slow-statements = 10
 PUPPETDBDELIM
 
-sed -e s,PASSWORD_PH,${PSQL_PWD},g -i /etc/puppetdb/conf.d/database.ini
+  # configure Jetty to listen on 8085 and ssl on 8086
+  sed -i s/port\ \=\ 8080/port\ \=\ 8085/g  /etc/puppetdb/conf.d/jetty.ini
+  sed -i s/ssl-port\ \=\ 8081/ssl-port\ \=\ 8086/g  /etc/puppetdb/conf.d/jetty.ini
 
-#Configure Jetty to listen on 8085 and ssl on 8086 and on all interfaces 0.0.0.0
-# sed -i s/#host\ \=\ localhost/host \=\ 0.0.0.0/g /etc/puppetdb/conf.d/jetty.ini
-# sed -i s/ssl-host\ \=\ `hostname --fqdn`/ssl-host \=\ 0.0.0.0/g /etc/puppetdb/conf.d/jetty.ini
-sed -i s/port\ \=\ 8080/port\ \=\ 8085/g  /etc/puppetdb/conf.d/jetty.ini
-sed -i s/ssl-port\ \=\ 8081/ssl-port\ \=\ 8086/g  /etc/puppetdb/conf.d/jetty.ini
-
-#install plugin to connect puppet master to puppetdb
-printclr "Configuring puppet terminus"
-
-cat > /etc/puppet/puppetdb.conf << DELIM
+  # install plugin to connect puppet master to puppetdb
+  cat > /etc/puppet/puppetdb.conf <<DELIM
 [main]
-server = ${PUPPET_SERVER}
+server = $puppet_server_fqdn
 port = 8086
 DELIM
-
-echo "  storeconfigs = true
-  storeconfigs_backend = puppetdb
-  modulepath = \$confdir/environments/\$environment/modules:\$confdir/modules
-  manifest = \$confdir/environments/\$environment/site.pp" >> /etc/puppet/puppet.conf
-
-#This will make PuppetDB the authoritative source for the inventory service.
-cat > /etc/puppet/routes.yaml <<\DELIM
+  execute "grep 'storeconfigs = true' /etc/puppet/puppet.conf"
+  if [[ $? -ne 0 ]]; then
+    echo "  storeconfigs = true" >> /etc/puppet/puppet.conf
+  fi
+  execute "grep 'storeconfigs_backend = puppetdb' /etc/puppet/puppet.conf"
+  if [[ $? -ne 0 ]]; then
+    echo "  storeconfigs_backend = puppetdb" >> /etc/puppet/puppet.conf
+  fi
+  
+  # make PuppetDB the authoritative source for the inventory service.
+  cat > /etc/puppet/routes.yaml <<\DELIM
 ---
 master:
  facts:
@@ -600,89 +892,209 @@ master:
   cache: yaml
 DELIM
 
-#puppetdb ssl configuration script
-puppetdb-ssl-setup
+  # puppetdb ssl configuration script
+  execute "puppetdb-ssl-setup"
+}
 
-printclr "Starting puppetdb"
-service puppetdb start
-if [ $? -eq 0 ]; then
-  printclr "puppetdb started sucessfully"
-else
-  printerr "puppetdb failed to start, check /var/log/puppetdb/ for logs"
-fi
+function start_puppetdb () {
+  local service="puppetdb"
+  local service_count=$(ps -ef | grep -v grep | grep java | grep $service | wc -l)
+  if [[ $service_count -gt 0 && "$force_restart" = "true" ]]; then
+    print_info "Restarting service $service..."
+    execute "service $service restart"
+  elif [[ $service_count -gt 0 ]]; then
+    print_info "Service $service is already running. Skipping start step."
+  else
+    print_info "Starting service $service..."
+    execute "service $service start"
+  fi
+}
 
-#check if puppetdb has started listening
-printclr "Pausing till puppetdb is listening"
-#timeout for 60 seconds if not exit out
-timeout 60s bash -c '
+function pause_till_puppetdb_starts () {
+  print_info "Waiting till puppetdb service starts up"
+  timeout 60s bash -c '
 while : ; do
  grep "Started SslSelectChannelConnector@" /var/log/puppetdb/puppetdb.log &>/dev/null && break
- printf .
  sleep 1
 done
-echo ""
 '
-#timeout command exits out with 124 if it timeouts
-if [ $? -eq 124 ]; then
-  echo "Raised Timeout waiting for puppetdb to listen"
-  exit 22
-else
-  echo "PuppetDB started listening"
-fi
-printclr "Test puppet agent run to test if setup was ok"
-puppet agent -t && printclr "Puppet run suceeded" || printerr "Puppet agent run failed with PuppetDB"
-
-#enc configuration
-if [ -d /etc/puppet/enc ]; then
-echo "  node_terminus = exec
-  external_nodes = /etc/puppet/enc/ankus_puppet_enc" >> /etc/puppet/puppet.conf
-fi
-
-printclr "Reloading Apache to pick up new configurations"
-service ${APACHE_PKG} restart #reload configurations
-if [ $? -ne 0 ]; then
-  echo "[Fatal]: Failed to restart passenger" 1>&2
-  exit 2
-fi
-fi # => end puppet server
-
-#AGENT SETUP
-if [ "${PC_SETUP}" == "1" ]; then
-  # if [ -z "${PS_MC_HN}" ]; then
-  #   echo -e "enter the hostname of puppet_server: \c"
-  #   read PS_MC_HN
-  # fi
-  # ping -c1 -w1 ${PS_MC_HN} &>/dev/null
-  # if [ $? -eq 0 ]; then
-  #   echo ${PS_MC_HN} is up ...
-  # else
-  #   printclr "${PS_MC_HN} is down!, Aborting."
-  #   exit 1
-  # fi
-  printclr "Installing Puppet client"
-  if [[ ${OS} =~ centos || ${OS} =~ redhat ]]; then
-    ${INSTALL} clean all
+  if [ $? -eq 124 ]; then
+    print_error "Raised Timeout waiting for puppetdb to listen"
+    exit 22
+  else
+    print_info "PuppetDB started successfully"
   fi
-  ${INSTALL} -y install puppet
-  if [ $? -ne 0 ]; then
-    printerr "puppet agnet installation failed"
-    exit 2
+}
+
+####
+## Main
+####
+
+declare puppet_server_setup
+declare puppet_client_setup
+declare puppetdb_setup
+declare passenger_setup
+declare autosigning_enabled
+declare puppetdb_jvm_size
+declare postgresql_password
+declare puppet_server_hostname
+declare setup_puppet_cron_job
+declare wait_for_puppetdb
+
+function usage () {
+  script=$0
+  cat <<USAGE
+Syntax
+`basename ${script}` -s -c -d -p -a -j -J {-Xmx512m|-Xmx256m} -P {psql_password} -H {ps_hostname} -h
+
+-s: puppet server setup
+-c: puppet client setup
+-d: setup puppetdb for stored configurations
+-p: install and configure passenger which runs puppet master as a rack application inside apache
+-a: set up auto signing for the same clients belonging to same domain
+-j: set up cron job for running puppet agent every 30 minutes
+-w: wait till puppetdb starts
+-J: JVM Heap Size for puppetdb
+-P: postgresql password for puppetdb|postgres user
+-H: puppet server hostname (required for client setup)
+-h: show help
+
+Examples:
+Install puppet server with all defaults:
+`basename $script` -s
+Install puppet server with puppetdb and passenger:
+`basename $script` -s -p -d
+Install puppet client:
+`basename $script` -c -H {puppet_server_hostname}
+
+USAGE
+  exit 1
+}
+
+function check_variables () {
+  print_info "Checking command line & user-defined variables for any errors..."
+
+  if [[ "$puppet_client_setup" = "true" ]]; then
+    if [[ -z $puppet_server_hostname ]]; then
+      print_error "Option puppet client setup (-c) requires to pass puppet server hostname using (-H)"
+      echo
+      usage
+      exit 1
+    fi
   fi
+  if [[ "$puppetdb_setup" = "true" ]]; then
+    if [[ -z $puppetdb_jvm_size ]]; then
+      print_warning "PuppetDB JVM size not set, default value of '-Xmx192m' will be used"
+      puppetdb_jvm_size="-Xmx192m"
+    fi
+    if [[ -z $postgresql_password ]]; then
+      print_warning "Postgresql password for puppetdb user not set, default value of 'Change3E' will be used"
+      postgresql_password="Change3E"
+    fi    
+  fi
+}
 
-cat > /etc/puppet/puppet.conf <<\DELIM
-[main]
- logdir = /var/log/puppet
- rundir = /var/run/puppet
- ssldir = $vardir/classes.txt
-[agent]
- classdir = $vardir/classes.txt
- localconfig = $vardir/localconfig
- server = PUPPETSERVER_PH
- pluginsync = true
-DELIM
+function main () {
+  trap "kill 0" SIGINT SIGTERM EXIT
 
-sed -e s,PUPPETSERVER_PH,${PS_MC_HN},g -i /etc/puppet/puppet.conf
+  # parse command line options
+  while getopts J:P:H:scdpajwh opts
+  do
+    case $opts in
+      s)
+        puppet_server_setup="true"
+        ;;
+      c)
+        puppet_client_setup="true"
+        ;;
+      d)
+        puppetdb_setup="true"
+        ;;
+      p)
+        passenger_setup="true"
+        ;;
+      a)
+        autosigning_enabled="true"
+        ;;
+      j)
+        setup_puppet_cron_job="true"
+        ;;
+      w)
+        wait_for_puppetdb="true"
+        ;;
+      J)
+        puppetdb_jvm_size=$OPTARG
+        ;;
+      P)
+        postgresql_password=$OPTARG
+        ;;
+      H)
+        puppet_server_hostname=$OPTARG
+        ;;
+      h)
+        usage
+        ;;        
+      \?)
+        usage
+        ;;
+    esac
+  done
 
-#printclr "Setting up cron job to start puppet agent"
-#puppet resource cron puppet-agent ensure=present user=root minute=30 command='/usr/bin/puppet agent --onetime --no-daemonize --splay'
-fi
+  print_banner
+  check_variables
+  local start_time="$(date +%s)"
+  get_system_info
+  check_preqs
+  stop_iptables
+  stop_selinux
+  if [[ "$puppet_server_setup" = "true" ]]; then
+    install_puppet_server
+    configure_puppet_server
+    if [[ "$autosigning_enabled" = "true" ]]; then
+      configure_autosign_certificates
+    fi
+    start_puppet_server
+    if [[ "$passenger_setup" = "true" ]]; then
+      stop_puppet_server
+      install_passenger
+      configure_passenger
+      check_passenger_status
+    fi
+    if [[ "$puppetdb_setup" = "true" ]]; then
+        install_postgres
+        configure_postgres
+        start_postgres
+        configure_postgres_users
+        install_puppetdb
+        configure_puppetdb
+        start_puppetdb
+        if [[ "$wait_for_puppetdb" = "true" ]]; then
+          pause_till_puppetdb_starts
+        fi
+    fi
+    test_puppet_run
+    download_modules
+    install_puppet_apt_module
+    configure_hiera
+    configure_enc
+    if [[ "$passenger_setup" = "true" ]]; then
+      restart_apache
+    else
+      execute "service puppetmaster restart"
+    fi
+  elif [[ "$puppet_client_setup" = "true" ]]; then
+    install_puppet_client
+    configure_puppet_client
+    if [[ "$setup_puppet_cron_job" = "true" ]]; then
+      start_puppet_client
+    fi
+  else
+    print_error "Invalid script options, should wither pass -s or -c option"
+    usage
+    exit 1
+  fi
+  local end_time="$(date +%s)"
+  print_info "Execution complete. Time took: $((end_time - start_time)) second(s)"
+}
+
+main $@
