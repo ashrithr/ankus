@@ -8,7 +8,7 @@ Gem::Specification.new do |spec|
   spec.version       = Ankus::VERSION
   spec.authors       = ['ashrith']
   spec.email         = ['ashrith@cloudwick.com']
-  spec.summary       = %q{Ankus is a deployment & orchestration tool for big-data frameworks}
+  spec.summary       = %q{Ankus is a deployment & orchestration tool for big-data frameworks in cloud and on premise}
   spec.description   = "#{spec.summary}"
   spec.homepage      = 'https://github.com/ashrithr/ankus'
   spec.license       = 'MIT'
@@ -25,6 +25,7 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'multi_json'
   spec.add_runtime_dependency 'fog'
   spec.add_runtime_dependency 'unf'
+  spec.add_runtime_dependency 'log4r'
   spec.add_runtime_dependency 'highline'
   spec.add_runtime_dependency 'colored'
   spec.add_runtime_dependency 'net-ssh'

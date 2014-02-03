@@ -25,7 +25,7 @@ ssh_user: 'root'                 #<<<<<<<<<<<<<< UPDATE THIS
 #               - nagios server (if alerting is enabled)
 #               - ganglia server (if monitoring is enabled)
 #               - logstash indexer (if log aggregation is enabled)
-#   The value of the controller could be 'localhost' if runing ankus from 
+#   The value of the controller could be 'localhost' if running ankus from
 #   controller.
 ########################################################
 controller: 'controller.ops.cw.com'
@@ -34,16 +34,16 @@ controller: 'controller.ops.cw.com'
 # Hadoop Cluster Configuration
 ########################################################
 # * hadoop_deploy: specifies whether to deploy hadoop or not
-#   * hadoop_ha (hadoop high availability configuration):
-#       enabled => hadoop ha is enabled with two namenode(s) with auto failover 
-#                  using zkfc
-#       disabled => hadoop ha is not setup and only one namenode will be 
+#   * ha (hadoop high availability configuration):
+#       enabled => hadoop ha is enabled with two namenode(s) with auto failover
+#                  using zookeeper failover controller
+#       disabled => hadoop ha is not setup and only one namenode will be
 #                   installed and configured
-#   * hadoop_namenode:
+#   * namenode:
 #       fqdn of hosts on which namenode should be deployed
 #       if hadoop_ha is enabled, pass in two fqdn(s)
 #       if hadoop_ha is disabled, pass in one fqdn
-#   * hadoop_secondarynamenode:
+#   * secondarynamenode:
 #       if hadoop_ha is disabled pass in a fqdn in which secondarynamenode is 
 #       configured
 #   * journal_quorum:
@@ -53,7 +53,7 @@ controller: 'controller.ops.cw.com'
 #                mapreduce framework or not
 #       * type: specifies mapreduce framework type to deploy (mr1 or mr2)
 #       * master: fqdn of machine on which mapreduce master will be deployed
-#   * hadoop_ecosystem: list of ecosystem tools to deploy
+#   * ecosystem: list of ecosystem tools to deploy
 #       hive  - installs and configures hive, which is data warehouse system for 
 #               Hadoop (http://hive.apache.org/)
 #       pig   - installs and configures pig, is a platform for analyzing large 
@@ -66,13 +66,21 @@ controller: 'controller.ops.cw.com'
 #               (http://oozie.apache.org/)
 #       hue   - installs and configures hue, the open source Apache Hadoop UI
 #               (http://cloudera.github.io/hue/)
+#   * data_dirs:
+#       list of directories on which hadoop worker nodes writes data to
+#       (recommended to use multiple volumes & to mount each directory path
+#        on separate volumes for higher throughput)
+#       default: ['/data/hadoop']
+#   * master_dirs:
+#       list of directories to be used by master nodes to write data to
+#       default: ['/data/hadoop']
 #
 # ===============DEPLOYMENT SCENARIO 1==================
 #        TO DEPLOY HADOOP (HA) with MapReduce
 # ======================================================
 # hadoop_deploy:
-#   hadoop_ha: 'enabled'
-#   hadoop_namenode:
+#   ha: 'enabled'
+#   namenode:
 #     - 'namenode001.ops.cw.com'
 #     - 'namenode002.ops.cw.com'
 #   journal_quorum:
@@ -80,24 +88,32 @@ controller: 'controller.ops.cw.com'
 #   mapreduce:
 #     type: 'mr1'
 #     master: 'jt.ops.cw.com'
-#   hadoop_ecosystem:
+#   ecosystem:
 #     - 'hive'
 #     - 'pig'
 #     - 'sqoop'
 #     - 'oozie'
+#   data_dirs:
+#     - '/data/hadoop/1'
+#     - '/data/hadoop/2'
+#     - '/data/hadoop/3'
+#     - '/data/hadoop/4'
+#   master_dirs:
+#     - '/data/hadoop/1'
+#     - '/data/hadoop/2'
 #
 # ===============DEPLOYMENT SCENARIO 2==================
 #       TO DEPLOY HADOOP (NON-HA) with MapReduce
 # ======================================================
 # hadoop_deploy:
-#   hadoop_ha: 'disabled'
-#   hadoop_namenode:
+#   ha: 'disabled'
+#   namenode:
 #     - 'namenode001.ops.cw.com'
-#   hadoop_secondarynamenode: 'snn.ops.cw.com'
+#   secondarynamenode: 'snn.ops.cw.com'
 #   mapreduce:
 #     type: 'mr1'
 #     master: 'jt.ops.cw.com'
-#   hadoop_ecosystem:
+#   ecosystem:
 #     - 'hive'
 #     - 'pig'
 #     - 'sqoop'
@@ -107,10 +123,10 @@ controller: 'controller.ops.cw.com'
 # TO DEPLOY HADOOP (just HDFS) suitable for HBase deployments
 # ======================================================
 # hadoop_deploy:
-#   hadoop_ha: 'disabled'
-#   hadoop_namenode:
+#   ha: 'disabled'
+#   namenode:
 #     - 'namenode001.ops.cw.com'
-#   hadoop_secondarynamenode: 'snn.ops.cw.com'
+#   secondarynamenode: 'snn.ops.cw.com'
 #   mapreduce: 'disabled'
 #
 # ===============DEPLOYMENT SCENARIO 4==================
@@ -127,14 +143,14 @@ hadoop_deploy: 'disabled'
 # * hbase_deploy: Specify whether to deploy hbase or not
 #                   if enabled will install hbase
 #                   if disabled hbase will not be deployed
-# * hbase_master: if hbase_deploy is enabled, specify fqdn's of hbase masters 
-#                 to deploy
+# * master: if hbase_deploy is enabled, specify fqdn(s) of hbase masters
+#           to deploy
 #
 # ===============DEPLOYMENT SCENARIO 1==================
 #           TO DEPLOY HBASE (with 2 masters)
 # ======================================================
 # hbase_deploy:
-#   hbase_master:
+#   master:
 #     - 'hbasemaster001.ops.cw.com'
 #     - 'hbasemaster002.ops.cw.com'
 #
@@ -150,22 +166,41 @@ hbase_deploy: 'disabled'
 # Zookeeper Quorum Configuration
 ########################################################
 # Required for hadoop_ha, hbase, kafka, storm deployments
-# * zookeeper_quoram: specifies the fqdn(s) of hosts to launch zookeeper, which
-#                     are used for coordination between several services
-#                     Recommended: Odd number of hosts
+# * zookeeper_deploy: Specifies whether to deploy zookeeper or not
+# * quorum  : fqdn(s) of hosts to manage zookeeper on, which are used for
+#             coordination between several services
+#             Recommended: Odd number of hosts
+# * dirs    : list of directories to be used by zookeeper daemons to store
+#             data. Default: ['/data/zookeeper']
 # Note: (zookeepers and journal nodes can co-exist on same machines)
+# ===============DEPLOYMENT SCENARIO 1==================
+#           TO DEPLOY Zookeeper (with 3 masters)
+# ======================================================
+# zookeeper_deploy:
+#   quorum:
+#     - 'zookeeper001.ops.cw.com'
+#     - 'zookeeper002.ops.cw.com'
+#     - 'zookeeper003.ops.cw.com'
+#   dirs:
+#     - '/data/zookeeper/1'
+#     - '/data/zookeeper/2'
+#
+# ===============DEPLOYMENT SCENARIO 2==================
+#               DISABLE ZooKeeper DEPLOYMENT
+# ======================================================
+# zookeeper_deploy: 'disabled'
+#
 ########################################################
-zookeeper_quorum:
-  - 'utils001.ops.cw.com'
+zookeeper_deploy: 'disabled'
 
 ########################################################
 # Worker Nodes Configuration
 ########################################################
-#  slave_nodes:
-#   list of slave nodes on which hadoop worker daemons will be installed. If 
-#   hbase is enabled hbase worker daemons are also installed on same machines.
+#  worker_nodes:
+#   list of slave nodes on which hadoop worker daemons will be managed. If
+#   hbase is enabled hbase worker daemons are also managed on same machines.
 ########################################################
-slave_nodes:
+worker_nodes:
   - 'worker001.ops.cw.com'
   - 'worker002.ops.cw.com'
   - 'worker003.ops.cw.com'
@@ -178,18 +213,17 @@ slave_nodes:
 # * solr_deploy: Specify whether to deploy solr or not
 #                   if enabled will install solr
 #                   if disabled solr will not be deployed
-# * hdfs_intergration: specifies whether to deploy solr with hdfs integration
+# * hdfs_integration: specifies whether to deploy solr with hdfs integration
 #                      or not
-# * solr_nodes: specify fqdn's of solr nodes to deploy, if hdfs_integration is
-#               enabled its optimal to colocate hadoop worker nodes and solr 
-#               nodes
+# * nodes: specify fqdn(s) of solr nodes to deploy, if hdfs_integration is
+#          enabled its optimal to collocate hadoop worker nodes and solr nodes
 #
 # ===============DEPLOYMENT SCENARIO 1==================
 #           TO DEPLOY Solr with HDFS Integration
 # ======================================================
 # solr_deploy:
 #   hdfs_integration: enabled
-#   solr_nodes:
+#   nodes:
 #     - 'worker001.ops.cw.com'
 #     - 'worker002.ops.cw.com'
 #     - 'worker003.ops.cw.com'
@@ -199,7 +233,7 @@ slave_nodes:
 # ======================================================
 # solr_deploy:
 #   hdfs_integration: disabled
-#   solr_nodes:
+#   nodes:
 #     - 'solr001.ops.cw.com'
 #     - 'solr002.ops.cw.com'
 #     - 'solr003.ops.cw.com'
@@ -215,35 +249,41 @@ solr_deploy: 'disabled'
 ########################################################
 # Security
 ########################################################
-# security              : if configured sets up kerberos and integrates it with
-#                         hadoop/hbase and its eco-system
-#                         possible_values - simple (will not install kerberos)
-#                                         - kerberos (will install kerberos)
-# hadoop_kerberos_realm : if kerberos is enabled, enter a kerberos realm name
-# hadoop_kerberos_domain: if kerberos is enabled, enter a kerberos domain name
-#                         (http://goo.gl/o44h1O)
+# security : if configured sets up kerberos and integrates it with
+#            hadoop/hbase and its eco-system
+#            possible_values - simple (will not install kerberos)
+#                            - kerberos (will install kerberos)
+# kerberos_realm : if kerberos is enabled, enter a kerberos realm name
+# kerberos_domain: if kerberos is enabled, enter a kerberos domain name
+#                  (http://goo.gl/o44h1O)
 #
 # ===============DEPLOYMENT SCENARIO 1==================
 #                DO NOT USE SECURITY
 # ======================================================
-#security: 'simple'
+# security: 'simple'
 #
 # ===============DEPLOYMENT SCENARIO 2==================
 #          ENABLE SECURITY USING KERBEROS
 # ======================================================
-#security: 'kerberos'
-# hadoop_kerberos_realm: ANKUS.COM
-# hadoop_kerberos_domain: ankus.com
+# security: 'kerberos'
+#   kerberos_realm: ANKUS.COM
+#   kerberos_domain: ankus.com
 #
 ########################################################
 security: 'simple'
 
 ########################################################
 # Cassandra Cluster Configuration
-#  cassandra_deploy: specifies the deployment of cassandra cluster
-#                    possible values: Hash (or) disabled
-#   cassandra_nodes: nodes on which cassandra is deployed and managed
-#   cassandra_seeds: list of cassandra seed nodes
+#  cassandra_deploy   : specifies the deployment of cassandra cluster
+#                       possible values: Hash (or) disabled
+#   nodes             : nodes on which cassandra is deployed and managed
+#   seeds             : list of cassandra seed nodes
+#   data_dirs         : mount points to use for data directories
+#                       (default: [/var/lib/cassandra/data])
+#   commitlog_dirs    : mount points for commit log directories
+#                       (default: /var/lib/cassandra/commitlog)
+#   saved_caches_dirs : mount points for saved caches directories
+#                       (default: /var/lib/cassandra/saved_caches)
 # (NOTE: cassandra_nodes and hadoop_slave_nodes can co-exist if willing to 
 #        sacrifice performance)
 #
@@ -251,13 +291,13 @@ security: 'simple'
 #                 TO DEPLOY CASSANDRA 
 # ======================================================
 # cassandra_deploy:
-#   cassandra_nodes:
+#   nodes:
 #     - 'cassandra001.ops.cw.com'
 #     - 'cassandra002.ops.cw.com'
 #     - 'cassandra003.ops.cw.com'
 #     - 'cassandra004.ops.cw.com'
 #     - 'cassandra005.ops.cw.com'
-#   cassandra_seeds:
+#   seeds:
 #     - 'cassandra002.ops.cw.com'
 #
 # ===============DEPLOYMENT SCENARIO 2==================
@@ -272,22 +312,22 @@ cassandra_deploy: 'disabled'
 # Kafka Cluster Configuration
 #  kafka_deploy: specifies the deployment of kafka cluster
 #                possible values: Hash (or) disabled
-#   kafka_nodes: nodes on which kafka package is installed (can be used as
-#                 producers and consumenrs)
-#   kafka_brokers: list of kafka broker nodes
+#   nodes      : nodes on which kafka package is installed (can be used as
+#                producers and consumers)
+#   brokers    : list of kafka broker nodes
 #
 # ===============DEPLOYMENT SCENARIO 1==================
 #                   TO DEPLOY KAFKA
 # ======================================================
 # kafka_deploy:
-#   kafka_brokers:
+#   brokers:
 #     - 'kafka001.ops.cw.com'
 #     - 'kafka002.ops.cw.com'
 #
 # ===============DEPLOYMENT SCENARIO 2==================
 #               DISABLE KAFKA DEPLOYMENT
 # ======================================================
-#kafka_deploy: 'disabled'
+# kafka_deploy: 'disabled'
 #
 ########################################################
 kafka_deploy: 'disabled'
@@ -296,21 +336,21 @@ kafka_deploy: 'disabled'
 # Storm Cluster Configuration
 #  storm_deploy: specifies the deployment of storm cluster
 #                possible values: Hash (or) disabled
-#   storm_supervisors: nodes on which storm supervisor daemons are installed
-#   storm_master: node on which storm nimbus and ui daemons are installed
+#   supervisors: nodes on which storm supervisor daemons are installed
+#   master: node on which storm nimbus and ui daemons are installed
 #   workers_count: number of worker processes to run per supervisor node
 #
 # ===============DEPLOYMENT SCENARIO 1==================
 #                   TO DEPLOY STORM
 # ======================================================
 # storm_deploy:
-#   storm_supervisors:
+#   supervisors:
 #     - 'stormsupervisor001.ops.cw.com'
 #     - 'stormsupervisor002.ops.cw.com'
 #     - 'stormsupervisor003.ops.cw.com'
 #     - 'stormsupervisor004.ops.cw.com'
 #     - 'stormsupervisor005.ops.cw.com'
-#   storm_master: 'stormmaster001.ops.cw.com'
+#   master: 'stormmaster001.ops.cw.com'
 #   workers_count: 8
 #
 # ===============DEPLOYMENT SCENARIO 2==================
