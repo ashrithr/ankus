@@ -38,22 +38,32 @@ cloud_os_type: CentOS
 ########################################################
 # Hadoop Cluster Configuration
 ########################################################
-# hadoop_deploy     : specifies whether to deploy hadoop or not
-#   hadoop_ha       : specifies whether to deploy highly available hadoop 
-#                     cluster or not
-#   mapreduce       : specifies whether to deploy mapreduce framework or not
-#     type          : specifies mapreduce framework type to deploy (mr1 or mr2)
-#   hadoop_ecosystem: specifies list of tools to deploy (hive, pig, oozie, 
-#                     sqoop)
+# hadoop_deploy        : specifies whether to deploy hadoop or not
+#   ha                 : specifies whether to deploy highly available hadoop
+#                        cluster or not
+#   mapreduce          : specifies whether to deploy mapreduce framework or not
+#     type             : mapreduce framework type to deploy (mr1 or mr2)
+#   ecosystem          : specifies list of tools to deploy (hive, pig, oozie,
+#                        sqoop)
+#   data_mount_points  : number of volumes to attach to worker nodes
+#                        Default: 0 (no extra volumes will be attached)
+#   worker_volumes: worker nodes volumes configuration
+#     type  : type of the volumes to create, valid value is 'blockstore'
+#     size  : size of each volume in GB
+#     count : number of volumes to attach to each worker instance
+#   master_volumes: master nodes volumes configuration
+#     type  : type of the volumes to create, valid value is 'blockstore'
+#     size  : size of each volume in GB
+#     count : number of volumes to attach to each master instance
 #
 # ===============DEPLOYMENT SCENARIO 1==================
 #               TO DEPLOY HADOOP (NON-HA)
 # ======================================================
 #hadoop_deploy:
-#  hadoop_ha: 'disabled'
+#  ha: 'disabled'
 #  mapreduce:
 #    type: 'mr1'
-#  hadoop_ecosystem:
+#  ecosystem:
 #    - 'hive'
 #    - 'sqoop'
 #    - 'pig'
@@ -62,10 +72,10 @@ cloud_os_type: CentOS
 #               TO DEPLOY HADOOP WITH HA
 # ======================================================
 #hadoop_deploy:
-#  hadoop_ha: 'enabled'
+#  ha: 'enabled'
 #  mapreduce:
 #    type: 'mr1'
-#  hadoop_ecosystem:
+#  ecosystem:
 #    - 'hive'
 #    - 'sqoop'
 #    - 'pig'
@@ -74,7 +84,7 @@ cloud_os_type: CentOS
 #       TO DEPLOY HADOOP WITH MAPREDUCE DISABLED
 # ======================================================
 #hadoop_deploy:
-#  hadoop_ha: 'disabled'
+#  ha: 'disabled'
 #  mapreduce: 'disabled'
 ########################################################
 hadoop_deploy: 'disabled'
@@ -83,13 +93,13 @@ hadoop_deploy: 'disabled'
 # HBase configuration
 ########################################################
 # hbase_deploy        : specifies whether to deploy a hbase cluster or not
-#   hbase_master_count: number of hbase master(s) nodes to deploy
+#   master_count      : number of hbase master(s) nodes to deploy
 #
 # ===============DEPLOYMENT SCENARIO 1==================
 #                 TO DEPLOY HBASE
 # ======================================================
 #hbase_deploy:
-# hbase_master_count: 1
+#  master_count: 1
 #
 # ===============DEPLOYMENT SCENARIO 2==================
 #               DISABLE HBASE DEPLOYMENT
@@ -103,19 +113,19 @@ hbase_deploy: 'disabled'
 # Zookeeper Quorum Configuration
 ########################################################
 # Required for hadoop_ha, hadoop_search, hbase, kafka, storm deployments
-# zookeeper_quoram_count: specifies the number of zookeeper(s) to launch to 
-#                         coordinate services
+# quorum_count: specifies the number of zookeeper(s) to launch to
+#               coordinate services
 ########################################################
 zookeeper_quorum_count: 1
 
 ########################################################
 # Slaves specifications (required for hadoop & hbase deployments only)
-# slave_nodes_count: number slave nodes on which worker daemons are installed
-#                    if 'hadoop_deploy' is enabled, 'datanode' is initialized
-#                    if 'mapreduce' is enabled, 'tasktracker' is initialized
-#                    if 'hbase_deploy' is enabled, 'regionserver' is initialized
+# worker_nodes_count: number slave nodes on which worker daemons are installed
+#                     if 'hadoop_deploy' is enabled, 'datanode' is managed
+#                     if 'mapreduce' is enabled, 'tasktracker' is managed
+#                     if 'hbase_deploy' is enabled, 'regionserver' is managed
 ########################################################
-slave_nodes_count: 3
+worker_nodes_count: 3
 
 ########################################################
 # Solr Cluster Configuration
@@ -133,7 +143,7 @@ slave_nodes_count: 3
 #         TO DEPLOY SOLR With HDFS Integration
 # ======================================================
 # solr_deploy:
-#   hdfs_integration: enalbed
+#   hdfs_integration: enabled
 #
 # ===============DEPLOYMENT SCENARIO 2==================
 # TO DEPLOY SOLR WithOut HDFS Integration on seperate instances
@@ -153,14 +163,17 @@ solr_deploy: 'disabled'
 # Cassandra Cluster Configuration
 #  cassandra_deploy   : specifies the deployment of cassandra cluster
 #                       possible values: Hash (or) disabled
-#  colocate           : whether to colocate cassandra daemons with hadoop &  
+#  collocate           : whether to collocate cassandra daemons with hadoop &
 #                       hbase daemons or deploy cassandra on their own instances
-#                       default: no (*not recommended to colocate daemons*)
+#                       default: no (*not recommended to collocate daemons*)
 #  number_of_instances: number of cassandra instances to launch(not required 
 #                       when collocation instances)
-#  number_of_seeds    : number of nodes to use as seeds, choosen randomly
+#  number_of_seeds    : number of nodes to use as seeds, chosen randomly
 #                       default: 1
-#
+#  master_volumes     : master nodes volumes configuration
+#    type  : type of the volumes to create, valid value is 'blockstore'
+#    size  : size of each volume in GB
+#    count : number of volumes to attach to each master instance
 #
 # ===============DEPLOYMENT SCENARIO 1==================
 #                 TO DEPLOY CASSANDRA 
@@ -173,7 +186,7 @@ solr_deploy: 'disabled'
 #  TO DEPLOY CASSANDRA (on same nodes as hadoop workers)
 # ======================================================
 #cassandra_deploy:
-# colocate: yes
+# collocate: yes
 # number_of_seeds: 2
 #
 # ===============DEPLOYMENT SCENARIO 3==================
@@ -188,9 +201,9 @@ cassandra_deploy: 'disabled'
 # Kafka Cluster Configuration
 #  kafka_deploy       : specifies the deployment of kafka cluster
 #                       possible values: 'Hash' (or) 'disabled'
-#  colocate           : whether to colocate kafka daemons with other cluster 
+#  collocate           : whether to collocate kafka daemons with other cluster
 #                       daemons such as hadoop, hbase or cassandra
-#                       default: no (*not recommended to colocate daemons*)
+#                       default: no (*not recommended to collocate daemons*)
 #  number_of_brokers  : number of instances on which kafka brokers to launch
 #
 # ===============DEPLOYMENT SCENARIO 1==================
@@ -203,7 +216,7 @@ cassandra_deploy: 'disabled'
 #       TO DEPLOY KAFKA (on same nodes as workers)
 # ======================================================
 #kafka_deploy:
-# colocate: yes
+# collocate: yes
 # number_of_brokers: 2
 #
 # ===============DEPLOYMENT SCENARIO 3==================
@@ -218,10 +231,10 @@ kafka_deploy: 'disabled'
 # STORM Cluster Configuration
 #  storm_deploy         : specifies the deployment of storm cluster
 #                         possible values: 'Hash' (or) 'disabled'
-#  colocate             : whether to colocate storm supervisor daemons with 
+#  collocate             : whether to collocate storm supervisor daemons with
 #                         other cluster daemons such as hadoop, hbase or
 #                         cassandra
-#                         default: no (*not recommended to colocate daemons*)
+#                         default: no (*not recommended to collocate daemons*)
 #  number_of_supervisors: number of supervisor nodes to deploy (not required 
 #                         when collocating instances)
 #  workers_count        : number of worker processes to run per supervisor node
@@ -238,7 +251,7 @@ kafka_deploy: 'disabled'
 #       TO DEPLOY STORM (on same nodes as workers)
 # ======================================================
 #storm_deploy:
-# colocate: yes
+# collocate: yes
 # workers_count: 8
 #
 # ===============DEPLOYMENT SCENARIO 3==================
@@ -250,44 +263,15 @@ kafka_deploy: 'disabled'
 storm_deploy: 'disabled'
 
 ########################################################
-# VOLUMES
-########################################################
-# Cloud Instances volumes configuration
-# volumes : configure extra volumes that are attached to worker instances
-#   type  : type of the volumes to create, valid value is blockstore
-#   count : number of volumes to attach to a instance
-#   size  : size of each volume in GB
-#
-# NOTE: rackspace instances comes with prebuilt root partitions based on 
-#       instance sizes as follows:
-#       {2=>{20Gb}, 3=>{40GB}, 4=>{80GB}, 5=>{160GB}, 6=>{320GB}, 7=>{620GB}, 
-#        8=>{1200GB}}
-#
-# ===============DEPLOYMENT SCENARIO 1==================
-#     CREATE AND ATTACH 4 VOLUMES TO WORKER NODE
-# ======================================================
-#volumes:
-# type: 'blockstore'
-# count: 4
-# size: 100
-# ===============DEPLOYMENT SCENARIO 2==================
-#           DISABLE CREATING EXTRA VOLUMES
-# ======================================================
-#volumes: 'disabled'
-#
-########################################################
-volumes: 'disabled'
-
-########################################################
 # Security
 ########################################################
-# security              : if configured sets up kerberos and integrates it with
-#                         hadoop/hbase and its eco-system
-#                         possible_values - simple (will not install kerberos)
-#                                         - kerberos (will install kerberos)
-# hadoop_kerberos_realm : if kerberos is enabled, enter a kerberos realm name
-# hadoop_kerberos_domain: if kerberos is enabled, enter a kerberos domain name
-#                         (http://goo.gl/o44h1O)
+# security       : if configured sets up kerberos and integrates it with
+#                  hadoop/hbase and its eco-system
+#                  possible_values - simple (will not install kerberos)
+#                                  - kerberos (will install kerberos)
+# kerberos_realm : if kerberos is enabled, enter a kerberos realm name
+# kerberos_domain: if kerberos is enabled, enter a kerberos domain name
+#                  (http://goo.gl/o44h1O)
 #
 # ===============DEPLOYMENT SCENARIO 1==================
 #                DO NOT USE SECURITY
@@ -298,8 +282,8 @@ volumes: 'disabled'
 #          ENABLE SECURITY USING KERBEROS
 # ======================================================
 #security: 'kerberos'
-# hadoop_kerberos_realm: ANKUS.COM
-# hadoop_kerberos_domain: ankus.com
+#kerberos_realm: ANKUS.COM
+#kerberos_domain: ankus.com
 ########################################################
 security: 'simple'
 

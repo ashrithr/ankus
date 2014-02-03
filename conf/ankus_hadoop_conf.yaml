@@ -35,13 +35,6 @@ hadoop_config_io_file_buffer_size: '65536'
 hadoop_config_hadoop_tmp_dir: '/tmp/hadoop-${user.name}'
 # Logical name of the nameservice id used for namenode high availability
 hadoop_ha_nameservice_id: 'ha-nn-uri'
-# List of directories where worker nodes will store data, recommended to mount 
-#   each directory path on separate volumes for higher throughput
-storage_dirs:
-  - '/data/1'
-  - '/data/2'
-  - '/data/3'
-  - '/data/4'
 
 ########################################################
 # HDFS properties
