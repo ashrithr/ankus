@@ -46,7 +46,7 @@ module Ankus
     desc 'parse', 'Parse the config file for errors'
     def parse
       $logger.info "Parsing config file '#{options[:config]}' ... "
-      parse_config
+      parse_config options[:debug]
       $logger.info 'Parsing config file ... ' + '[OK]'.green
     end
 
@@ -110,6 +110,24 @@ module Ankus
       ssh_into_instance options[:role], @config
     end
 
+    desc 'pssh', 'Parallel ssh and execute set of commands'
+    long_desc <<-LONGDESC
+      `pssh` will perform ssh into instances and parallely executes set of commands
+
+      You can optionally pass roles so that commands will be executed on set of nodes
+      say for example, if you want to perform puppet run on slave nodes you can pass
+      `--role 'slave*' --commands 'puppet agent -t'` to do so.
+    LONGDESC
+    method_option :role, :desc => 'set of instances to execute commands on, default: executes commands on all available instances'
+    method_option :list_roles, :desc => 'list available roles', :type => :boolean
+    method_option :commands, :desc => 'commands to execute', :type => :array, :required => true
+    def pssh
+      if @config.nil? or @config.empty?
+        parse_config
+      end
+      pssh_commands options, @config
+    end
+
     desc 'destroy', 'Destroy the cluster (only valid for cloud deployments)'
     method_option :delete_volumes,
                   :type => :boolean,
@@ -128,8 +146,8 @@ module Ankus
 
     private
 
-    def parse_config
-      @config = ConfigParser.new(options[:config], $logger, options[:debug]).parse_config
+    def parse_config(debug = false)
+      @config = ConfigParser.new(options[:config], $logger, debug).parse_config
     end
 
     def create_cloud_obj(config)
@@ -640,54 +658,93 @@ module Ankus
       puts
     end
 
-    # destroy the instances in the cloud
+    # Destroy the instances in the cloud
     def destroy_cluster(config, options)
       unless YamlUtils.parse_yaml(NODES_FILE).is_a? Hash
         $logger.error 'No cluster found to delete'
         abort
       end
-      if agree('Are you sure want to destroy the cluster ?  ')
+      if agree('Are you sure want to destroy the cluster, which includes deleting all instances (yes/no) ? ')
         cloud = create_cloud_obj(config)
         cloud.delete_instances(YamlUtils.parse_yaml(NODES_FILE), options[:delete_volumes])
         FileUtils.rm_rf DATA_DIR
       end
     end
 
+    # Returns ssh user and key based on cloud or local deployment mode
+    def find_ssh_user_and_key(config)
+      if config[:install_mode] == 'cloud'
+        pk = if config[:cloud_platform] == 'aws'
+               "~/.ssh/#{config[:cloud_credentials][:aws_key]}"
+             elsif config[:cloud_platform] == 'rackspace'
+               # rackspace instances need private file to login
+               config[:cloud_credentials][:rackspace_ssh_key][0..-5]
+             end
+      else
+        pk = config[:ssh_key]
+      end
+      return config[:ssh_user], pk
+    end
+
+    # Parallel ssh into specified instances and execute commands
+    def pssh_commands(options, config)
+      instances = YamlUtils.parse_yaml(NODES_FILE)
+      roles_available = instances.map {|_,v| v[:tags]}.flatten.uniq
+      roles_to_ssh = if options[:role]
+                       roles_available.select{ |r| r[Regexp.new(options[:role])]}
+                     else
+                      roles_available
+                     end
+      username, private_key = find_ssh_user_and_key(config)
+      if options[:list_roles]
+        $logger.info "Available roles: #{roles_available}"
+      else
+        if options[:debug]
+          $logger.debug "Performing ssh into instances specified by roles: #{roles_to_ssh}"
+          $logger.debug "Commands to execute: #{options[:commands]}"
+        end
+        ssh_connections = ThreadPool.new(options[:thread_pool_size])
+        ssh_output = []
+        hosts = find_fqdn_for_tag(instances, options[:role])
+        hosts.each do |host|
+          ssh_connections.schedule do
+            ssh_output << SshUtils.execute_ssh_cmds!(
+                options[:commands],
+                host,
+                username,
+                private_key,
+                $logger,
+                22,
+                false
+            ).merge!({'host' => host})
+          end
+        end
+        ssh_connections.shutdown
+        ssh_output.each do |host_output|
+          host_output.except('host').each do |cmds_out|
+            cmd = cmds_out.first
+            cmd_out = cmds_out.last
+            puts "[#{host_output['host']}] COMMAND: '#{cmd}' #{(cmd_out[2] == 0) ? 'SUCCESS'.blue : 'FAILURE'.red}"
+            puts "[#{host_output['host']}] " + 'STDOUT ' + cmd_out[0] unless cmd_out[0].empty?
+            puts "[#{host_output['host']}] " + 'STDERR ' + cmd_out[1] unless cmd_out[1].empty?
+          end
+        end
+      end
+    end
+
     # Invoke ssh process on the instance specified with role
     # @param [String] role => role of the instance to perform ssh
-    # @param [Hash] config => configration hash
+    # @param [Hash] config => configuration hash
     def ssh_into_instance(role, config)
-      if config[:install_mode] == 'cloud'
-        # check tags and show available tags into machine
-        cloud_instances = YamlUtils.parse_yaml(NODES_FILE)
-        host = find_fqdn_for_tag(cloud_instances, role) && find_fqdn_for_tag(cloud_instances, role).first
-        if host
-          username = config[:ssh_user]
-          private_key = if config[:cloud_platform] == 'aws'
-                          "~/.ssh/#{config[:cloud_credentials][:aws_key]}"
-                        elsif config[:cloud_platform] == 'rackspace'
-                          # rackspace instances need private file to login
-                          config[:cloud_credentials][:rackspace_ssh_key][0..-5]
-                        end          
-          $logger.info "ssh into #{host} as user:#{username} with key:#{private_key}"
-          SshUtils.ssh_into_instance(host, username, private_key, 22)
-        else
-          $logger.warn "No such role found: #{role}"
-          $logger.info "Available roles: #{cloud_instances.map { |k, v| v[:tags]}.flatten.uniq}"
-        end
+      instances = YamlUtils.parse_yaml(NODES_FILE)
+      roles_available = instances.map {|_,v| v[:tags]}.flatten.uniq
+      username, private_key = find_ssh_user_and_key(config)
+      host = find_fqdn_for_tag(instances, role) && find_fqdn_for_tag(instances, role).first
+      if host
+        $logger.info "ssh into #{host} as user:#{username} with key:#{private_key}"
+        SshUtils.ssh_into_instance(host, username, private_key, 22)
       else
-        #local mode, build roles from conf
-        local_instances = YamlUtils.parse_yaml(NODES_FILE)
-        host = find_fqdn_for_tag(local_instances, role) && find_fqdn_for_tag(local_instances, role).first
-        if host
-          username = config[:ssh_user]
-          private_key = config[:ssh_key]          
-          $logger.info "ssh into #{host} as user:#{username} with key:#{private_key}"
-          SshUtils.ssh_into_instance(host, username, private_key, 22)
-        else
-          $logger.warn "No such role found: #{role}"
-          $logger.info "Available roles: #{cloud_instances.map { |k, v| v[:tags]}.flatten.uniq}"
-        end
+        $logger.warn "No such role found: #{role}. Available roles: #{roles_available}"
       end
     end
   end
