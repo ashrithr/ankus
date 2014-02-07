@@ -13,7 +13,7 @@
 # limitations under the License.
 
 =begin
-  Class to manage cloud instances on aws & rackspace
+  Cloud abstraction layer for aws, rackspace, openstack and google cloud compute
 =end
 
 module Ankus
@@ -406,13 +406,13 @@ module Ankus
         # volumes to mount points
         worker_volumes = parsed_hash[:hadoop_deploy][:worker_volumes]
         parsed_hash[:hadoop_deploy][:data_dirs] = if worker_volumes
-                                                    Array.new(worker_volumes[:count]){ |i| "/data/hadoop/#{i}" }
+                                                    Array.new(worker_volumes[:count]){ |i| "/data/hadoop/#{i+1}" }
                                                   else
                                                     ['/data/hadoop']
                                                   end
         master_volumes = parsed_hash[:hadoop_deploy][:master_volumes]
         parsed_hash[:hadoop_deploy][:master_dirs] = if master_volumes
-                                                      Array.new(master_volumes[:count]){ |i| "/data/hadoop/#{i}" }
+                                                      Array.new(master_volumes[:count]){ |i| "/data/hadoop/#{i+1}" }
                                                     else
                                                       ['/data/hadoop']
                                                     end
@@ -423,7 +423,7 @@ module Ankus
         parsed_hash[:cassandra_deploy][:seeds] =  find_fqdn_for_tag(nodes, 'cassandraseed')
         cassandra_volumes = parsed_hash[:cassandra_deploy][:volumes]
         cassandra_mounts  = if cassandra_volumes
-                              Array.new(cassandra_volumes[:count]){|i| "/data/cassandra/#{i}" }
+                              Array.new(cassandra_volumes[:count]){|i| "/data/cassandra/#{i+1}" }
                             end
         parsed_hash[:cassandra_deploy][:data_dirs] = if cassandra_mounts
                                                        if cassandra_mounts.size > 1
@@ -639,6 +639,7 @@ module Ankus
                   server_objects[tag].dns_name,
                   ssh_user,
                   ssh_key,
+                  @log,
                   22,
                   @debug
               )
@@ -755,6 +756,7 @@ module Ankus
                   server_objects[tag].public_ip_address,
                   ssh_user,
                   File.expand_path(ssh_key_path),
+                  @log,
                   22,
                   @debug
               )
