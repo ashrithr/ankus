@@ -317,11 +317,11 @@ module Ankus
       # @param [String] host => host on which the commands should be executed
       # @param [String] ssh_user => user to ssh as
       # @param [String] ssh_key => private ssh key to use
-      # @param [LOg4r] log => logger instance
+      # @param [Log4r] log => logger instance
       # @param [Integer] ssh_port => ssh port (default:22)
       # @param [Boolean] debug => if enabled will print out the output of the command to stdout
       # @return [Hash] { 'command' => [stdout, stderr, exit_code], 'command' => [stdout, stderr, exit_code], ... }
-      def execute_ssh_cmds(commands, host, ssh_user, ssh_key, log, ssh_port=22, debug=false)
+      def execute_ssh_cmds!(commands, host, ssh_user, ssh_key, log, ssh_port=22, debug=false)
         begin
           results = {}
           begin
@@ -330,8 +330,7 @@ module Ankus
                 log.debug "Running '#{command}' on server '#{host}'" if debug
                 results[command] = ssh_exec!(ssh, command, log, debug)
                 if debug
-                  command_output = results[command]
-                  log.debug "Exit code of running '#{command}' is: #{command_output[2]}"
+                  log.debug "Exit code of running '#{command}' is: #{results[command][2]}"
                 end
               }
             end
@@ -451,13 +450,15 @@ module Ankus
       # @param [String] host => hostname | ip_address of the remote machine
       # @param [String] ssh_user => user name to ssh as
       # @param [String] ssh_key => ssh private key to use
+      # @param [Log4r] log => logger instance
       # @param [Integer] ssh_port => ssh port (default: 22)
+      # @param [Boolean] debug => verbose output
       # @return nil
-      def upload!(source_file, dest_path, host, ssh_user, ssh_key, ssh_port=22, debug = false)
+      def upload!(source_file, dest_path, host, ssh_user, ssh_key, log, ssh_port=22, debug = false)
         begin
           Net::SSH.start(host, ssh_user, :port => ssh_port, :keys => ssh_key, :auth_methods => %w(publickey)) do |ssh|
             ssh.scp.upload!(source_file, dest_path) do |ch, name, sent, total|
-              puts "\r[Debug]: #{name} -> #{(sent.to_f * 100 / total.to_f).to_i}%" if debug
+              log.debug "#{name} -> #{(sent.to_f * 100 / total.to_f).to_i}%" if debug
             end
           end
         rescue Net::SSH::HostKeyMismatch => e

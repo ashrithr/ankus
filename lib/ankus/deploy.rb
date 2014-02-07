@@ -104,7 +104,7 @@ module Ankus
               end
             else
               @log.debug "Sending file #{PUPPET_INSTALLER} to #{@puppet_master}" if @debug
-              SshUtils.upload!(PUPPET_INSTALLER, installer_path, @puppet_master, @ssh_user, @ssh_key)
+              SshUtils.upload!(PUPPET_INSTALLER, installer_path, @puppet_master, @ssh_user, @ssh_key, @log)
               master_output = SshUtils.execute_ssh!(
                   remote_puppet_server_cmd,
                   @puppet_master,
@@ -265,7 +265,7 @@ module Ankus
                   @ostype = 'CentOS'
                 end
               else
-                SshUtils.upload!(GETOSINFO_SCRIPT, "/tmp", @puppet_master, @ssh_user, @ssh_key)
+                SshUtils.upload!(GETOSINFO_SCRIPT, "/tmp", @puppet_master, @ssh_user, @ssh_key, @log)
                 os_type_cmd = "chmod +x /tmp/#{File.basename(GETOSINFO_SCRIPT)} &&" + 
                               " sudo sh -c '/tmp/#{File.basename(GETOSINFO_SCRIPT)}'"
                 output = SshUtils.execute_ssh_cmds(
@@ -723,10 +723,10 @@ module Ankus
             22, false)
 
         @log.debug "Sending puppet installer script to #{instance}" if @debug
-        SshUtils.upload!(PUPPET_INSTALLER, remote_puppet_loc, instance, @ssh_user, @ssh_key)
+        SshUtils.upload!(PUPPET_INSTALLER, remote_puppet_loc, instance, @ssh_user, @ssh_key, @log)
         if hosts_file
           @log.debug "Sending hosts file to #{instance}" if @debug
-          SshUtils.upload!(hosts_file, '/tmp/hosts', instance, @ssh_user, @ssh_key)
+          SshUtils.upload!(hosts_file, '/tmp/hosts', instance, @ssh_user, @ssh_key, @log)
           SshUtils.execute_ssh!(
             'sudo mv /tmp/hosts /etc && chmod 644 /etc/hosts',
             instance,
