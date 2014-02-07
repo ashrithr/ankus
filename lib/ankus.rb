@@ -13,7 +13,6 @@ begin
   require 'fog'
   require 'colored'
   require 'highline/import'
-  require 'spinning_cursor'
 rescue LoadError
   require 'rubygems'
   require 'thor'
@@ -22,7 +21,6 @@ rescue LoadError
   require 'fog'
   require 'colored'
   require 'highline/import'
-  require 'spinning_cursor'
 end
 
 module Ankus
@@ -33,7 +31,9 @@ module Ankus
   require 'ankus/cli'
   require 'ankus/inventory'
   require 'ankus/utils'
-  require 'ankus/cloud_init'
+  require 'ankus/cloud_providers/aws'
+  require 'ankus/cloud_providers/rackspace'
+  require 'ankus/cloud_providers/openstack'
   require 'ankus/cloud_manage'
   require 'ankus/deploy'
   require 'ankus/errors'
