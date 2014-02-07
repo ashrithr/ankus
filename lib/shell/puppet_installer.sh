@@ -27,7 +27,7 @@
 ## Configuration Variables (change these, only if you know what you are doing)
 ####
 puppet_modules_path="/etc/puppet/modules"
-puppet_modules_download="https://github.com/cloudwicklabs/ankus-modules/archive/v2.1.tar.gz"
+puppet_modules_download="https://github.com/cloudwicklabs/ankus-modules/archive/v2.2.tar.gz"
 debug="false"
 
 ### !!! DONT CHANGE BEYOND THIS POINT. DOING SO MAY BREAK THE SCRIPT !!!
@@ -298,7 +298,7 @@ function download_modules () {
   if [ $? -eq 0 ]; then
     print_info "Sucessfully downloaded puppet modules from git"
     print_info "Extracting modules ..."
-    tar xzf modules.tar.gz
+    execute "tar xzf modules.tar.gz"
     if [ $? -eq 0 ]; then
       mv ankus-modules*/* ${puppet_modules_path}
       rm -f modules.tar.gz
