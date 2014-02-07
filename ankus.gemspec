@@ -30,5 +30,5 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'colored'
   spec.add_runtime_dependency 'net-ssh'
   spec.add_runtime_dependency 'passenger', '3.0.18'
-  spec.add_runtime_dependency 'spinning_cursor', '~> 0.2.0'
+  spec.add_runtime_dependency 'google-api-client'
 end
