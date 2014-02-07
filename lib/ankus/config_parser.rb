@@ -904,8 +904,8 @@ module Ankus
             @log.error "expecting numeric value for 'number_of_seeds' in cassandra_deploy"
             @errors_count += 1
           end
+          validate_volumes(cassandra_deploy[:volumes], hash_to_validate[:cloud_platform], 'cassandra nodes')
         end
-        validate_volumes(cassandra_deploy[:volumes], hash_to_validate[:cloud_platform], 'cassandra nodes')
       end
     end #cassandra_validator
 
