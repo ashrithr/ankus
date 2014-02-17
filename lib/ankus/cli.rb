@@ -19,13 +19,14 @@ module Ankus
     require 'ankus/logging'
     include Ankus
 
-    # Setup Logging
+    # Setup global logging
     $logger = Log4r::Logger.new('Ankus')
     outputter = Log4r::StdoutOutputter.new('stdout')
     outputter.formatter = Log4r::PatternFormatter.new(:pattern => '%d %L %m')
     $logger.outputters = [ outputter ]
     $logger.level = Log4r::DEBUG
 
+    # Root level command line options
     class_option :config,
                  :type => :string,
                  :desc => 'optionally pass path to config file',
@@ -43,6 +44,9 @@ module Ankus
                  :desc => 'mock the creating of instances in cloud (debug mode)',
                  :default => false
 
+    #
+    # Root level commands
+    #
     desc 'parse', 'Parse the config file for errors'
     def parse
       $logger.info "Parsing config file '#{options[:config]}' ... "
@@ -146,10 +150,17 @@ module Ankus
 
     private
 
+    # Parses the configuration file
+    # @param [TrueClass] debug whether to print verbose output during parsing the configuration file
+    # @return [Hash] configuration hash to work with
     def parse_config(debug = false)
       @config = ConfigParser.new(options[:config], $logger, debug).parse_config
     end
 
+    # Creates a cloud object which is an encapsulation for all the cloud providers
+    # supported by ankus
+    # @param [Hash] config configuration hash as returned by #parse_config
+    # @return [Ankus::Cloud]
     def create_cloud_obj(config)
       Cloud.new(
           config[:cloud_platform],
@@ -162,6 +173,9 @@ module Ankus
       )
     end
 
+    # Initializes the deployment of components based on the configuration
+    # @param [Thor::Options] options method options provided by thor parser
+    # @return nil
     def initiate_deployment(options)
       #size = `stty size 2>/dev/null`
       #cols =  if $? == 0
@@ -295,7 +309,12 @@ module Ankus
                 options[:mock],               # enable mocking
                 hosts_file_path               # hostfile path if cloud_provider is rackspace
               )
-      unless options[:run_only]
+      if options[:run_only]
+        #
+        # => Run only mode
+        #
+        puppet.run options[:force]
+      else
         begin
           #
           # => install puppet on master ans client(s)
@@ -335,15 +354,11 @@ module Ankus
         if options[:mock] # if mocking delete the data dir contents
           FileUtils.rm_rf(Dir.glob("#{DATA_DIR}/*"))
         end
-      else
-        #
-        # => Run only mode
-        #
-        puppet.run options[:force]
       end
     end
 
     # Refresh the cluster using updated configuration files
+    # @return nil
     def reload_deployment
       # 1. Reload Configurations
       # 2. Re-Generate Hiera data
@@ -385,6 +400,7 @@ module Ankus
     # Prints the cluster information
     # @param [Hash] config => contains cluster info
     def deployment_info(config)
+      # TODO [Feature] add support for returning state of the cluster
       # check for files in DATA_DIR if does not exists, we can assume user hasn't deployed a cluster yet
       unless YamlUtils.parse_yaml(NODES_FILE).is_a? Hash
         $logger.error 'No cluster details found, to deploy a cluster use `deploy` subcommand'
@@ -658,7 +674,10 @@ module Ankus
       puts
     end
 
-    # Destroy the instances in the cloud
+    # Destroy the instances managed by ankus in cloud
+    # @param [Hash] config configuration hash as returned by #parse_config
+    # @param [Thor::Options] options method options parsed by thor
+    # @return nil
     def destroy_cluster(config, options)
       unless YamlUtils.parse_yaml(NODES_FILE).is_a? Hash
         $logger.error 'No cluster found to delete'
@@ -672,6 +691,8 @@ module Ankus
     end
 
     # Returns ssh user and key based on cloud or local deployment mode
+    # @param [Hash] config configuration hash as returned by #parse_config
+    # @return [Array] containing ssh user name and ssh key to use
     def find_ssh_user_and_key(config)
       if config[:install_mode] == 'cloud'
         pk = if config[:cloud_platform] == 'aws'
@@ -686,7 +707,11 @@ module Ankus
       return config[:ssh_user], pk
     end
 
-    # Parallel ssh into specified instances and execute commands
+    # Parallel ssh into specified instances, execute commands and prints the commands stdout
+    # command return code and commands stderr
+    # @param [Thor::Options] options method options parsed by thor
+    # @param [Hash] config configuration hash as returned by #parse_config
+    # @return nil
     def pssh_commands(options, config)
       instances = YamlUtils.parse_yaml(NODES_FILE)
       roles_available = instances.map {|_,v| v[:tags]}.flatten.uniq
