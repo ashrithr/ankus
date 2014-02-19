@@ -20,9 +20,9 @@ install_mode: 'cloud'
 #                                    {30GB,8},performance2-60=>{60GB,16},
 #                                    performance2-90=>{90GB,24},
 #                                    performance2-120=>{120GB,32}}
-#   ssh_key                       : ssh key path to inject into instances
-#   rackspace_cluster_identifier  : unique name which differentiates other 
-#                                   cluster (used for hostnames of instances)
+#   rackspace_ssh_key                       : ssh key path to inject into instances
+#   cluster_identifier  : unique name which differentiates other cluster
+#                         (used for building hostnames of instances)
 ########################################################
 cloud_platform: rackspace
 cloud_credentials:
@@ -30,7 +30,7 @@ cloud_credentials:
   rackspace_api_key: ''             #<<<<<<<<<<<<<< FILL THIS
   rackspace_instance_type: 5
   rackspace_ssh_key: '~/.ssh/id_rsa.pub'
-  rackspace_cluster_identifier: 'ops'
+  cluster_identifier: 'ops'
 
 ##type of os to boot into cloud instances (supported: CentOS|Ubuntu)  
 cloud_os_type: CentOS
