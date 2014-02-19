@@ -247,21 +247,25 @@ module Ankus
       # @raises if instance cannot be ssh'ed into
       def sshable?(nodes_arr, ssh_user, ssh_key, port=22)
         if nodes_arr.is_a? String
-          out, err, status = ShellUtils.system_quietly("ssh -t -t -o ConnectTimeout=2 -o StrictHostKeyChecking=no -o" +
+          out, err, status = ShellUtils.system_quietly('ssh -t -t -o ConnectTimeout=2 -o StrictHostKeyChecking=no -o' +
             " BatchMode=yes -o UserKnownHostsFile=/dev/null -p #{port} -i #{ssh_key} #{ssh_user}@#{nodes_arr}" +
-            " \"echo\" &>/dev/null")
+            " \"echo\"")
           if status.exitstatus != 0 || ( err && err.chomp =~ /Permission denied/ )
-            raise "Cannot ssh in to instance: #{nodes_arr} with user: #{ssh_user} and key: #{ssh_key}"
+            raise "Cannot ssh in to instance: #{nodes_arr} with username: #{ssh_user} and key: #{ssh_key}. Reason: #{err}"
+          elsif out && out.chomp =~ /Please login as the user/
+            raise "Cannot ssh into instance: #{nodes_arr} with username: #{ssh_user} and key: #{ssh_key}. Reason: #{out}"
           else
             return true
           end
         else
           nodes_arr.each do |instance|
-            out, err, status = ShellUtils.system_quietly("ssh -t -t -o ConnectTimeout=2 -o StrictHostKeyChecking=no -o"+
+            out, err, status = ShellUtils.system_quietly('ssh -t -t -o ConnectTimeout=2 -o StrictHostKeyChecking=no -o'+
               " BatchMode=yes -o UserKnownHostsFile=/dev/null -p #{port} -i #{ssh_key} #{ssh_user}@#{instance}" +
-              " \"echo\" &>/dev/null")
+              " \"echo\"")
             if status.exitstatus != 0 || ( err && err.chomp =~ /Permission denied/ )
-              raise "Cannot ssh in to instance: #{instance} with user: #{ssh_user} and key: #{ssh_key}"
+              raise "Cannot ssh in to instance: #{instance} with user: #{ssh_user} and key: #{ssh_key}. Reason: #{err}"
+            elsif out && out.chomp =~ /Please login as the user/
+              raise "Cannot ssh into instance: #{nodes_arr} with username: #{ssh_user} and key: #{ssh_key}. Reason: #{out}"
             else
               return true
             end
@@ -273,8 +277,8 @@ module Ankus
       # @param [String] node => instance to check and wait
       # @param [String] ssh_user => user to perform ssh as
       # @param [String] ssh_key => ssh key to use
-      def wait_for_ssh(node, ssh_user, ssh_key)
-        Timeout::timeout(100) do
+      def wait_for_ssh(node, ssh_user, ssh_key, timeout = 600)
+        Timeout::timeout(timeout) do
           begin
             sshable?(node, ssh_user, ssh_key)
           rescue
@@ -284,7 +288,7 @@ module Ankus
           end
         end
       rescue Timeout::Error
-        raise 'It took more than 10 minutes waiting for servers to become ssh\'able. Aborting!!!'
+        raise "'It took more than #{timeout} seconds waiting for servers to become ssh'able. Aborting!!!'"
       end
 
       # Execute single command on remote machine over ssh protocol using net-ssh gem

@@ -196,10 +196,18 @@ module Ankus
         $logger.info 'Parsing config file ... ' + '[OK]'.green
       end
 
-      unless options[:run_only]
+      if options[:run_only]
+        #
+        # => Run only mode, read config
+        #
+        if @config[:install_mode] == 'cloud'
+          cloud = create_cloud_obj(@config)
+          @config, @config_with_internal_ips = cloud.modify_cloud_config(@config, YamlUtils.parse_yaml(NODES_FILE))
+        end
+      else
         # if cloud provider is rackspace generate|store hosts file
-        hosts_file = @config[:cloud_platform] == 'rackspace' ? Tempfile.new('hosts') : nil
-        hosts_file_path = @config[:cloud_platform] == 'rackspace' ? hosts_file.path : nil
+        hosts_file = @config[:cloud_platform] == 'rackspace' || @config[:cloud_platform] == 'openstack' ? Tempfile.new('hosts') : nil
+        hosts_file_path = @config[:cloud_platform] == 'rackspace' || @config[:cloud_platform] == 'openstack' ? hosts_file.path : nil
 
         # If deployment mode is cloud | local
         #   1. Create cloud instances based on configuration (cloud mode)
@@ -215,7 +223,7 @@ module Ankus
           # =>  Create cloud instance, used to create and manage cloud vm's
           #
           cloud = create_cloud_obj(@config)
-          
+
           if options[:reload]
             #
             # => Check the existing config for change in nodes config and create new node if required
@@ -231,7 +239,7 @@ module Ankus
               exit 0
             else
               $logger.info 'New nodes have to be created based on the new configuration provided'
-              $logger.info 'Creating new instances ' +  "#{diff.join(',')}".blue
+              $logger.info 'Creating new instances ' + "#{diff.join(',')}".blue
               # create new instances and add them back to old nodes
               nodes = old_nodes_config.merge!(cloud.safe_create_instances!(new_nodes_config.merge(old_nodes_config)))
             end
@@ -264,8 +272,8 @@ module Ankus
           end
           Fog.unmock! if options[:mock]
 
-          # if cloud_provider is rackspace build /etc/hosts
-          if @config[:cloud_platform] == 'rackspace'
+          # if cloud_provider is rackspace or openstack build /etc/hosts
+          if @config[:cloud_platform] == 'rackspace' || @config[:cloud_platform] == 'openstack'
             hosts_map = cloud.build_hosts(nodes)
             hosts_file.write(hosts_map)
             hosts_file.close
@@ -281,14 +289,6 @@ module Ankus
         if @config[:install_mode] == 'local'
           # Create puppet nodes from configuration
           Inventory::Generator.new(@config).generate! NODES_FILE
-        end
-      else
-        #
-        # => Run only mode, read config
-        #
-        if @config[:install_mode] == 'cloud'
-          cloud = create_cloud_obj(@config)
-          @config, @config_with_internal_ips = cloud.modify_cloud_config(@config, YamlUtils.parse_yaml(NODES_FILE))
         end
       end # unless options[:run_only]
 
@@ -338,7 +338,7 @@ module Ankus
           $logger.error " Cannot ssh into server: #{$!}"
         ensure
           # make sure to remove the temp hosts file generated if cloud provider is rackspace
-          hosts_file.unlink if @config[:cloud_platform] == 'rackspace'
+          hosts_file.unlink if @config[:cloud_platform] == 'rackspace' || @config[:cloud_platform] == 'openstack'
         end
 
         #
@@ -695,7 +695,7 @@ module Ankus
     # @return [Array] containing ssh user name and ssh key to use
     def find_ssh_user_and_key(config)
       if config[:install_mode] == 'cloud'
-        pk = if config[:cloud_platform] == 'aws'
+        pk = if config[:cloud_platform] == 'aws' or config[:cloud_platform] == 'openstack'
                "~/.ssh/#{config[:cloud_credentials][:aws_key]}"
              elsif config[:cloud_platform] == 'rackspace'
                # rackspace instances need private file to login

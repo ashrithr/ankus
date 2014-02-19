@@ -58,6 +58,12 @@ module Ankus
       Ankus::Rackspace.new @credentials[:rackspace_api_key], @credentials[:rackspace_username], @log, @mock
     end
 
+    # Create a connection object to openstack
+    # @return [Ankus::Openstack]
+    def create_openstack_connection
+      Ankus::Openstack.new @credentials[:os_auth_url], @credentials[:os_username], @credentials[:os_password], @credentials[:os_tenant], @log, @mock
+    end
+
     # Create instance definitions
     def create_cloud_instances
       num_of_slaves   = @parsed_hash[:worker_nodes_count]
@@ -220,9 +226,9 @@ module Ankus
       end 
 
       # If provider is rackspace add domain to roles to form fqdn's
-      if @provider == 'rackspace'
+      if @provider == 'rackspace' or @provider == 'openstack'
         # n.dup.each { |k, v| n["#{k}.cw.com"] = v && n.delete(k)}
-        domain_name = "#{@parsed_hash[:cloud_credentials][:rackspace_cluster_identifier]}.ankus.com"
+        domain_name = "#{@parsed_hash[:cloud_credentials][:cluster_identifier]}.ankus.com"
         nodes_to_create_hadoop_master && nodes_to_create_hadoop_master.dup.each { |name, tags|
           nodes_to_create_hadoop_master["#{name}.#{domain_name}"] = tags && nodes_to_create_hadoop_master.delete(name)
         }
@@ -281,12 +287,14 @@ module Ankus
           @nodes = create_aws_instances(@nodes, @credentials, @thread_pool_size)
         when 'rackspace'
           @nodes = create_rackspace_instances(@nodes, @credentials, @thread_pool_size)
+        when 'openstack'
+          @nodes = create_openstack_instances(@nodes, @credentials, @thread_pool_size)
         else
           # Not implemented yet
         end
       rescue RuntimeError => ex
-        @log.error "Something went wrong provisioning vms on cloud, reason: #{ex}"
-        @log.info 'Rolling back instance(s)'
+        @log.error "Something went wrong provisioning instances on cloud, reason: #{ex}"
+        @log.error 'Rolling back instance(s)'
         delete_instances(@nodes, true)
         exit 1
       end
@@ -304,12 +312,14 @@ module Ankus
           nodes = create_aws_instances(nodes, @credentials, @thread_pool_size)
         when 'rackspace'
           nodes = create_rackspace_instances(nodes, @credentials, @thread_pool_size)
+        when 'openstack'
+          nodes = create_openstack_instances(nodes, @credentials, @thread_pool_size)
         else
           # Not yet implemented
         end
       rescue RuntimeError => ex
         @log.error "Something went wrong provisioning vms on cloud, reason: #{ex}"
-        @log.info 'Rolling back instance(s)'
+        @log.error 'Rolling back instance(s)'
         delete_instances(nodes, true)
         exit 1
       end
@@ -333,6 +343,8 @@ module Ankus
         node_created = create_aws_instances(nodes_to_create, @credentials, @thread_pool_size)
       elsif @provider == 'rackspace'
         node_created = create_rackspace_instances(nodes_to_create, @credentials, @thread_pool_size)
+      elsif @provider == 'openstack'
+        node_created = create_openstack_instances(nodes_to_create, @credentials, @thread_pool_size)
       end
       node_created
     end
@@ -361,6 +373,15 @@ module Ankus
           end
         end
         threads_pool.shutdown
+      elsif @parsed_hash[:cloud_platform] == 'openstack'
+        openstack = create_openstack_connection
+        conn = openstack.create_connection
+        nodes_hash.each do |fqdn, _|
+          threads_pool.schedule do
+            openstack.delete_server!(conn, fqdn, delete_volumes)
+          end
+        end
+        threads_pool.shutdown
       end
     end
 
@@ -368,7 +389,7 @@ module Ankus
     def find_internal_ip(nodes, tag)
       if @provider == 'aws'
         find_pip_for_tag(nodes, tag)
-      elsif @provider == 'rackspace'
+      elsif @provider == 'rackspace' or @provider == 'openstack'
         find_key_for_tag(nodes, tag)
       end
     end
@@ -382,7 +403,9 @@ module Ankus
       parsed_hash_internal_ips = Marshal.load(Marshal.dump(parsed_hash))
      
       parsed_hash[:ssh_key]      =  if @provider == 'aws'
-                                      File.expand_path('~/.ssh') + '/' + @credentials[:aws_key] 
+                                      File.expand_path('~/.ssh') + '/' + @credentials[:aws_key]
+                                    elsif @provider == 'openstack'
+                                      File.expand_path('~/.ssh') + '/' + @credentials[:os_key]
                                     elsif @provider == 'rackspace'
                                       File.split(File.expand_path(@credentials[:rackspace_ssh_key])).first + '/' +
                                       File.basename(File.expand_path(@credentials[:rackspace_ssh_key]), '.pub')
@@ -488,6 +511,8 @@ module Ankus
       parsed_hash_internal_ips[:ssh_key]  = 
           if @provider == 'aws'
             File.expand_path('~/.ssh') + '/' + @credentials[:aws_key]
+          elsif @provider == 'openstack'
+            File.expand_path('~/.ssh') + '/' + @credentials[:os_key]
           elsif @provider == 'rackspace'
             File.split(File.expand_path(@credentials[:rackspace_ssh_key])).first + '/' +
             File.basename(File.expand_path(@credentials[:rackspace_ssh_key]), '.pub')
@@ -791,7 +816,138 @@ module Ankus
         @log.debug 'Finished creating and attaching volumes' if @debug
       end
       nodes
-    end    
+    end
+
+    # Create servers on openstack using Ankus::OpenStack
+    # @param [Hash] nodes => hash of nodes to create with their info as shown below
+    # @param [Hash] credentials hash from config
+    # @param [Integer] thread_pool_size => size of the thread pool
+    # @return [Hash] modified ver of nodes
+    def create_openstack_instances(nodes, credentials, thread_pool_size)
+      #defaults
+      threads_pool    = Ankus::ThreadPool.new(thread_pool_size)
+      key             = credentials[:key] || 'ankus'
+      groups          = credentials[:sec_groups] || %w(ankus)
+      flavor_id       = credentials[:os_flavor]
+      image_id        = credentials[:os_image_ref]
+      os              = create_openstack_connection
+      conn            = os.create_connection
+      ssh_key         = File.expand_path('~/.ssh') + "/#{key}"
+      ssh_user        = @parsed_hash[:ssh_user]
+      server_objects  = {} # hash to store server object to tag mapping { tag => server_obj }
+
+      if os.valid_connection?(conn)
+        @log.debug 'Successfully authenticated with openstack' if @debug
+      else
+        @log.error 'Failed connecting to aws'
+        abort
+      end
+
+      # Create key pairs and security groups
+      os.create_kp_sg!(conn, key, groups)
+
+      @log.info 'Creating servers with roles: ' + "#{nodes.keys.join(',')}".blue + ' ...'
+      begin
+        nodes.each do |tag, _|
+          server_objects[tag] = os.create_server!(
+            conn,
+            tag,
+            key,
+            flavor_id,
+            image_id,
+            groups
+          )
+        end
+      rescue Excon::Errors::BadRequest
+        raise "Failed creating instances, reason: #{$!.message} (#{$!.class})"
+      end
+
+      # wait for servers to get created (:state => running)
+      @log.info 'Waiting for cloud instances to get created ...'
+      os.wait_for_servers(server_objects.values)
+
+      # attach floating ip's to instances
+      @log.info 'Attaching floating ip(s) to instances'
+      nodes.each do |tag, _|
+        os.associate_address!(conn, server_objects[tag])
+      end
+
+      # build the return string
+      nodes.each do |tag, node_info|
+        # fill in nodes hash with public and private dns
+        node_info[:fqdn] = server_objects[tag].public_ip_address
+        node_info[:private_ip] = server_objects[tag].private_ip_address
+      end
+      if @mock
+        # pretend doing some work while mocking
+        nodes.each do |tag, info|
+          threads_pool.schedule do
+            if info[:config][:volumes] > 0
+              @log.debug "Preparing attached volumes on instance #{server_objects[tag].public_ip_address}" if @debug
+              sleep 5
+            else
+              @log.debug "Waiting for instance to become ssh'able #{server_objects[tag].public_ip_address} " +
+                             "with ssh_user: #{ssh_user} and ssh_key: #{ssh_key}" if @debug
+            end
+          end
+        end
+        threads_pool.shutdown
+      else
+        # partition and format attached disks using thread pool
+        nodes.each do |tag, info|
+          threads_pool.schedule do
+            if info[:config][:volumes] > 0
+              @log.debug "Formatting attached volumes on instance #{server_objects[tag].public_ip_address}" if @debug
+              os.attach_volumes!(server_objects[tag], info[:config][:volumes], info[:config][:volume_size])
+              #build partition script
+              partition_script = gen_partition_script(info[:config][:volumes], info[:config][:volume_mount_prefix], true)
+              tempfile = Tempfile.new('partition')
+              tempfile.write(partition_script)
+              tempfile.close
+              # wait for the server to be ssh'able
+              Ankus::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, ssh_user, ssh_key)
+              # upload and execute the partition script on the remote machine
+              SshUtils.upload!(
+                  tempfile.path,
+                  '/tmp',
+                  server_objects[tag].public_ip_address,
+                  ssh_user,
+                  ssh_key,
+                  @log,
+                  22,
+                  @debug
+              )
+              output = Ankus::SshUtils.execute_ssh!(
+                  "chmod +x /tmp/#{File.basename(tempfile.path)} && sudo sh -c '/tmp/#{File.basename(tempfile.path)}" +
+                      " | tee /var/log/bootstrap_volumes.log'",
+                  server_objects[tag].public_ip_address,
+                  ssh_user,
+                  ssh_key,
+                  @log,
+                  22,
+                  false # we don't want output of formatting volumes to be printed in real time to stdout!!
+              )
+              tempfile.unlink # delete the tempfile
+              if @debug
+                @log.debug "Stdout on #{server_objects[tag].public_ip_address}"
+                puts "\r#{output[server_objects[tag].public_ip_address][0]}"
+                @log.debug "Stderr on #{server_objects[tag].public_ip_address}"
+                puts "\r#{output[server_objects[tag].public_ip_address][1]}"
+                @log.debug "Exit code from #{server_objects[tag].public_ip_address}: #{output[server_objects[tag].public_ip_address][2]}"
+              end
+            else
+              # if not waiting for mounting volumes, wait for instances to become sshable
+              @log.debug "Waiting for instance '#{server_objects[tag].public_ip_address}' to become ssh'albe using " +
+                             "username: '#{ssh_user}' and key: '#{ssh_key}'" if @debug
+              Ankus::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, ssh_user, ssh_key)
+            end
+          end
+        end
+        threads_pool.shutdown
+        @log.debug 'Finished creating and attaching volumes' if @debug
+      end
+      nodes
+    end
 
     # Builds and returns a shell script for partitioning and resizing root volume(s)
     # @param [Integer] number_of_volumes => number of volumes to partition & mount, this number is used to grep the

@@ -156,8 +156,8 @@ module Ankus
       if cloud_platform.nil? or cloud_platform.empty?
         @log.error "Property 'cloud_platform' is required for cloud install_mode"
         @errors_count += 1
-      elsif ! %w(aws rackspace).include?(cloud_platform)
-        @log.error "Invalid value for 'cloud_platform', supported values are aws|rackspace"
+      elsif ! %w(aws rackspace openstack).include?(cloud_platform)
+        @log.error "Invalid value for 'cloud_platform', supported platforms are 'aws','rackspace' and 'openstack'"
         @errors_count += 1
       end
 
@@ -211,7 +211,7 @@ module Ankus
                               :rackspace_api_key => '',
                               :rackspace_instance_type => '',
                               :rackspace_ssh_key => '',
-                              :rackspace_cluster_identifier => ''
+                              :cluster_identifier => ''
                             }
         unless cloud_credentials.keys.sort == valid_credentials.keys.sort
           @log.error "Property 'cloud_credentials' is malformed/invalid, look sample cloud config for example"
@@ -236,16 +236,102 @@ module Ankus
           end
         end
         # validate cluster identifier
-        if cloud_credentials[:rackspace_cluster_identifier].length == 0
-          @log.debug 'Rackspace_cluster_identifier is not set, using the default: \'ops\''
-          hash_to_validate[:rackspace_cluster_identifier] = 'ops'
+        if cloud_credentials[:cluster_identifier].length == 0
+          @log.debug 'Rackspace cluster_identifier is not set, using the default: \'ops\''
+          hash_to_validate[:cluster_identifier] = 'ops'
         else
-          hash_to_validate[:rackspace_cluster_identifier] = cloud_credentials[:rackspace_cluster_identifier]
+          hash_to_validate[:cluster_identifier] = cloud_credentials[:cluster_identifier]
         end
         # validate connection
-        rackspace = Rackspace.new(cloud_credentials[:rackspace_api_key], cloud_credentials[:rackspace_username])
+        rackspace = Ankus::Rackspace.new(cloud_credentials[:rackspace_api_key], cloud_credentials[:rackspace_username], @log)
         unless rackspace.valid_connection?(rackspace.create_connection)
           @log.error 'Failed establishing connection to rackspace, check your credentials'
+        end
+      elsif cloud_platform == 'openstack'
+        valid_credentials = {
+            :os_auth_url => '',
+            :os_username => '',
+            :os_password => '',
+            :os_tenant => '',
+            :os_flavor => '',
+            :os_key => '',
+            :os_user => '',
+            :os_sec_groups => '',
+            :os_image_ref => '',
+            :cluster_identifier => ''
+        }
+        unless cloud_credentials.keys.sort == valid_credentials.keys.sort
+          @log.error "Property 'cloud_credentials' is malformed/invalid, look sample cloud config for example"
+          @errors_count += 1
+        end
+        if cloud_credentials[:os_auth_url].length == 0
+          @log.error 'Property os_auth_url is missing'
+          @errors_count += 1
+        end
+        if cloud_credentials[:os_username].length == 0
+          @log.error 'Property os_username is missing'
+          @errors_count += 1
+        end
+        if cloud_credentials[:os_password].length == 0
+          @log.error 'Property os_username is missing'
+          @errors_count += 1
+        end
+        if cloud_credentials[:os_tenant].length == 0
+          @log.error 'Property os_tenant is missing'
+          @errors_count += 1
+        end
+        if cloud_credentials[:os_flavor].nil?
+          @log.error 'Property os_flavor_ref is missing'
+          @errors_count += 1
+        #elsif ! cloud_credentials[:os_flavor].is_a?(Numeric)
+        #  @log.error "Property os_flavor_ref should be of type integer, instead got #{cloud_credentials[:os_flavor_ref].class}"
+        #  @errors_count += 1
+        end
+        if cloud_credentials[:os_image_ref].length == 0
+          @log.error 'Property os_image_ref is missing'
+          @errors_count += 1
+        end
+        # validate ssh key and user
+        if cloud_credentials[:os_key].nil? or cloud_credentials[:os_key].empty?
+          @log.error 'Property os_key is required'
+          @errors_count += 1
+        end
+        if cloud_credentials[:os_user].nil? or cloud_credentials[:os_user].empty?
+          @log.error 'Property os_user is required'
+          @errors_count += 1
+        end
+        # validate security groups
+        if cloud_credentials[:os_sec_groups].nil? or cloud_credentials[:os_sec_groups].empty?
+          @log.error 'Property os_sec_groups is required'
+          @errors_count += 1
+        elsif ! cloud_credentials[:os_sec_groups].is_a?(Array)
+          @log.error "Exception a array for os_sec_groups instead got '#{cloud_credentials[:os_sec_groups].class}'"
+          @errors_count += 1
+        end
+        # validate cluster identifier
+        if cloud_credentials[:cluster_identifier].length == 0
+          @log.debug 'Rackspace cluster_identifier is not set, using the default: \'ops\''
+          hash_to_validate[:cluster_identifier] = 'ops'
+        else
+          hash_to_validate[:cluster_identifier] = cloud_credentials[:cluster_identifier]
+        end
+        # validate connection
+        if @errors_count == 0
+          openstack = Ankus::Openstack.new(
+              cloud_credentials[:os_auth_url],
+              cloud_credentials[:os_username],
+              cloud_credentials[:os_password],
+              cloud_credentials[:os_tenant],
+              @log)
+          begin
+            unless openstack.valid_connection?(openstack.create_connection)
+              @log.error 'Failed establishing connection to openstack, check your credentials'
+            end
+          rescue Excon::Errors::Timeout
+            @log.error 'Cannot establish connection to openstack. Reason: ' + "#{$!.message} (#{$!.class})"
+            @log.error 'Please check the url is reachable'
+            exit 1
+          end
         end
       end
 
@@ -259,14 +345,17 @@ module Ankus
       end
 
       #add ssh_user to hash
-      hash_to_validate[:ssh_user] =  if cloud_os_type.downcase == 'centos'
-                                        'root'
-                                      elsif cloud_os_type.downcase == 'ubuntu' and cloud_platform.downcase == 'aws'
-                                        'ubuntu'
-                                      else
-                                        'root'
-                                      end
-
+      hash_to_validate[:ssh_user] =  if cloud_platform == 'openstack'
+                                       cloud_credentials[:os_user]
+                                     else
+                                       if cloud_os_type.downcase == 'centos'
+                                         'root'
+                                       elsif cloud_os_type.downcase == 'ubuntu' and cloud_platform.downcase == 'aws'
+                                         'ubuntu'
+                                       else
+                                         'root'
+                                       end
+                                     end
       common_validator(hash_to_validate)
     end
 
@@ -318,7 +407,7 @@ module Ankus
             @log.error "Volumes size should be > 0, if you dont want volumes to be mounted use 'volumes: disabled'"
             @errors_count += 1
           end
-        elsif cloud_platform == 'rackspace'
+        elsif cloud_platform == 'rackspace' or cloud_platform == 'openstack'
           #volumes type
           if volumes[:type].nil? or volumes[:type].empty?
             @log.error "Type of the volumes is required 'type'"
