@@ -29,6 +29,8 @@ module Ankus
       # @param [Integer] ssh_connections => number of concurrent processes (threads) to use for deployments
       # @param [String] ssh_user => user to log into the machine as
       # @param [Boolean] debug => if enabled will print out information to stdout
+      # @param [Boolean] mock whether to mock deployments
+      # @param [File] hosts_file to send to the instances
       def initialize(nodes, ssh_key, parsed_hash, log, ssh_connections=10, ssh_user='root',
         debug=false, mock = false, hosts_file = nil)
         @nodes                 = nodes
@@ -42,10 +44,7 @@ module Ankus
         @puppet_clients        = #FQDN of puppet clients
                                   if parsed_hash[:install_mode] == 'local'
                                     nodes.except(@puppet_master).keys
-                                  elsif parsed_hash[:cloud_platform] == 'aws'
-                                    pc_client_keys =  nodes.except(find_key_for_fqdn(nodes, @puppet_master)).keys
-                                    nodes.map {|k, v| v[:fqdn] if pc_client_keys.include?(k) }.compact
-                                  elsif parsed_hash[:cloud_platform] == 'rackspace'
+                                  else
                                     pc_client_keys =  nodes.except(find_key_for_fqdn(nodes, @puppet_master)).keys
                                     nodes.map {|k, v| v[:fqdn] if pc_client_keys.include?(k) }.compact
                                   end
@@ -67,7 +66,7 @@ module Ankus
           else
             puppet_server_cloud_fqdn =  if @parsed_hash[:cloud_platform] == 'aws'
                                           find_pip_for_tag(@nodes, 'controller').first
-                                        elsif @parsed_hash[:cloud_platform] == 'rackspace'
+                                        elsif @parsed_hash[:cloud_platform] == 'rackspace' or @parsed_hash[:cloud_platform] == 'openstack'
                                           find_key_for_tag(@nodes, 'controller').first
                                         end
             "chmod +x #{installer_path}/#{@puppet_installer} &&" +
@@ -75,7 +74,32 @@ module Ankus
             " tee #{REMOTE_LOG_DIR}/install.log'"
           end
 
-        if ! @mock
+        if @mock
+          #
+          # MOCKING
+          #
+          @log.info 'Checking if instances are ssh\'able ...'
+          @log.info 'Checking if instances are ssh\'able ...' + '[OK]'.green.bold
+          puppet_server_tag = find_key_for_fqdn(@nodes, @puppet_master)
+          unless @nodes[puppet_server_tag][:puppet_install_status]
+            @log.info 'Installing puppet master on ' + "#{@puppet_master}".blue + ' ...'
+            @log.debug "Using command: #{remote_puppet_server_cmd}" if @debug
+            @log.info "Installing puppet master on #{@puppet_master}" + ' ...' + ' [DONE]'.cyan
+            @nodes[puppet_server_tag][:puppet_install_status] = true
+          end
+          ssh_connections = ThreadPool.new(@parallel_connections)
+          @log.info 'Installing puppet agents on all nodes ...'
+          @log.debug "Using command: #{remote_puppet_client_cmd}" if @debug
+          @nodes.except(puppet_server_tag).each do |_, node_info|
+            unless node_info[:puppet_install_status]
+              ssh_connections.schedule do
+                @log.info 'Installing puppet agent on client ' + "#{node_info[:fqdn]}".blue
+                node_info[:puppet_install_status] = true
+              end
+            end
+          end
+          ssh_connections.shutdown
+        else
           #
           # Puppet Server
           #
@@ -85,9 +109,11 @@ module Ankus
             @log.info "Checking if puppet server is ssh'able ..."
             SshUtils.sshable? @puppet_master, @ssh_user, @ssh_key
             @log.info "Checking if puppet server is ssh'able ... " + '[OK]'.green
-            @parsed_hash[:cloud_platform] == 'rackspace' ?
-              preq(@puppet_master, installer_path, @hosts_file) :
+            if @parsed_hash[:cloud_platform] == 'rackspace' || @parsed_hash[:cloud_platform] == 'openstack'
+              preq(@puppet_master, installer_path, @hosts_file)
+            else
               preq(@puppet_master, installer_path)
+            end
             @log.info 'Installing puppet master on ' + "#{@puppet_master}".blue + ' ...'
             @log.debug "Found puppet installer script at #{PUPPET_INSTALLER}" if @debug
             # if controller is on same machine, install puppet master locally else send the script to controller
@@ -135,9 +161,11 @@ module Ankus
             @nodes.except(puppet_server_tag).each do |_, node_info|
               @log.info 'Installing puppet agents on all nodes ...'
               unless node_info[:puppet_install_status] # Only install puppet if not already installed
-                @parsed_hash[:cloud_platform] == 'rackspace' ?
-                    preq(node_info[:fqdn], installer_path, @hosts_file) :
-                    preq(node_info[:fqdn], installer_path)
+                if @parsed_hash[:cloud_platform] == 'rackspace' || @parsed_hash[:cloud_platform] == 'openstack'
+                  preq(node_info[:fqdn], installer_path, @hosts_file)
+                else
+                  preq(node_info[:fqdn], installer_path)
+                end
                 ssh_connections.schedule do
                   @clients_output << SshUtils.execute_ssh!(
                       remote_puppet_client_cmd,
@@ -153,7 +181,7 @@ module Ankus
             end # @nodes
             ssh_connections.shutdown
             @log.info 'Installing puppet agents on all nodes ...' + ' [DONE]'.cyan
-          end # benchmark        
+          end # benchmark
           @log.debug "Time to install puppet clients: #{time}" if @debug
           #print output of puppet client installers on console
           if @debug
@@ -165,32 +193,7 @@ module Ankus
                 puts "\r#{o.values.first[1]}"
               end
             end
-          end 
-        else
-          #
-          # MOCKING
-          #
-          @log.info 'Checking if instances are ssh\'able ...'
-          @log.info 'Checking if instances are ssh\'able ...' + '[OK]'.green.bold
-          puppet_server_tag = find_key_for_fqdn(@nodes, @puppet_master)
-          unless @nodes[puppet_server_tag][:puppet_install_status]
-            @log.info 'Installing puppet master on ' + "#{@puppet_master}".blue + ' ...'
-            @log.debug "Using command: #{remote_puppet_server_cmd}" if @debug
-            @log.info "Installing puppet master on #{@puppet_master}" + ' ...' + ' [DONE]'.cyan
-            @nodes[puppet_server_tag][:puppet_install_status] = true
           end
-          ssh_connections = ThreadPool.new(@parallel_connections)
-          @log.info 'Installing puppet agents on all nodes ...'
-          @log.debug "Using command: #{remote_puppet_client_cmd}" if @debug
-          @nodes.except(puppet_server_tag).each do |node, node_info|
-            if ! node_info[:puppet_install_status]
-              ssh_connections.schedule do
-                @log.info 'Installing puppet agent on client ' + "#{node_info[:fqdn]}".blue
-                node_info[:puppet_install_status] = true
-              end
-            end
-          end
-          ssh_connections.shutdown
         end # if ! @mock
         YamlUtils.write_yaml(@nodes, NODES_FILE)
         @log.info 'Installing puppet on all nodes ...' + ' [DONE]'.cyan
@@ -268,7 +271,7 @@ module Ankus
                 SshUtils.upload!(GETOSINFO_SCRIPT, "/tmp", @puppet_master, @ssh_user, @ssh_key, @log)
                 os_type_cmd = "chmod +x /tmp/#{File.basename(GETOSINFO_SCRIPT)} &&" + 
                               " sudo sh -c '/tmp/#{File.basename(GETOSINFO_SCRIPT)}'"
-                output = SshUtils.execute_ssh_cmds(
+                output = SshUtils.execute_ssh_cmds!(
                     [os_type_cmd,
                      "rm -rf /tmp/#{File.basename(GETOSINFO_SCRIPT)}"],
                     @puppet_master,
@@ -338,7 +341,7 @@ module Ankus
         if parsed_hash[:install_mode] == 'cloud'
           puppet_master = if parsed_hash[:cloud_platform] == 'aws'
                             find_pip_for_tag(@nodes, 'controller').first
-                          elsif parsed_hash[:cloud_platform] == 'rackspace'
+                          elsif parsed_hash[:cloud_platform] == 'rackspace' or parsed_hash[:cloud_platform] == 'openstack'
                             find_key_for_tag(@nodes, 'controller').first
                           end
           puppet_clients = if parsed_hash[:cloud_platform] == 'aws'
@@ -346,7 +349,7 @@ module Ankus
                                   k if v[:private_ip] == puppet_master 
                                 }.compact.first
                               @nodes.except(puppet_master_tag).map { |k, v| v[:private_ip] }
-                           elsif parsed_hash[:cloud_platform] == 'rackspace'
+                           elsif parsed_hash[:cloud_platform] == 'rackspace' or parsed_hash[:cloud_platform] == 'openstack'
                               @nodes.except(puppet_master).keys
                            end
           Inventory::EncData.new(puppet_nodes, ENC_ROLES_FILE, parsed_hash, puppet_master, puppet_clients, @log, @mock).generate
@@ -363,7 +366,7 @@ module Ankus
           # send enc_data and enc_script to puppet server
           SshUtils.upload!(ENC_ROLES_FILE, '/tmp', @puppet_master, @ssh_user, @ssh_key, 22)
           SshUtils.upload!(ENC_SCRIPT, '/tmp', @puppet_master, @ssh_user, @ssh_key, 22)
-          SshUtils.execute_ssh_cmds(
+          SshUtils.execute_ssh_cmds!(
             ["sudo mv /tmp/roles.yaml #{ENC_PATH}",
              "sudo mv /tmp/ankus_puppet_enc #{ENC_PATH}"],
             @puppet_master,
@@ -385,7 +388,7 @@ module Ankus
           # send enc_data and enc_script to puppet server
           SshUtils.upload!(ENC_ROLES_FILE, '/tmp', @puppet_master, @ssh_user, @ssh_key, 22)
           SshUtils.upload!(ENC_SCRIPT, '/tmp', @puppet_master, @ssh_user, @ssh_key, 22)
-          SshUtils.execute_ssh_cmds(
+          SshUtils.execute_ssh_cmds!(
             ["sudo mv /tmp/roles.yaml #{ENC_PATH}",
              "sudo mv /tmp/ankus_puppet_enc #{ENC_PATH}"],
             @puppet_master,
@@ -569,9 +572,16 @@ module Ankus
       # @param [String] instance => node on which puppet should be run
       # @param [String] puppet_run_cmd => command to run on remote client to run puppet
       # @param [String] role => role installing on remote client
-      # @param [Boolean] force => specifies whether to run puppet even if puppet has run previosly with out any errors
+      # @param [Boolean] force => specifies whether to run puppet even if puppet has run previously with out any errors
       def puppet_single_run(instance, puppet_run_cmd, role, force=false)
-        unless @mock
+        if @mock
+          puppet_run_status = @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status]
+          if force || !puppet_run_status || puppet_run_status == 'failed'
+            @log.info 'Initializing ' + "#{role}".blue + ' on ' + "#{instance} ".blue
+            @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status] = 'success'
+            @nodes[find_key_for_fqdn(@nodes, instance)][:last_run] = Time.now.to_i
+          end
+        else
           @log.info 'Initializing ' + "#{role}".blue + ' on ' + "#{instance} ".blue
           #
           # run puppet only if the previous state it 'not_run(false)' or 'failed'
@@ -588,26 +598,19 @@ module Ankus
                 @debug
             )
             exit_status = output[instance][2].to_i
-            unless exit_status == 0
-              @log.error "Puppet run failed on #{instance}!, " +
-                   "Try checking the log @ '/var/log/ankus/puppet_run.log' on #{instance}"
-              # exit 1
-              # TODO Rollback lock
-              @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status] = 'failed'
-            else
+            if exit_status == 0
               # add status to nodes hash
               @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status] = 'success'
               @nodes[find_key_for_fqdn(@nodes, instance)][:last_run] = Time.now.to_i
-            end            
+            else
+              @log.error "Puppet run failed on #{instance}!, " +
+                             "Try checking the log @ '/var/log/ankus/puppet_run.log' on #{instance}"
+              # exit 1
+              # TODO Rollback lock
+              @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status] = 'failed'
+            end
           end
           @log.info 'Completed puppet run on ' + "#{instance} ".blue
-        else
-          puppet_run_status = @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status]
-          if force || !puppet_run_status || puppet_run_status == 'failed'          
-            @log.info 'Initializing ' + "#{role}".blue + ' on ' + "#{instance} ".blue
-            @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status] = 'success'
-            @nodes[find_key_for_fqdn(@nodes, instance)][:last_run] = Time.now.to_i          
-          end
         end
         YamlUtils.write_yaml(@nodes, NODES_FILE) # Update nodes files with puppet run info
       end # Puppet.puppet_single_run
@@ -618,7 +621,16 @@ module Ankus
       # @param [String] role => role installing on remote client
       # @param [Boolean] force => specifies whether to run puppet even if puppet has run previosly with out any errors
       def puppet_parallel_run(instances_array, puppet_run_cmd, role, force=false)
-        if ! @mock
+        if @mock
+          instances_array.each do |instance|
+            puppet_run_status = @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status]
+            if force || !puppet_run_status || puppet_run_status == 'failed'
+              @log.info 'Initializing ' + "#{role}".blue + ' on client ' + "#{instance}".blue
+              @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status] = 'success'
+              @nodes[find_key_for_fqdn(@nodes, instance)][:last_run] = Time.now.to_i
+            end
+          end
+        else
           @log.info 'Initializing ' + "#{role}".blue + ' on client(s) ' + "#{instances_array.join(',')} ".blue + ' ...'
           # initiate concurrent threads pool - to install puppet clients all agent puppet_clients
           ssh_connections = ThreadPool.new(@parallel_connections)
@@ -637,7 +649,7 @@ module Ankus
                       @log,
                       22,
                       false
-                    )
+                  )
                 end # if
               end # ssh_connections.schedule
             end # each block
@@ -647,14 +659,14 @@ module Ankus
           output.each do |o|
             instance = o.keys[0]
             exit_status = o[instance][2].to_i
-            unless exit_status == 0
-              @log.error "Puppet run failed on #{instance}!, " +
-                   "Try checking the log @ '/var/log/ankus/puppet_run.log' on #{instance}"              
-              @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status] = 'failed'
-            else
+            if exit_status == 0
               # add status to nodes hash
               @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status] = 'success'
-              @nodes[find_key_for_fqdn(@nodes, instance)][:last_run] = Time.now.to_i              
+              @nodes[find_key_for_fqdn(@nodes, instance)][:last_run] = Time.now.to_i
+            else
+              @log.error "Puppet run failed on #{instance}!, " +
+                             "Try checking the log @ '/var/log/ankus/puppet_run.log' on #{instance}"
+              @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status] = 'failed'
             end
           end
           if @debug
@@ -669,15 +681,6 @@ module Ankus
           end
           @log.info 'Initializing ' + "#{role}".blue + ' on client(s) ' + "#{instances_array.join(',')} ".blue + '[DONE]'.cyan
 
-        else
-          instances_array.each do |instance|
-            puppet_run_status = @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status]
-            if force || !puppet_run_status || puppet_run_status == 'failed'
-              @log.info 'Initializing ' + "#{role}".blue + ' on client ' + "#{instance}".blue
-              @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status] = 'success'
-              @nodes[find_key_for_fqdn(@nodes, instance)][:last_run] = Time.now.to_i
-            end
-          end
         end
         YamlUtils.write_yaml(@nodes, NODES_FILE)
       end # Puppet.puppet_parallel_run
@@ -714,7 +717,7 @@ module Ankus
         ]
         cmds << "sudo sh -c 'cp /etc/hosts /etc/hosts_backup.backup'" if hosts_file
 
-        SshUtils.execute_ssh_cmds(
+        SshUtils.execute_ssh_cmds!(
             cmds,
             instance,
             @ssh_user,
@@ -741,7 +744,7 @@ module Ankus
       # @param [String] instance => instance on which to perform cleanup
       def cleanup(instance)
         @log.debug "Preforming Cleanup operations on instance: #{instance}" if @debug
-        SshUtils.execute_ssh_cmds(
+        SshUtils.execute_ssh_cmds!(
             ["rm -rf /tmp/#{@puppet_installer}"],
             instance,
             @ssh_user,
