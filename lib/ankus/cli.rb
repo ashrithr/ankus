@@ -311,6 +311,20 @@ module Ankus
               )
       if options[:run_only]
         #
+        # => generate hiera data
+        #
+        @config[:install_mode] == 'cloud' ?
+            puppet.generate_hiera(@config_with_internal_ips) :
+            puppet.generate_hiera(@config)
+
+        #
+        # => generate enc data
+        #
+        @config[:install_mode] == 'cloud' ?
+            puppet.generate_enc(@config_with_internal_ips, NODES_FILE) :
+            puppet.generate_enc(@config, NODES_FILE)
+
+        #
         # => Run only mode
         #
         puppet.run options[:force]
