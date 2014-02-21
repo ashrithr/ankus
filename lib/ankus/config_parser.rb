@@ -442,7 +442,7 @@ module Ankus
         @log.debug "Instances will be booted with '#{volumes[:count]}' volumes of type(#{volumes[:type]}) each with " +
                        "size(#{volumes[:size]}GB)" if @debug
       else
-        @log.warn "Volumes configuration disabled for #{deploy_mode}"
+        @log.warn "Volumes configuration disabled for #{deploy_mode}" if @debug
       end
     end
 
