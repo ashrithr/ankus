@@ -405,7 +405,7 @@ module Ankus
       parsed_hash[:ssh_key]      =  if @provider == 'aws'
                                       File.expand_path('~/.ssh') + '/' + @credentials[:aws_key]
                                     elsif @provider == 'openstack'
-                                      File.expand_path('~/.ssh') + '/' + @credentials[:os_key]
+                                      File.expand_path('~/.ssh') + '/' + @credentials[:os_ssh_key]
                                     elsif @provider == 'rackspace'
                                       File.split(File.expand_path(@credentials[:rackspace_ssh_key])).first + '/' +
                                       File.basename(File.expand_path(@credentials[:rackspace_ssh_key]), '.pub')
@@ -512,7 +512,7 @@ module Ankus
           if @provider == 'aws'
             File.expand_path('~/.ssh') + '/' + @credentials[:aws_key]
           elsif @provider == 'openstack'
-            File.expand_path('~/.ssh') + '/' + @credentials[:os_key]
+            File.expand_path('~/.ssh') + '/' + @credentials[:os_ssh_key]
           elsif @provider == 'rackspace'
             File.split(File.expand_path(@credentials[:rackspace_ssh_key])).first + '/' +
             File.basename(File.expand_path(@credentials[:rackspace_ssh_key]), '.pub')
@@ -826,8 +826,8 @@ module Ankus
     def create_openstack_instances(nodes, credentials, thread_pool_size)
       #defaults
       threads_pool    = Ankus::ThreadPool.new(thread_pool_size)
-      key             = credentials[:key] || 'ankus'
-      groups          = credentials[:sec_groups] || %w(ankus)
+      key             = credentials[:os_ssh_key] || 'ankus'
+      groups          = credentials[:os_sec_groups] || %w(ankus)
       flavor_id       = credentials[:os_flavor]
       image_id        = credentials[:os_image_ref]
       os              = create_openstack_connection

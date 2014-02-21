@@ -254,8 +254,8 @@ module Ankus
             :os_password => '',
             :os_tenant => '',
             :os_flavor => '',
-            :os_key => '',
-            :os_user => '',
+            :os_ssh_key => '',
+            :os_ssh_user => '',
             :os_sec_groups => '',
             :os_image_ref => '',
             :cluster_identifier => ''
@@ -292,11 +292,11 @@ module Ankus
           @errors_count += 1
         end
         # validate ssh key and user
-        if cloud_credentials[:os_key].nil? or cloud_credentials[:os_key].empty?
+        if cloud_credentials[:os_ssh_key].nil? or cloud_credentials[:os_key].empty?
           @log.error 'Property os_key is required'
           @errors_count += 1
         end
-        if cloud_credentials[:os_user].nil? or cloud_credentials[:os_user].empty?
+        if cloud_credentials[:os_ssh_user].nil? or cloud_credentials[:os_user].empty?
           @log.error 'Property os_user is required'
           @errors_count += 1
         end
@@ -346,7 +346,7 @@ module Ankus
 
       #add ssh_user to hash
       hash_to_validate[:ssh_user] =  if cloud_platform == 'openstack'
-                                       cloud_credentials[:os_user]
+                                       cloud_credentials[:os_ssh_user]
                                      else
                                        if cloud_os_type.downcase == 'centos'
                                          'root'
