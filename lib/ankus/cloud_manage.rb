@@ -1002,8 +1002,14 @@ module Ankus
         hosts_string << "::1\tip6-localhost\tip6-loopback" << "\n"
         hosts_string << "fe00::0\tip6-localnet\nff00::0\tip6-mcastprefix\nff02::1\tip6-allnodes\nff02::2\tip6-allrouters" << "\n"
       end
-      nodes.each do |fqdn, node_info|
-        hosts_string << "#{node_info[:fqdn]}\t#{fqdn}\t#{fqdn.split('.').first}" << "\n"
+      if @provider == 'rackspace'
+        nodes.each do |fqdn, node_info|
+          hosts_string << "#{node_info[:fqdn]}\t#{fqdn}\t#{fqdn.split('.').first}" << "\n"
+        end
+      elsif @provider == 'openstack'
+        nodes.each do |fqdn, node_info|
+          hosts_string << "#{node_info[:private_ip]}\t#{fqdn}\t#{fqdn.split('.').first}" << "\n"
+        end
       end
       hosts_string
     end
