@@ -7,13 +7,13 @@ install_mode: 'cloud'
 ########################################################
 # Cloud Service Credentials
 ########################################################
-#  os_auth_url   : openstack auth url (ex: http://[IP|HOSTNAME]:5000/v2.0/tokens)
+#  os_auth_url   : openstack auth url (ex: http://[IP|HOSTNAME]:35357/v2.0/tokens)
 #  os_username   : openstack username (ex: admin)
 #  os_password   : openstack password (ex: secrete)
 #  os_tenant     : name of the tenant (ex: admin)
-#  os_flavor_ref : flavor type to use
-#  os_key        : key to inject into instances
-#  os_user       : user who has ssh privileges for the specified image
+#  os_flavor_ref : flavor type to use (valid values: id of the flavor (typically 1-10))
+#  os_ssh_key    : key to inject into instances (used for ssh)
+#  os_ssh_user   : user who has ssh privileges for the specified image
 #  os_sec_groups : list of security groups to add to the instance
 #  os_image_ref  : image id to use to boot instances
 #  cluster_identifier  : unique name which differentiates other cluster
@@ -26,8 +26,8 @@ cloud_credentials:
   os_password: ''               #<<<<<<<<<<<<<< UPDATE THIS
   os_tenant: ''                 #<<<<<<<<<<<<<< UPDATE THIS
   os_flavor: 4
-  os_key: 'ankus'
-  os_user: ''                   #<<<<<<<<<<<<<< UPDATE THIS
+  os_ssh_key: 'ankus'
+  os_ssh_user: ''                   #<<<<<<<<<<<<<< UPDATE THIS
   os_sec_groups:
     - 'ankus'
   os_image_ref: ''              #<<<<<<<<<<<<<< UPDATE THIS
