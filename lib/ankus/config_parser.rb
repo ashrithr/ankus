@@ -292,11 +292,11 @@ module Ankus
           @errors_count += 1
         end
         # validate ssh key and user
-        if cloud_credentials[:os_ssh_key].nil? or cloud_credentials[:os_key].empty?
+        if cloud_credentials[:os_ssh_key].nil? or cloud_credentials[:os_ssh_key].empty?
           @log.error 'Property os_key is required'
           @errors_count += 1
         end
-        if cloud_credentials[:os_ssh_user].nil? or cloud_credentials[:os_user].empty?
+        if cloud_credentials[:os_ssh_user].nil? or cloud_credentials[:os_ssh_user].empty?
           @log.error 'Property os_user is required'
           @errors_count += 1
         end
