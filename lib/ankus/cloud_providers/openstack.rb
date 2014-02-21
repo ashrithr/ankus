@@ -42,7 +42,10 @@ module Ankus
       @log.error ex.backtrace
       exit 1
     rescue Excon::Errors::BadRequest => ex
-      @log.error 'Malformed connection options' + JSON.parse(ex.response.body)['badRequest']['message']
+      @log.error 'Malformed connection options' + ex.message
+      if ex.response.body
+        @log.error JSON.parse(ex.response.body)['badRequest']['message']
+      end
       @log.error ex.backtrace
     end
 
