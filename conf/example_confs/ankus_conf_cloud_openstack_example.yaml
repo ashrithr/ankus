@@ -112,11 +112,12 @@ hbase_deploy: 'disabled'
 ########################################################
 # Zookeeper Quorum Configuration
 ########################################################
-# Required for hadoop_ha, hadoop_search, hbase, kafka, storm deployments
-# quorum_count: specifies the number of zookeeper(s) to launch to
-#               coordinate services
+# Required for hadoop_ha, solr, hbase, kafka, storm deployments
+# zookeeper_deploy: Specifies whether to deploy zookeeper or not
+#   quorum_count: specifies the number of zookeeper(s) to launch to coordinate
+#                 services
 ########################################################
-zookeeper_quorum_count: 1
+zookeeper_deploy: 'disabled'
 
 ########################################################
 # Slaves specifications (required for hadoop & hbase deployments only)
