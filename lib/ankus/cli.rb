@@ -695,11 +695,13 @@ module Ankus
     # @return [Array] containing ssh user name and ssh key to use
     def find_ssh_user_and_key(config)
       if config[:install_mode] == 'cloud'
-        pk = if config[:cloud_platform] == 'aws' or config[:cloud_platform] == 'openstack'
+        pk = if config[:cloud_platform] == 'aws'
                "~/.ssh/#{config[:cloud_credentials][:aws_key]}"
              elsif config[:cloud_platform] == 'rackspace'
                # rackspace instances need private file to login
                config[:cloud_credentials][:rackspace_ssh_key][0..-5]
+             elsif config[:cloud_platform] == 'openstack'
+               "~/.ssh/#{config[:cloud_credentials][:os_ssh_key]}"
              end
       else
         pk = config[:ssh_key]
