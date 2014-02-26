@@ -208,6 +208,7 @@ module Ankus
         # if cloud provider is rackspace generate|store hosts file
         hosts_file = @config[:cloud_platform] == 'rackspace' || @config[:cloud_platform] == 'openstack' ? Tempfile.new('hosts') : nil
         hosts_file_path = @config[:cloud_platform] == 'rackspace' || @config[:cloud_platform] == 'openstack' ? hosts_file.path : nil
+        send_hosts = false
 
         # If deployment mode is cloud | local
         #   1. Create cloud instances based on configuration (cloud mode)
@@ -238,6 +239,7 @@ module Ankus
               $logger.info 'No new nodes have to be created based on the new configuration'
               exit 0
             else
+              send_hosts = true
               $logger.info 'New nodes have to be created based on the new configuration provided'
               $logger.info 'Creating new instances ' + "#{diff.join(',')}".blue
               # create new instances and add them back to old nodes
@@ -282,11 +284,29 @@ module Ankus
               pp hosts_map
             end
           end
-        end # @config[:install_mode] == 'cloud'
-        #
-        # => Generate puppet nodes hash from configuration for local mode only
-        #
-        if @config[:install_mode] == 'local'
+        else # @config[:install_mode] == 'local'
+          #
+          # => Generate puppet nodes hash from configuration for local mode only
+          #
+          if options[:reload]
+            #
+            # => Check the existing config for change in nodes config and create new node if required
+            #
+            old_nodes_config = YamlUtils.parse_yaml(NODES_FILE)
+            unless old_nodes_config.is_a? Hash
+              abort 'No cluster found to update'.red
+            end
+            new_nodes_config = Inventory::Generator.new(@config).generate # just create instance definitions
+            diff = new_nodes_config.keys - old_nodes_config.keys
+            if diff.empty?
+              $logger.info 'No new nodes have to be configured'
+              exit 0
+            else
+              send_hosts = true
+              $logger.info 'New nodes have to be configured based on the updated config file'
+            end
+          end
+
           # Create puppet nodes from configuration
           Inventory::Generator.new(@config).generate! NODES_FILE
         end
@@ -305,33 +325,30 @@ module Ankus
                 $logger,                      # logger instance
                 options[:thread_pool_size],   # number of threads to use
                 @config[:ssh_user],           # ssh_user
-                options[:debug],              # enabled debud mode
+                options[:debug],              # enabled debug mode
                 options[:mock],               # enable mocking
                 hosts_file_path               # hostfile path if cloud_provider is rackspace
               )
       if options[:run_only]
         #
-        # => generate hiera data
+        # => Run only mode
         #
+
+        # generate hiera data
         @config[:install_mode] == 'cloud' ?
             puppet.generate_hiera(@config_with_internal_ips) :
             puppet.generate_hiera(@config)
 
-        #
-        # => generate enc data
-        #
+        # generate enc data
         @config[:install_mode] == 'cloud' ?
             puppet.generate_enc(@config_with_internal_ips, NODES_FILE) :
             puppet.generate_enc(@config, NODES_FILE)
 
-        #
-        # => Run only mode
-        #
         puppet.run options[:force]
       else
         begin
           #
-          # => install puppet on master ans client(s)
+          # => install puppet on all instances
           #
           puppet.install
 
@@ -348,6 +365,21 @@ module Ankus
           @config[:install_mode] == 'cloud' ?
               puppet.generate_enc(@config_with_internal_ips, NODES_FILE) :
               puppet.generate_enc(@config, NODES_FILE)
+
+          # if its `reload` and new hosts are created then send the updated hosts file to all nodes
+          if @config[:install_mode] == 'cloud'
+            if @config[:cloud_platform] == 'rackspace' || @config[:cloud_platform] == 'openstack'
+              if options[:reload] and send_hosts
+                @nodes.each do |_, node_info|
+                  if options[:mock]
+                    $logger.debug "sending hosts file to #{node_info[:fqdn]}"
+                  else
+                    puppet.send_hosts(node_info[:fqdn], hosts_file_path)
+                  end
+                end
+              end
+            end
+          end
         rescue SocketError
           $logger.error " Cannot ssh into server: #{$!}"
         ensure
@@ -365,9 +397,9 @@ module Ankus
         #
         $logger.info 'Deployment complete, to check deployment information use `info` subcommand'
         # deployment_info @config unless options[:reload]
-        if options[:mock] # if mocking delete the data dir contents
-          FileUtils.rm_rf(Dir.glob("#{DATA_DIR}/*"))
-        end
+        #if options[:mock] # if mocking delete the data dir contents
+        #  FileUtils.rm_rf(Dir.glob("#{DATA_DIR}/*"))
+        #end
       end
     end
 
