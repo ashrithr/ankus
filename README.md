@@ -12,7 +12,7 @@ Ankus is a big-data deployment & orchestration tool. Handles the installation & 
  Ankus can handle deployments in *local* (group of local machines) as well as *cloud* (servers hosted by cloud providers).
 
  1. **Local mode** -  User can specify instance roles, supported operating systems (`centos` or `ubuntu`) for deployments.
- 2. **Cloud mode** -  Ankus will create/manage vm's and auto assigns roles to them. Currently ankus supports [AWS(Amazon Web Services)](http://aws.amazon.com/) & [RackSpace](http://www.rackspace.com/).
+ 2. **Cloud mode** -  Ankus will create/manage instances and auto assigns roles to them. Currently ankus supports [AWS(Amazon Web Services)](http://aws.amazon.com/), [RackSpace](http://www.rackspace.com/) & [OpenStack](https://www.openstack.org/).
 
 **Ankus leverages several open source tools such as:**
 
@@ -26,7 +26,7 @@ Ankus is a big-data deployment & orchestration tool. Handles the installation & 
 
  - Highly Available Hadoop & HBase cluster deployments
  - Secure Hadoop & HBase cluster deployments (using kerberos)
- - Cassndra, Storm & Kafka deployments
+ - Cassandra, Storm & Kafka deployments
 
 ---
 
@@ -103,13 +103,15 @@ To install ruby 1.9.3 and other dependencies on supported platforms follow these
 	```bash
 	cd ~ && git clone https://github.com/ashrithr/ankus.git
 	gem install bundle --no-ri --no-rdoc
-	cd ankus && bundle install
+	cd ankus && git checkout improvements && bundle install
 	```
+OR
+
 * Packaging and installing Ankus as a ruby gem:
 
 	```bash
 	cd ~ && git clone https://github.com/ashrithr/ankus.git
-	cd ankus
+	cd ankus &&	git checkout improvements
 	gem build ankus.gemspec && gem install ankus-*.gem
 	```
 
@@ -133,6 +135,11 @@ Ankus is a configuration based deployment platform, so deployments should be spe
 
 		```bash
 		cp conf/exmaple_confs/ankus_conf_cloud_rs_example.yaml conf/ankus_conf.yaml
+		```
+	* If you are working with openstack cloud platform use `conf/ankus_conf_cloud_openstack_example.yaml` as a base line template for configuration
+
+		```bash
+		cp conf/exmaple_confs/ankus_conf_cloud_openstack_example.yaml conf/ankus_conf.yaml
 		```
 
 2. Once base line configuration file is in place you can edit the configuration file (`conf/ankus_conf.yaml`) in your favorite text editor, the configuration itself is elaborated with comments in place for every option in the config file. Modify according to your deployment scenario(s).

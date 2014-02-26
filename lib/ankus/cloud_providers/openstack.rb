@@ -42,7 +42,10 @@ module Ankus
       @log.error ex.backtrace
       exit 1
     rescue Excon::Errors::BadRequest => ex
-      @log.error 'Malformed connection options' + JSON.parse(ex.response.body)['badRequest']['message']
+      @log.error 'Malformed connection options' + ex.message
+      if ex.response.body
+        @log.error JSON.parse(ex.response.body)['badRequest']['message']
+      end
       @log.error ex.backtrace
     end
 
@@ -67,26 +70,25 @@ module Ankus
         if conn.key_pairs.get(key) # key pairs exists
           # but file does not exist
           if File.exist?(key_path) # file already exists, validate the fingerprint to be sure
-            # check if openssl exists
-            _, _, s = ShellUtils.system_quietly('which openssl')
+            # check if ssh-keygen exists
+            _, _, s = ShellUtils.system_quietly('which ssh-keygen')
             if s.exitstatus == 0
-              out_fp, _, _ = ShellUtils.system_quietly("openssl pkcs8 -in #{key_path} -nocrypt " +
-                                                           '-topk8 -outform DER | openssl sha1 -c')
-              remote_fp = conn.key_pairs.get(key).fingerprint
-              unless out_fp.chomp == remote_fp
-                @log.error "key #{key_path} fingerprint does not match remote key_pair fingerprint"
+              out_key, _, _ = ShellUtils.system_quietly("ssh-keygen -y -f #{key_path}")
+              remote_key = conn.key_pairs.get(key).public_key.match(/ssh-rsa ([^\s]+)/)[1]
+              unless out_key.match(/ssh-rsa ([^\s]+)/)[1] == remote_key
+                @log.error "key #{key_path} does not match remote key contents"
                 abort
               end
             else
-              @log.warn 'Cannot find openssl, its recommended to install openssl to check fingerprints of the keypair(s)'
+              @log.warn 'Cannot find ssh-keygen, its recommended to install ssh-keygen to check fingerprints of the keypair(s)'
             end
           else
             @log.error + "Key '#{key}' already exists but failed to find the key in " +
-                "'#{key_path}', please change the 'aws_key' name or delete the key in aws to recreate the key"
+                "'#{key_path}', please change the 'os_key' name or delete the key in os to recreate the key"
             abort
           end
-        else # key pair does not exist in aws
-          @log.debug "Cannot find the key pair specified, creating the key_pair #{key}"
+        else # key pair does not exist in os
+          @log.debug "Cannot find the key pair specified, creating key_pair '#{key}'"
           if File.exist?(key_path) # but ssh file exists
             @log.error "Key '#{key}' already exists, please rename|delete '#{key_path}' to proceed"
             exit 1
@@ -166,7 +168,6 @@ module Ankus
         end
       end
     end
-
 
     # Validate if a specified flavor exists or not
     # @param [Fog::Compute::OpenStack::Real] conn => fog openstack connection object
@@ -289,14 +290,19 @@ module Ankus
     def delete_server!(conn, server_name, delete_volumes = false)
       server = conn.servers.find{ |i| i.name == server_name }
       if server
-        @log.info "Deleting instances with name: #{server_name}"
+        @log.info "Deleting instance with name: #{server_name}"
         # check and delete any floating ip addresses associated with instance
         server.all_addresses.each do |address|
           if address['ip']
-            @log.info "Disassociating floating ip address associated with instance: #{server.name}"
-            conn.disassociate_address(server.id, address['ip'])
-            @log.info "Releasing floating ip address: #{address['ip']}"
-            conn.release_address(address['ip'])
+            begin
+              @log.info "Disassociating floating ip address associated with instance: #{server.name}"
+              conn.disassociate_address(server.id, address['ip'])
+              @log.info "Releasing floating ip address: #{address['ip']}"
+              conn.release_address(conn.addresses.find {|a| a.ip == address['ip']}.id)
+            rescue Exception => ex
+              @log.debug "Error encountered releasing floating ip, reason: #{ex}"
+              # continue
+            end
           end
         end
         server.destroy
@@ -326,41 +332,56 @@ module Ankus
     # @param [String] name => fqdn of the server being created
     # @param [String] key_name => name of the key pair to use
     # @param [String] type => instance size being created
-    # @param [String] image_name => name of the image to boot
+    # @param [String] image => id of the image to boot
+    # @param [String] sec_groups => list of security groups to use for an instance
     # @return [Fog::Compute::OpenStack::Server] server object
     #noinspection RubyStringKeysInHashInspection
-    def create_server!(conn, name, key_name, type, image_name)
-      image = conn.images.find { |i| i.name == image_name }
-      flavor = conn.flavors.find { |f| f.name == type }
+    def create_server!(conn, name, key_name, type, image, sec_groups)
+      unless @mock
+        unless conn.images.find { |i| i.id == image }
+          @log.error "Cannot find image with id #{image}, available images: "
+          conn.images.table([:id, :name])
+          abort
+        end
+        unless conn.flavors.find { |f| f.id == type.to_s }
+          @log.error "Cannot find flavor with id #{type}, available flavors: "
+          conn.flavors.table([:id, :name])
+          abort
+        end
+      end
       server = conn.servers.create(
           :name => name,
-          :flavor_ref => flavor.id,
-          :image_ref => image.id,
-          :key_name => key_name
+          :flavor_ref => type,
+          :image_ref => image,
+          :key_name => key_name,
+          :security_groups => sec_groups
       )
-      # reloading will assign random public and private ip addresses if mocking
+      # TODO -- mocking is not working, reload is not assigning ip addresses. Custom assigning is not
+      # TODO -- getting persisted to the server object hence getting the public ip address is working
+      # TODO -- and getting the internal ip address is not working. FIX THIS for mocking to work!!!
       if @mock
         server.reload
         server.addresses= {
-            'public'=>[
-                {
-                    'OS-EXT-IPS-MAC:mac_addr' => (1..6).map{'%0.2X'%rand(256)}.join(':'),
-                    'version' => 4,
-                    'addr' => 4.times.map{ Fog::Mock.random_numbers(3) }.join('.'),
-                    'OS-EXT-IPS:type' => 'fixed'
-                },
-                {
-                    'OS-EXT-IPS-MAC:mac_addr' => (1..6).map{'%0.2X'%rand(256)}.join(':'),
-                    'version' => 4,
-                    'addr' => 4.times.map{ Fog::Mock.random_numbers(3) }.join('.'),
-                    'OS-EXT-IPS:type' => 'floating'
-                }
-            ]
+          'public'=>[
+            {
+              'OS-EXT-IPS-MAC:mac_addr' => (1..6).map{'%0.2X'%rand(256)}.join(':'),
+              'version' => 4,
+              'addr' => 4.times.map{ Fog::Mock.random_numbers(3) }.join('.'),
+              'OS-EXT-IPS:type' => 'fixed'
+            },
+            {
+              'OS-EXT-IPS-MAC:mac_addr' => (1..6).map{'%0.2X'%rand(256)}.join(':'),
+              'version' => 4,
+              'addr' => 4.times.map{ Fog::Mock.random_numbers(3) }.join('.'),
+              'OS-EXT-IPS:type' => 'floating'
+            }
+          ]
         }
       end
       server
     end
 
+    # [Experimental] Download openstack compatible image using url provided
     def download_image!(image_url)
       # lazy load libraries
       require 'zlib'
@@ -401,6 +422,7 @@ module Ankus
       end
     end
 
+    # [Experimental] Uploads the image from local file system to openstack glance
     #noinspection RubyStringKeysInHashInspection
     def upload_image(extract_path, packaged_files)
       image_service = Fog::Image.new({
