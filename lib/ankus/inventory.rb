@@ -144,7 +144,7 @@ module Ankus
         else
           nodes[fqdn] = create_node(fqdn, [tag])
         end
-        return nodes
+        nodes
       end      
 
       # Get the host configuration such as number of cores, amount of ram for given node

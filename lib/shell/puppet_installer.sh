@@ -531,11 +531,10 @@ HIERADELIM
 }
 
 function configure_enc () {
-  local enc_dir="/etc/puppet/enc"
-  if [[ ! -d $enc_dir ]]; then
-    mkdir -p $enc_dir
+  if [[ ! -d /etc/puppet/enc ]]; then
+    mkdir -p /etc/puppet/enc
   fi
-  execute "grep 'node_terminus = exec' $enc_dir"
+  execute "grep 'node_terminus = exec' /etc/puppet/puppet.conf"
   if [[ $? -ne 0 ]]; then
       echo "  node_terminus = exec
   external_nodes = /etc/puppet/enc/ankus_puppet_enc" >> /etc/puppet/puppet.conf

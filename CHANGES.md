@@ -1,5 +1,6 @@
 Changes
 -------
+0.3.1 - Adds support for openstack deployments
 0.3.0 - Add support for parallel ssh and execute set of commands on nodes
 0.2.9 - Logging support (log4r), Volume's separation based on deployment, Licence update to Apache 2.0
 0.2.8 - Hadoop Search Deployment
