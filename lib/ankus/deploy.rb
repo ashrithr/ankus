@@ -566,6 +566,21 @@ module Ankus
         end
       end # Puppet.run
 
+      # Uploads hosts file to specified instance
+      # @param [String] instance to send the host file
+      # @param [String] hosts_file to upload
+      def send_hosts(instance, hosts_file)
+        @log.debug "Sending hosts file to #{instance}" if @debug
+        SshUtils.upload!(hosts_file, '/tmp/hosts', instance, @ssh_user, @ssh_key, @log)
+        SshUtils.execute_ssh!(
+            'sudo cp /etc/hosts /etc/hosts.backup && mv /tmp/hosts /etc && chmod 644 /etc/hosts',
+            instance,
+            @ssh_user,
+            @ssh_key,
+            @log
+        )
+      end # Puppet.send_hosts
+
       private
 
       # Runs puppet on single instance
@@ -728,15 +743,7 @@ module Ankus
         @log.debug "Sending puppet installer script to #{instance}" if @debug
         SshUtils.upload!(PUPPET_INSTALLER, remote_puppet_loc, instance, @ssh_user, @ssh_key, @log)
         if hosts_file
-          @log.debug "Sending hosts file to #{instance}" if @debug
-          SshUtils.upload!(hosts_file, '/tmp/hosts', instance, @ssh_user, @ssh_key, @log)
-          SshUtils.execute_ssh!(
-            'sudo mv /tmp/hosts /etc && chmod 644 /etc/hosts',
-            instance,
-            @ssh_user,
-            @ssh_key,
-            @log
-          )
+          send_hosts(instance, hosts_file)
         end
       end # Puppet.preq
 
