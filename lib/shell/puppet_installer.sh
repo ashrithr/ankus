@@ -27,7 +27,7 @@
 ## Configuration Variables (change these, only if you know what you are doing)
 ####
 puppet_modules_path="/etc/puppet/modules"
-puppet_modules_download="https://github.com/cloudwicklabs/ankus-modules/archive/v2.3.tar.gz"
+puppet_modules_download="https://github.com/cloudwicklabs/ankus-modules/archive/v2.4.tar.gz"
 debug="false"
 
 ### !!! DONT CHANGE BEYOND THIS POINT. DOING SO MAY BREAK THE SCRIPT !!!
