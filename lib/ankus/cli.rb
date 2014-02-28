@@ -421,13 +421,14 @@ module Ankus
         @config, @config_with_internal_ips = cloud.modify_cloud_config(@config, @nodes)
       end
       puppet = Deploy::Puppet.new(
-          @nodes,
-          @config[:ssh_key],
-          @config,
-          options[:thread_pool_size],
-          @config[:ssh_user],
-          options[:debug],
-          options[:mock]
+          @nodes,                       # puppet nodes hash
+          @config[:ssh_key],            # ssh_key to use
+          @config,                      # parsed config hash
+          $logger,                      # logger instance
+          options[:thread_pool_size],   # number of threads to use
+          @config[:ssh_user],           # ssh_user
+          options[:debug],              # enabled debug mode
+          options[:mock],               # enable mocking
       )
       @config[:install_mode] == 'cloud' ?
           puppet.generate_hiera(@config_with_internal_ips) :
