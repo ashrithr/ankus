@@ -45,8 +45,6 @@ cloud_os_type: CentOS
 #     type             : mapreduce framework type to deploy (mr1 or mr2)
 #   ecosystem          : specifies list of tools to deploy (hive, pig, oozie,
 #                        sqoop)
-#   data_mount_points  : number of volumes to attach to worker nodes
-#                        Default: 0 (no extra volumes will be attached)
 #   worker_volumes: worker nodes volumes configuration
 #     type  : type of the volumes to create, valid value is 'blockstore'
 #     size  : size of each volume in GB
@@ -55,6 +53,10 @@ cloud_os_type: CentOS
 #     type  : type of the volumes to create, valid value is 'blockstore'
 #     size  : size of each volume in GB
 #     count : number of volumes to attach to each master instance
+#   packages_source: specifies which packages to use, available sources are
+#     'cdh' - installs cloudera cdh packages
+#     'hdp' - installs hortonworks hdp packages
+#     default: cdh
 #
 # ===============DEPLOYMENT SCENARIO 1==================
 #               TO DEPLOY HADOOP (NON-HA)
