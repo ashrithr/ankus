@@ -267,7 +267,7 @@ module Ankus
                 roles_hash[pc]['hadoop::hive'] = nil           if hadoop_ecosystem.include? 'hive'
                 roles_hash[pc]['hadoop::pig'] = nil            if hadoop_ecosystem.include? 'pig'
                 roles_hash[pc]['hadoop::sqoop'] = nil          if hadoop_ecosystem.include? 'sqoop'
-                roles_hash[pc]['hadoop::pig'] = nil            if hadoop_ecosystem.include? 'pig'
+                roles_hash[pc]['hadoop::hue'] = nil            if hadoop_ecosystem.include? 'hue'
                 roles_hash[pc]['hadoop::oozie_server'] = nil   if hadoop_ecosystem.include? 'oozie'
                 roles_hash[pc]['hadoop::oozie_client'] = nil   if hadoop_ecosystem.include? 'oozie'
               end
