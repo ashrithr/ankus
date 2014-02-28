@@ -76,7 +76,9 @@ module Ankus
               out_key, _, _ = ShellUtils.system_quietly("ssh-keygen -y -f #{key_path}")
               remote_key = conn.key_pairs.get(key).public_key.match(/ssh-rsa ([^\s]+)/)[1]
               unless out_key.match(/ssh-rsa ([^\s]+)/)[1] == remote_key
-                @log.error "key #{key_path} does not match remote key contents"
+                @log.error "Key '#{key}' already exists on local system and it's fingerprint does not match with remote "\
+                           "key_pair's fingerprint. Either delete the key in aws and rename the local file ['#{key_path}'] "\
+                           "(or) update the 'aws_key' property in the config file to another name."
                 abort
               end
             else

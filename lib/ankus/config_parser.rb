@@ -499,7 +499,7 @@ module Ankus
       if alerting and alerting == 'enabled'
         admin_email = hash_to_validate[:admin_email]
         if admin_email.nil? or admin_email.empty?
-          @log.error "Property 'admin_email' is required parameter, valid values: enabled|disabled"
+          @log.error "Property 'admin_email' is required parameter when altering is enabled"
           @errors_count += 1
         end
       end
