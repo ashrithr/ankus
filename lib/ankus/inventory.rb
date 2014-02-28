@@ -83,7 +83,7 @@ module Ankus
               add_or_update_node(nodes_hash, hm, "hbasemaster#{i+1}")   
             end
           end
-          @config[:slave_nodes].each_with_index do |hw, i|
+          @config[:worker_nodes].each_with_index do |hw, i|
             add_or_update_node(nodes_hash, hw, "slaves#{i+1}")
           end          
         end
@@ -182,9 +182,8 @@ module Ankus
         if @mock
           @log.debug 'ENC data'
           pp enc_data
-        else
-          YamlUtils.write_yaml(enc_data, @roles_file)
         end
+        YamlUtils.write_yaml(enc_data, @roles_file)
       end
 
       private
@@ -265,21 +264,20 @@ module Ankus
             if mapreduce_master == pc
               if hadoop_ecosystem
                 #eco-system
-                roles_hash[pc]['hadoop-hive'] = nil           if hadoop_ecosystem.include? 'hive'
-                roles_hash[pc]['hadoop-pig'] = nil            if hadoop_ecosystem.include? 'pig'
-                roles_hash[pc]['hadoop-sqoop::server'] = nil  if hadoop_ecosystem.include? 'sqoop'
-                roles_hash[pc]['hadoop-sqoop::client'] = nil  if hadoop_ecosystem.include? 'sqoop'
-                roles_hash[pc]['hadoop-pig'] = nil            if hadoop_ecosystem.include? 'pig'
-                roles_hash[pc]['hadoop-oozie::server'] = nil  if hadoop_ecosystem.include? 'oozie'
-                roles_hash[pc]['hadoop-oozie::client'] = nil  if hadoop_ecosystem.include? 'oozie'
+                roles_hash[pc]['hadoop::hive'] = nil           if hadoop_ecosystem.include? 'hive'
+                roles_hash[pc]['hadoop::pig'] = nil            if hadoop_ecosystem.include? 'pig'
+                roles_hash[pc]['hadoop::sqoop'] = nil          if hadoop_ecosystem.include? 'sqoop'
+                roles_hash[pc]['hadoop::pig'] = nil            if hadoop_ecosystem.include? 'pig'
+                roles_hash[pc]['hadoop::oozie_server'] = nil   if hadoop_ecosystem.include? 'oozie'
+                roles_hash[pc]['hadoop::oozie_client'] = nil   if hadoop_ecosystem.include? 'oozie'
               end
             end
             #hdfs
             roles_hash[pc]['hadoop::datanode'] = nil if slave_nodes.include? pc
             #hbase
             if hbase_install != 'disabled'
-              roles_hash[pc]['hbase::master'] = nil if hbase_master.include? pc
-              roles_hash[pc]['hbase::regionserver'] = nil if slave_nodes.include? pc
+              roles_hash[pc]['hadoop::hbase_master'] = nil if hbase_master.include? pc
+              roles_hash[pc]['hadoop::hbase_regionserver'] = nil if slave_nodes.include? pc
             end
             #security only for hadoop & hbase deployments
             roles_hash[pc]['kerberos::client'] = nil if @config[:security] == 'kerberos'
@@ -302,7 +300,7 @@ module Ankus
           end
           if solr_install != 'disabled'
             if solr_install[:hdfs_integration] != 'disabled'
-              roles_hash[pc]['hadoop-search::server'] = nil if solr_nodes.include? pc
+              roles_hash[pc]['hadoop::search'] = nil if solr_nodes.include? pc
             else
               roles_hash[pc]['solr::server'] = nil if solr_nodes.include? pc
             end
