@@ -317,11 +317,11 @@ module Ankus
           hiera_hash['storm_worker_count'] = parsed_hash[:storm_deploy][:count]
         end
         # Write out hiera data to file and send it to puppet server
+        YamlUtils.write_yaml(hiera_hash, HIERA_DATA_FILE)
         if @mock
           @log.debug 'Hiera data'
           pp hiera_hash
         else
-          YamlUtils.write_yaml(hiera_hash, HIERA_DATA_FILE)
           SshUtils.upload!(HIERA_DATA_FILE, '/tmp', @puppet_master, @ssh_user, @ssh_key, 22)
           SshUtils.execute_ssh!(
             "sudo cp /tmp/common.yaml #{HIERA_DATA_PATH} && rm -rf /tmp/common.yaml",

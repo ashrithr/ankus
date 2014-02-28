@@ -50,7 +50,7 @@ module Ankus
     desc 'parse', 'Parse the config file for errors'
     def parse
       $logger.info "Parsing config file '#{options[:config]}' ... "
-      parse_config options[:debug]
+      parse_config options[:debug], options[:mock]
       $logger.info 'Parsing config file ... ' + '[OK]'.green
     end
 
@@ -100,7 +100,7 @@ module Ankus
                   :default => false
     def info
       if @config.nil? or @config.empty?
-        parse_config
+        parse_config options[:debug], options[:mock]
       end
       deployment_info(@config)
     end
@@ -109,7 +109,7 @@ module Ankus
     method_option :role, :required => true, :desc => 'role of the instance to ssh into'
     def ssh
       if @config.nil? or @config.empty?
-        parse_config
+        parse_config options[:debug], options[:mock]
       end
       ssh_into_instance options[:role], @config
     end
@@ -127,7 +127,7 @@ module Ankus
     method_option :commands, :desc => 'commands to execute', :type => :array, :required => true
     def pssh
       if @config.nil? or @config.empty?
-        parse_config
+        parse_config options[:debug], options[:mock]
       end
       pssh_commands options, @config
     end
@@ -139,7 +139,7 @@ module Ankus
                   :desc => 'deletes volumes attached to instances as well (danger zone)'
     def destroy
       if @config.nil? or @config.empty?
-        parse_config
+        parse_config options[:debug], options[:mock]
       end
       if @config['install_mode'] == 'local'
         $logger.fatal 'Only applicable for cloud deployments'
@@ -153,8 +153,8 @@ module Ankus
     # Parses the configuration file
     # @param [TrueClass] debug whether to print verbose output during parsing the configuration file
     # @return [Hash] configuration hash to work with
-    def parse_config(debug = false)
-      @config = ConfigParser.new(options[:config], $logger, debug).parse_config
+    def parse_config(debug = false, mock = false)
+      @config = ConfigParser.new(options[:config], $logger, debug, mock).parse_config
     end
 
     # Creates a cloud object which is an encapsulation for all the cloud providers
@@ -192,7 +192,7 @@ module Ankus
       options[:run_only] ? $logger.info('Orchestrating puppet runs') : $logger.info('Starting deployment')
       if @config.nil? or @config.empty?
         $logger.info 'Parsing config file ...'
-        parse_config
+        parse_config options[:debug], options[:mock]
         $logger.info 'Parsing config file ... ' + '[OK]'.green
       end
 
@@ -414,7 +414,7 @@ module Ankus
       unless @nodes.is_a? Hash
         abort 'No cluster found to refresh'.red
       end
-      parse_config if @config.nil? or @config.empty?
+      parse_config(options[:debug], options[:mock]) if @config.nil? or @config.empty?
       $logger.info 'Reloading Configurations ...'
       if @config[:install_mode] == 'cloud'
         cloud = create_cloud_obj(@config)

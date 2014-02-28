@@ -22,11 +22,12 @@ module Ankus
     # Creates a configParser object with specified file_path, and a parsed_hash object
     # @param [String] file_path => path to the configuration file to parse
     # @param [Boolean] debug => if enabled will log info to stdout
-    def initialize(file_path, log, debug=false)
-      @config_file = file_path
-      @parsed_hash = {}
-      @log = log
-      @debug = debug
+    def initialize(file_path, log, debug=false, mock = false)
+      @config_file  = file_path
+      @parsed_hash  = {}
+      @log          = log
+      @debug        = debug
+      @mock         = mock
       @errors_count = 0
     end
 
@@ -127,19 +128,21 @@ module Ankus
           @errors_count += 1
         end
       end
-      nodes.keys.each do |node|
-        unless Ankus::PortUtils.port_open?(node, 22, 2)
-          @log.error "Node: #{node} is not reachable"
-          @errors_count += 1
+      unless @mock
+        nodes.keys.each do |node|
+          unless Ankus::PortUtils.port_open?(node, 22, 2)
+            @log.error "Node: #{node} is not reachable"
+            @errors_count += 1
+          end
         end
-      end
-      nodes.keys.each do |node|
-        begin 
-          Ankus::SshUtils.sshable?(node, hash_to_validate[:ssh_user], hash_to_validate[:ssh_key])
-        rescue
-          @log.error "Cannot ssh into instance '#{node}' with user: #{hash_to_validate[:ssh_user]} and " +
-          "key: #{hash_to_validate[:ssh_key]}"
-          @errors_count += 1
+        nodes.keys.each do |node|
+          begin
+            Ankus::SshUtils.sshable?(node, hash_to_validate[:ssh_user], hash_to_validate[:ssh_key])
+          rescue
+            @log.error "Cannot ssh into instance '#{node}' with user: #{hash_to_validate[:ssh_user]} and " +
+            "key: #{hash_to_validate[:ssh_key]}"
+            @errors_count += 1
+          end
         end
       end
     end
@@ -544,7 +547,8 @@ module Ankus
 
       hadoop_ha = hash_to_validate[:hadoop_deploy][:ha]
       hadoop_ecosystem = hash_to_validate[:hadoop_deploy][:ecosystem]
-      valid_hadoop_ecosystem = %w(hive pig sqoop oozie hue)
+      valid_hadoop_ecosystem_cdh = %w(hive pig sqoop oozie hue impala)
+      valid_hadoop_ecosystem_hdp = %w(hive pig sqoop oozie hue tez)
       mapreduce = hash_to_validate[:hadoop_deploy][:mapreduce]
       zookeeper = hash_to_validate[:zookeeper_deploy]
       install_mode = hash_to_validate[:install_mode]
@@ -605,6 +609,17 @@ module Ankus
         end
       end
 
+      # hadoop packages source validation
+      hadoop_packages_source = hash_to_validate[:hadoop_deploy][:packages_source]
+      if hadoop_packages_source
+        unless %w(cdh hdp).include?(hadoop_packages_source)
+          @log.error "'packages_source' can be either 'cdh' or 'hdp'"
+          @errors_count += 1
+        end
+      else
+        hash_to_validate[:hadoop_deploy][:packages_source] = 'cdh'
+      end
+
       # MapReduce validations
       if install_mode == 'local' # Local deployment
         # mapreduce_type and mapreduce_master are required for mapreduce deployments
@@ -642,13 +657,28 @@ module Ankus
         end
       end
 
+      if mapreduce && mapreduce != 'disabled'
+        if hash_to_validate[:hadoop_deploy][:packages_source] == 'hdp' and mapreduce[:type] == 'mr1'
+          @log.error 'HDP deployments does not support mapreduce v1 try using \'mr2\' (yarn)'
+          @errors_count += 1
+        end
+      end
+
       # hadoop_ecosystem validations
       if hadoop_ecosystem
         hadoop_ecosystem.each do |tool|
-          unless valid_hadoop_ecosystem.include?(tool)
-            @log.error "'ecosystem' can support #{valid_hadoop_ecosystem}"
-            @log.error "  #{tool} specified cannot be part of deployment yet!"
-            @errors_count += 1
+          if hash_to_validate[:hadoop_deploy][:packages_source] == 'cdh'
+            unless valid_hadoop_ecosystem_cdh.include?(tool)
+              @log.error "'ecosystem' can support #{valid_hadoop_ecosystem_cdh}"
+              @log.error "  #{tool} specified cannot be part of deployment yet!"
+              @errors_count += 1
+            end
+          else
+            unless valid_hadoop_ecosystem_hdp.include?(tool)
+              @log.error "'ecosystem' can support #{valid_hadoop_ecosystem_hdp}"
+              @log.error "  #{tool} specified cannot be part of deployment yet!"
+              @errors_count += 1
+            end
           end
         end
       end

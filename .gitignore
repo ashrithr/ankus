@@ -18,6 +18,7 @@ tmp
 .idea
 conf/ankus_conf.yaml
 conf/ankus_conf_backup.yaml
+conf/ankus_conf_os.yaml
 conf/ankus_conf_rs.yaml
 conf/ankus_conf_aws.yaml
 .data
