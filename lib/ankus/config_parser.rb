@@ -70,6 +70,15 @@ module Ankus
           @errors_count += 1
         end
       end
+
+      # validate if the keys in config file are valid (nested validation)
+      flat_hash(hash_to_validate).keys.flatten.each do |key_to_validate|
+        unless ANKUS_CONF_VALID_KEYS.include?(key_to_validate)
+          @log.error "Property: '#{key_to_validate}' is not recognized"
+          @errors_count += 1
+        end
+      end
+
       # validate install_mode, it can be 'local|cloud' modes
       case @parsed_hash[:install_mode]
       when 'local'
@@ -78,7 +87,7 @@ module Ankus
         cloud_validator hash_to_validate
       when nil
         @log.error "Property 'install_mode' cannot be empty"
-        @errors_count += 1        
+        @errors_count += 1
       else
         @log.error 'Not supported install mode, supported modes: local|cloud'
       end
@@ -199,8 +208,8 @@ module Ankus
 
         # validate aws connection
         @log.debug 'Validating aws connection' if @debug
-        aws = Aws.new(cloud_credentials[:aws_access_id], 
-          cloud_credentials[:aws_secret_key], 
+        aws = Aws.new(cloud_credentials[:aws_access_id],
+          cloud_credentials[:aws_secret_key],
           cloud_credentials[:aws_region],
           @log
           )
@@ -816,7 +825,7 @@ module Ankus
         if hbase_install && hash_to_validate[:zookeeper_deploy][:quorum_count].nil?
           @log.error "Property 'quorum_count' of 'zookeeper_deploy' is required for hbase deployment"
           @errors_count += 1
-        end        
+        end
       else # Local deployment
         if hbase_install and (hbase_install[:master].nil? or hbase_install[:master].empty?)
           @log.error "Invalid value for property 'master' of 'hbase_deploy'"
@@ -1067,7 +1076,7 @@ module Ankus
             elsif ! solr_nodes.is_a? Array
               @log.error "Excepting list (array) of nodes for 'nodes' of 'solr_deploy'"
               @errors_count += 1
-            end          
+            end
           else # hdfs integration enabled, collocate solr on hadoop_nodes
             if hash_to_validate[:hadoop_deploy] == 'disabled'
               @log.error "'hdfs_integration' requires a valid hadoop deployment"
@@ -1080,7 +1089,7 @@ module Ankus
             elsif ! solr_nodes.is_a? Array
               @log.error "Excepting list (array) of nodes for 'nodes' of 'solr_deploy'"
               @errors_count += 1
-            end            
+            end
           end
         end
       else # Cloud deploy
@@ -1106,7 +1115,7 @@ module Ankus
             if hash_to_validate[:hadoop_deploy] == 'disabled'
               @log.error "'hdfs_integration' requires a valid hadoop deployment"
               @errors_count += 1
-            end  
+            end
           end
         end
       end
@@ -1150,7 +1159,7 @@ module Ankus
           collocate = kafka_deploy[:collocate]
           if collocate.nil?
             @log.debug 'Defaulting collocate for kafka'
-            hash_to_validate[:kafka_deploy][:collocate] = false  
+            hash_to_validate[:kafka_deploy][:collocate] = false
           elsif ! (collocate.is_a? TrueClass or collocate.is_a? FalseClass)
             @log.error "Invalid value found for 'collocate', valid values are yes|no"
             @errors_count += 1
