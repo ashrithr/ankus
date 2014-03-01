@@ -59,6 +59,79 @@ module Ankus
     :zookeeper_deploy
   ]
 
+  ANKUS_CONF_VALID_KEYS = [
+    :install_mode,
+    :cloud_platform,
+    :cloud_credentials,
+    :aws_access_id,
+    :aws_secret_key,
+    :aws_machine_type,
+    :aws_region,
+    :aws_key,
+    :os_auth_url,
+    :os_username,
+    :os_password,
+    :os_tenant,
+    :os_flavor,
+    :os_ssh_key,
+    :os_ssh_user,
+    :os_sec_groups,
+    :os_image_ref,
+    :cluster_identifier,
+    :rackspace_username,
+    :rackspace_api_key,
+    :rackspace_instance_type,
+    :rackspace_ssh_key,
+    :cluster_identifier,
+    :cloud_os_type,
+    :hadoop_deploy,
+    :packages_source,
+    :ha,
+    :mapreduce,
+    :type,
+    :ecosystem,
+    :worker_volumes,
+    :master_volumes,
+    :type,
+    :iops,
+    :size,
+    :count,
+    :namenode,
+    :secondarynamenode,
+    :journal_quorum,
+    :data_dirs,
+    :master_dirs,
+    :hbase_deploy,
+    :master,
+    :master_count,
+    :zookeeper_deploy,
+    :quorum,
+    :dirs,
+    :quorum_count,
+    :worker_nodes_count,
+    :worker_nodes,
+    :solr_deploy,
+    :hdfs_integration,
+    :number_of_instances,
+    :cassandra_deploy,
+    :collocate,
+    :number_of_instances,
+    :number_of_seeds,
+    :kafka_deploy,
+    :number_of_brokers,
+    :storm_deploy,
+    :nodes,
+    :number_of_supervisors,
+    :workers_count,
+    :security,
+    :kerberos_realm,
+    :kerberos_domain,
+    :monitoring,
+    :alerting,
+    :admin_email,
+    :log_aggregation
+  ]
+
   HADOOP_CONF_KEYS = %w{
     hadoop_heap_size
     yarn_heapsize
@@ -240,7 +313,7 @@ module Ankus
     else
       found_clients.map { |k| nodes[k][:fqdn] }
     end
-  end 
+  end
 
   # Returns private_ip for input tag
   # @param [Hash] nodes to search for tag in
@@ -261,7 +334,7 @@ module Ankus
   # Return hash key for input tag
   # @param [Hash] nodes to search for tag in
   # @param [tag] tag to search
-  # @return [Array] || nil  
+  # @return [Array] || nil
   def find_key_for_tag(nodes, tag)
     found_clients = []
     nodes.each do |k, v|
@@ -287,6 +360,15 @@ module Ankus
   # @return [String] => pip private ip to lookup
   def find_key_for_pip(nodes, pip)
     nodes.select { |k, v| k if v[:private_ip] == pip }.keys.first
+  end
+
+  # Converts a nested hash to flat hash
+  # @param [Hash] nested hash to convert
+  # @param [Array] grouped nested keys
+  # @return [Hash] flattenend hash
+  def flat_hash(hash, k = [])
+    return {k => hash} unless hash.is_a?(Hash)
+    hash.inject({}){ |h, v| h.merge! flat_hash(v[-1], k + [v[0]]) }
   end
 
   #
@@ -352,11 +434,22 @@ class Hash
   def diff(other)
     self.keys.inject({}) do |memo, key|
       unless self[key] == other[key]
-        memo[key] = [self[key], other[key]] 
+        memo[key] = [self[key], other[key]]
       end
       memo
     end
-  end  
+  end
+
+  # retunrs value for a key nested deep in the hash
+  def deep_find(key)
+    if key?(key)
+      true
+    else
+      self.values.inject(nil) do |memo, v|
+        memo ||= v.deep_find(key) if v.respond_to?(:deep_find)
+      end
+    end
+  end
 end
 
 #
