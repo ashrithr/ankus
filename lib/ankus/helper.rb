@@ -132,7 +132,7 @@ module Ankus
     :log_aggregation
   ]
 
-  HADOOP_CONF_KEYS = %w{
+  HADOOP_CONF_KEYS_COMPLETE = %w{
     hadoop_heap_size
     yarn_heapsize
     hadoop_namenode_opts
@@ -178,6 +178,7 @@ module Ankus
     hadoop_config_tasktracker_http_threads
     hadoop_config_use_map_compression
     hadoop_config_mapred_reduce_slowstart_completed_maps
+    hadoop_config_mapred_reduce_tasks
     hadoop_namenode_port
     hadoop_resourcemanager_port
     hadoop_resourcetracker_port
@@ -201,6 +202,53 @@ module Ankus
     hadoop_config_mapreduce_task_io_sort_mb
     hadoop_config_mapreduce_task_io_sort_factor
     hadoop_config_mapreduce_reduce_shuffle_parallelcopies
+  }
+
+  HADOOP_CONF_KEYS = %w{
+    hadoop_heap_size
+    yarn_heapsize
+    hadoop_namenode_opts
+    hadoop_jobtracker_opts
+    hadoop_secondarynamenode_opts
+    hadoop_datanode_opts
+    hadoop_tasktracker_opts
+    hadoop_balancer_opts
+    yarn_resourcemanager_opts
+    yarn_nodemanager_opts
+    yarn_proxyserver_opts
+    hadoop_job_historyserver_opts
+    hadoop_snappy_codec
+    hadoop_config_fs_inmemory_size_mb
+    hadoop_config_io_file_buffer_size
+    hadoop_config_hadoop_tmp_dir
+    hadoop_ha_nameservice_id
+    hadoop_config_dfs_replication
+    hadoop_config_dfs_block_size
+    hadoop_config_io_bytes_per_checksum
+    hadoop_config_fs_trash_interval
+    hadoop_config_dfs_permissions_supergroup
+    hadoop_config_dfs_datanode_max_transfer_threads
+    hadoop_config_dfs_datanode_du_reserved
+    hadoop_config_dfs_datanode_balance_bandwidthpersec
+    hadoop_config_dfs_permissions_enabled
+    hadoop_config_namenode_handler_count
+    hadoop_config_dfs_namenode_safemode_threshold_pct
+    hadoop_config_dfs_namenode_replication_min
+    hadoop_config_dfs_namenode_safemode_extension
+    hadoop_config_dfs_df_interval
+    hadoop_config_dfs_client_block_write_retries
+    hadoop_namenode_port
+    hadoop_resourcemanager_port
+    hadoop_resourcetracker_port
+    hadoop_resourcescheduler_port
+    hadoop_resourceadmin_port
+    hadoop_resourcewebapp_port
+    hadoop_proxyserver_port
+    hadoop_jobhistory_port
+    hadoop_jobhistory_webapp_port
+    hadoop_jobtracker_port
+    hadoop_tasktracker_port
+    hadoop_datanode_port
   }
 
   HBASE_CONF_KEYS = %w{
