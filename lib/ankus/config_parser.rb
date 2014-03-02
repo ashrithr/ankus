@@ -1262,7 +1262,7 @@ module Ankus
         log.error "Missing keys: #{HADOOP_CONF_KEYS - hadoop_conf}"
         exit 1
       end
-      diff_keys = hadoop_conf - HADOOP_CONF_KEYS
+      diff_keys = hadoop_conf - HADOOP_CONF_KEYS_COMPLETE
       unless diff_keys.empty?
         log.debug "Following keys were added additionally to #{hadoop_conf_file}: #{diff_keys}" if debug
       end

@@ -77,15 +77,15 @@ module Ankus
               remote_key = conn.key_pairs.get(key).public_key.match(/ssh-rsa ([^\s]+)/)[1]
               unless out_key.match(/ssh-rsa ([^\s]+)/)[1] == remote_key
                 @log.error "Key '#{key}' already exists on local system and it's fingerprint does not match with remote "\
-                           "key_pair's fingerprint. Either delete the key in aws and rename the local file ['#{key_path}'] "\
-                           "(or) update the 'aws_key' property in the config file to another name."
+                           "key_pair's fingerprint. Either delete the key in openstack and rename the local file ['#{key_path}'] "\
+                           "(or) update the 'os_ssh_key' property in the config file to another name."
                 abort
               end
             else
               @log.warn 'Cannot find ssh-keygen, its recommended to install ssh-keygen to check fingerprints of the keypair(s)'
             end
           else
-            @log.error + "Key '#{key}' already exists but failed to find the key in " +
+            @log.error "Key with name '#{key}' already exists in openstack but failed to find the key in " +
                 "'#{key_path}', please change the 'os_key' name or delete the key in os to recreate the key"
             abort
           end
