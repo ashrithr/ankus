@@ -72,7 +72,7 @@ To install ruby 1.9.3 and other dependencies on supported platforms follow these
  	*Requirements*:
 
 	- Download and install XCode Command Line Tools (using any of the following ways)
-		* from [apple developer console](https://developer.apple.com/xcode/features/) and navigating to 'Apple developer site' (this requires creating a developer account)
+		* from [apple developer console](http://developer.apple.com/downloads/) and logging using developer account
 		* from [Github](https://github.com/kennethreitz/osx-gcc-installer/downloads) 
 		* for OSX Mavericks you can use `xcode-select --install` command from terminal to install command line tools
 	- Install [Homebrew](http://mxcl.github.io/homebrew/)
