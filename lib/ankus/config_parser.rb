@@ -22,11 +22,12 @@ module Ankus
     # Creates a configParser object with specified file_path, and a parsed_hash object
     # @param [String] file_path => path to the configuration file to parse
     # @param [Boolean] debug => if enabled will log info to stdout
-    def initialize(file_path, log, debug=false)
-      @config_file = file_path
-      @parsed_hash = {}
-      @log = log
-      @debug = debug
+    def initialize(file_path, log, debug=false, mock = false)
+      @config_file  = file_path
+      @parsed_hash  = {}
+      @log          = log
+      @debug        = debug
+      @mock         = mock
       @errors_count = 0
     end
 
@@ -69,6 +70,15 @@ module Ankus
           @errors_count += 1
         end
       end
+
+      # validate if the keys in config file are valid (nested validation)
+      flat_hash(hash_to_validate).keys.flatten.each do |key_to_validate|
+        unless ANKUS_CONF_VALID_KEYS.include?(key_to_validate)
+          @log.error "Property: '#{key_to_validate}' is not recognized"
+          @errors_count += 1
+        end
+      end
+
       # validate install_mode, it can be 'local|cloud' modes
       case @parsed_hash[:install_mode]
       when 'local'
@@ -77,7 +87,7 @@ module Ankus
         cloud_validator hash_to_validate
       when nil
         @log.error "Property 'install_mode' cannot be empty"
-        @errors_count += 1        
+        @errors_count += 1
       else
         @log.error 'Not supported install mode, supported modes: local|cloud'
       end
@@ -127,19 +137,21 @@ module Ankus
           @errors_count += 1
         end
       end
-      nodes.keys.each do |node|
-        unless Ankus::PortUtils.port_open?(node, 22, 2)
-          @log.error "Node: #{node} is not reachable"
-          @errors_count += 1
+      unless @mock
+        nodes.keys.each do |node|
+          unless Ankus::PortUtils.port_open?(node, 22, 2)
+            @log.error "Node: #{node} is not reachable"
+            @errors_count += 1
+          end
         end
-      end
-      nodes.keys.each do |node|
-        begin 
-          Ankus::SshUtils.sshable?(node, hash_to_validate[:ssh_user], hash_to_validate[:ssh_key])
-        rescue
-          @log.error "Cannot ssh into instance '#{node}' with user: #{hash_to_validate[:ssh_user]} and " +
-          "key: #{hash_to_validate[:ssh_key]}"
-          @errors_count += 1
+        nodes.keys.each do |node|
+          begin
+            Ankus::SshUtils.sshable?(node, hash_to_validate[:ssh_user], hash_to_validate[:ssh_key])
+          rescue
+            @log.error "Cannot ssh into instance '#{node}' with user: #{hash_to_validate[:ssh_user]} and " +
+            "key: #{hash_to_validate[:ssh_key]}"
+            @errors_count += 1
+          end
         end
       end
     end
@@ -196,8 +208,8 @@ module Ankus
 
         # validate aws connection
         @log.debug 'Validating aws connection' if @debug
-        aws = Aws.new(cloud_credentials[:aws_access_id], 
-          cloud_credentials[:aws_secret_key], 
+        aws = Aws.new(cloud_credentials[:aws_access_id],
+          cloud_credentials[:aws_secret_key],
           cloud_credentials[:aws_region],
           @log
           )
@@ -496,7 +508,7 @@ module Ankus
       if alerting and alerting == 'enabled'
         admin_email = hash_to_validate[:admin_email]
         if admin_email.nil? or admin_email.empty?
-          @log.error "Property 'admin_email' is required parameter, valid values: enabled|disabled"
+          @log.error "Property 'admin_email' is required parameter when altering is enabled"
           @errors_count += 1
         end
       end
@@ -544,7 +556,8 @@ module Ankus
 
       hadoop_ha = hash_to_validate[:hadoop_deploy][:ha]
       hadoop_ecosystem = hash_to_validate[:hadoop_deploy][:ecosystem]
-      valid_hadoop_ecosystem = %w(hive pig sqoop oozie hue)
+      valid_hadoop_ecosystem_cdh = %w(hive pig sqoop oozie hue impala)
+      valid_hadoop_ecosystem_hdp = %w(hive pig sqoop oozie hue tez)
       mapreduce = hash_to_validate[:hadoop_deploy][:mapreduce]
       zookeeper = hash_to_validate[:zookeeper_deploy]
       install_mode = hash_to_validate[:install_mode]
@@ -605,6 +618,17 @@ module Ankus
         end
       end
 
+      # hadoop packages source validation
+      hadoop_packages_source = hash_to_validate[:hadoop_deploy][:packages_source]
+      if hadoop_packages_source
+        unless %w(cdh hdp).include?(hadoop_packages_source)
+          @log.error "'packages_source' can be either 'cdh' or 'hdp'"
+          @errors_count += 1
+        end
+      else
+        hash_to_validate[:hadoop_deploy][:packages_source] = 'cdh'
+      end
+
       # MapReduce validations
       if install_mode == 'local' # Local deployment
         # mapreduce_type and mapreduce_master are required for mapreduce deployments
@@ -642,13 +666,28 @@ module Ankus
         end
       end
 
+      if mapreduce && mapreduce != 'disabled'
+        if hash_to_validate[:hadoop_deploy][:packages_source] == 'hdp' and mapreduce[:type] == 'mr1'
+          @log.error 'HDP deployments does not support mapreduce v1 try using \'mr2\' (yarn)'
+          @errors_count += 1
+        end
+      end
+
       # hadoop_ecosystem validations
       if hadoop_ecosystem
         hadoop_ecosystem.each do |tool|
-          unless valid_hadoop_ecosystem.include?(tool)
-            @log.error "'ecosystem' can support #{valid_hadoop_ecosystem}"
-            @log.error "  #{tool} specified cannot be part of deployment yet!"
-            @errors_count += 1
+          if hash_to_validate[:hadoop_deploy][:packages_source] == 'cdh'
+            unless valid_hadoop_ecosystem_cdh.include?(tool)
+              @log.error "'ecosystem' can support #{valid_hadoop_ecosystem_cdh}"
+              @log.error "  #{tool} specified cannot be part of deployment yet!"
+              @errors_count += 1
+            end
+          else
+            unless valid_hadoop_ecosystem_hdp.include?(tool)
+              @log.error "'ecosystem' can support #{valid_hadoop_ecosystem_hdp}"
+              @log.error "  #{tool} specified cannot be part of deployment yet!"
+              @errors_count += 1
+            end
           end
         end
       end
@@ -786,7 +825,7 @@ module Ankus
         if hbase_install && hash_to_validate[:zookeeper_deploy][:quorum_count].nil?
           @log.error "Property 'quorum_count' of 'zookeeper_deploy' is required for hbase deployment"
           @errors_count += 1
-        end        
+        end
       else # Local deployment
         if hbase_install and (hbase_install[:master].nil? or hbase_install[:master].empty?)
           @log.error "Invalid value for property 'master' of 'hbase_deploy'"
@@ -1037,7 +1076,7 @@ module Ankus
             elsif ! solr_nodes.is_a? Array
               @log.error "Excepting list (array) of nodes for 'nodes' of 'solr_deploy'"
               @errors_count += 1
-            end          
+            end
           else # hdfs integration enabled, collocate solr on hadoop_nodes
             if hash_to_validate[:hadoop_deploy] == 'disabled'
               @log.error "'hdfs_integration' requires a valid hadoop deployment"
@@ -1050,7 +1089,7 @@ module Ankus
             elsif ! solr_nodes.is_a? Array
               @log.error "Excepting list (array) of nodes for 'nodes' of 'solr_deploy'"
               @errors_count += 1
-            end            
+            end
           end
         end
       else # Cloud deploy
@@ -1076,7 +1115,7 @@ module Ankus
             if hash_to_validate[:hadoop_deploy] == 'disabled'
               @log.error "'hdfs_integration' requires a valid hadoop deployment"
               @errors_count += 1
-            end  
+            end
           end
         end
       end
@@ -1120,7 +1159,7 @@ module Ankus
           collocate = kafka_deploy[:collocate]
           if collocate.nil?
             @log.debug 'Defaulting collocate for kafka'
-            hash_to_validate[:kafka_deploy][:collocate] = false  
+            hash_to_validate[:kafka_deploy][:collocate] = false
           elsif ! (collocate.is_a? TrueClass or collocate.is_a? FalseClass)
             @log.error "Invalid value found for 'collocate', valid values are yes|no"
             @errors_count += 1
@@ -1223,7 +1262,7 @@ module Ankus
         log.error "Missing keys: #{HADOOP_CONF_KEYS - hadoop_conf}"
         exit 1
       end
-      diff_keys = hadoop_conf - HADOOP_CONF_KEYS
+      diff_keys = hadoop_conf - HADOOP_CONF_KEYS_COMPLETE
       unless diff_keys.empty?
         log.debug "Following keys were added additionally to #{hadoop_conf_file}: #{diff_keys}" if debug
       end

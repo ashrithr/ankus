@@ -1,39 +1,56 @@
 ---
-# Fine tune cassandra cluster, cassandra specific cluster properties goes into this file
+# Fine tune your hbase cluster, cassandra specific properties goes into this file
 #
-# The name of the cluster. All nodes participating in a cluster must have the same value. The more tokens, relative
-# to other nodes, the larger the proportion of data that the node stores.
+# The name of the cluster. All nodes participating in a cluster must have the
+#  same value. The more tokens, relative to other nodes, the larger the
+#  proportion of data that the node stores.
 cassandra_cluster_name: ankus_cassandra
-# Used for virtual nodes, defines the number of tokens randomly assigned to this node on the ring
+# Used for virtual nodes, defines the number of tokens randomly assigned to this
+#  node on the ring
 cassandra_num_tokens: 256
-# The default value disables authentication. Basic authentication is provided using the SimpleAuthenticator, which uses
-# the access.properties and password.properties configuration files to configure authentication privileges.
+# The default value disables authentication. Basic authentication is provided
+#  using the SimpleAuthenticator, which uses the access.properties and
+#  password.properties configuration files to configure authentication
+#  privileges.
 cassandra_authenticator: AllowAllAuthenticator
 # The authorization backend, available authorizers are:
-#   org.apache.cassandra.auth.AllowAllAuthorizer: Disables authorization; allows any action to any user.
-#   org.apache.cassandra.auth.CassandraAuthorizer: Stores permissions in system_auth.permissions table.
+#  org.apache.cassandra.auth.AllowAllAuthorizer: Disables authorization; allows
+#    any action to any user.
+#  org.apache.cassandra.auth.CassandraAuthorizer: Stores permissions in
+#    system_auth.permissions table.
 cassandra_authorizer: AllowAllAuthorizer
-# Distributes rows (by key) across nodes in the cluster, available partitioners are:
+# Distributes rows (by key) across nodes in the cluster, available partitioners
+#  are:
 #   org.apache.cassandra.dht.Murmur3Partitioner
 #   org.apache.cassandra.dht.RandomPartitioner
 #   org.apache.cassandra.dht.ByteOrderedPartitioner
 cassandra_partitioner: org.apache.cassandra.dht.Murmur3Partitioner
 # Sets how Cassandra responds to disk failure, available values are:
-#   stop: Shuts down gossip and Thrift, leaving the node effectively dead, but it can still be inspected using JMX
-#   best_effort: Cassandra does its best in the event of disk errors. If it cannot write to a disk, the disk is
-#                blacklisted for writes and the node continues writing elsewhere
-#   ignore: all file system errors are logged but otherwise ignored. It is recommended using stop or best_effort
+#  stop: Shuts down gossip and Thrift, leaving the node effectively dead, but it
+#    can still be inspected using JMX
+#  best_effort: Cassandra does its best in the event of disk errors. If it
+#    cannot write to a disk, the disk is blacklisted for writes and the node
+#    continues writing elsewhere
+#  ignore: all file system errors are logged but otherwise ignored. It is
+#    recommended using stop or best_effort
 cassandra_disk_failure_policy: stop
-# Uncomment & change the following for increasing the default heap size of cassandra daemon
+# ===
+# Uncomment & change the following for increasing the default heap size of
+#   cassandra daemon
+# ===
 # cassandra_max_heap: 2G
 # cassandra_heap_newsize: 400M
+
 # Port on which cassandra exposes JMX
 cassandra_jmx_port: 7199
-# The time in milliseconds that the coordinator waits for read operations to complete
+# The time in milliseconds that the coordinator waits for read operations to
+#  complete
 cassandra_read_request_timeout_in_ms: 10000
-# The time in milliseconds that the coordinator waits for sequential or index scans to complete
+# The time in milliseconds that the coordinator waits for sequential or index
+#  scans to complete
 cassandra_range_request_timeout_in_ms: 10000
-# The time in milliseconds that the coordinator waits for write operations to complete
+# The time in milliseconds that the coordinator waits for write operations to
+#  complete
 cassandra_write_request_timeout_in_ms: 10000
 # The time in milliseconds that the coordinator waits for truncates to complete
 cassandra_truncate_request_timeout_in_ms: 60000

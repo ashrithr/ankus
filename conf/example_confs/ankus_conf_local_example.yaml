@@ -74,6 +74,11 @@ controller: 'controller.ops.cw.com'
 #   * master_dirs:
 #       list of directories to be used by master nodes to write data to
 #       default: ['/data/hadoop']
+#   * packages_source:
+#       specifies which packages to use, available sources:
+#         'cdh' - installs cloudera cdh packages
+#         'hdp' - installs hortonworks hdp packages
+#       default: cdh
 #
 # ===============DEPLOYMENT SCENARIO 1==================
 #        TO DEPLOY HADOOP (HA) with MapReduce

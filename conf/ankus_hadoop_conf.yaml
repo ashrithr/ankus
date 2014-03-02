@@ -1,158 +1,213 @@
 ---
+########################################################
 # Fine tune your hadoop cluster, hadoop specific properties goes into this file
 # do not add more properties apart from that are already here, these are tightly
 # integrated into puppet. And some of the properties are calculated based on the
 # number of nodes available in the cluster
 ########################################################
 # Core properties
+# ===============
+#
+# hadoop_heap_size: JVM heap size for all hadoop specific daemons
+# yarn_heapsize: JVM heap size for all the yarn specific daemons
+# JVM heap sizes for all hadoop sepefic daemons (format: -Xmx<SIZE_IN_MB>m)
+#   hadoop_namenode_opts
+#   hadoop_jobtracker_opts
+#   hadoop_secondarynamenode_opts
+#   hadoop_datanode_opts
+#   hadoop_tasktracker_opts
+#   hadoop_balancer_opts
+#   yarn_resourcemanager_opts
+#   yarn_nodemanager_opts
+#   yarn_proxyserver_opts
+#   hadoop_job_historyserver_opts
+# hadoop_snappy_codec: compression
+# hadoop_config_fs_inmemory_size_mb: Larger amount of memory allocated for the
+#   in-memory file-system used to merge map-outputs at the reduces.
+# hadoop_config_io_file_buffer_size: General purpose buffer size, larger buffers
+#  tend to result in more efficient data transfer, either from disk or during
+#  n/w operations at the cost of increased memory consumption and latency. This
+#  property should be set to a multiple of system page size, defined in bytes
+#  (4KB is default)
+# hadoop_config_hadoop_tmp_dir: Used as the base for temporary directories
+#  locally, and also in HDFS.
+# hadoop_ha_nameservice_id: Logical name of the nameservice id used for namenode
+#  high availability
+#
 ########################################################
-# Heap sizes (JVM Sizes) for all hadoop daemons in MB
 hadoop_heap_size:               '512'
 yarn_heapsize:                  '512'
-# Heap sizes (JVM Size) for individual hadoop daemons (format: -Xmx<SIZE_IN_MB>m)
 hadoop_namenode_opts:           '-Xmx512m'
 hadoop_jobtracker_opts:         '-Xmx512m'
 hadoop_secondarynamenode_opts:  '-Xmx512m'
 hadoop_datanode_opts:           '-Xmx512m'
 hadoop_tasktracker_opts:        '-Xmx512m'
 hadoop_balancer_opts:           '-Xmx512m'
-# Heap sizes for yarn (mr2) daemons (format: -Xmx<SIZE_IN_MB>m)
 yarn_resourcemanager_opts:      '-Xmx512m'
 yarn_nodemanager_opts:          '-Xmx512m'
 yarn_proxyserver_opts:          '-Xmx512m'
 hadoop_job_historyserver_opts:  '-Xmx512m'
-# Compression
 hadoop_snappy_codec: 'disabled'
-# Larger amount of memory allocated for the in-memory file-system used to merge
-# map-outputs at the reduces.
 hadoop_config_fs_inmemory_size_mb: 200
-# General purpose buffer size, larger buffers tend to result in more efficient
-# data transfer, either from disk or during n/w operations at the cost of increased
-# memory consumption and latency. This property should be set to a multiple of
-# system page size, defined in bytes (4KB is default)
 hadoop_config_io_file_buffer_size: '65536'
-# Used as the base for temporary directories locally, and also in HDFS.
 hadoop_config_hadoop_tmp_dir: '/tmp/hadoop-${user.name}'
-# Logical name of the nameservice id used for namenode high availability
 hadoop_ha_nameservice_id: 'ha-nn-uri'
 
 ########################################################
 # HDFS properties
+# ===============
+#
+# hadoop_config_dfs_replication: Replication - HDFS blocks are by default
+#  reproduced (replicated) to this many machines
+# hadoop_config_dfs_block_size:  Block Size - Default block size for all newly
+#  created files in hdfs in bytes
+# hadoop_config_io_bytes_per_checksum: The number of bytes per checksum. Must
+#  not be larger than hadoop_config_io_file_buffer_size
+# hadoop_config_fs_trash_interval: Amount in time in minutes, the file is
+#  retained in the .Trash directory prior to being permanently deleted from HDFS
+# hadoop_config_dfs_permissions_supergroup: Group to which special privileges
+#  are granted and users who belong to this group can do any kind of filesystem
+#  operations.
+# hadoop_config_dfs_datanode_max_transfer_threads: Specifies the maximum number
+#  of threads to use for transferring data in and out of the DataNode
+# hadoop_config_dfs_datanode_du_reserved: Specifies the amount of space (in
+#  bytes) to be reserved on each disk in dfs.data.dir. No disk space is reserved
+#  by default, meaning HDFS is allowed to consume all disk space on each data
+#  disk. Provided value 10GB.
+# hadoop_config_dfs_datanode_balance_bandwidthpersec: Specifies how much
+#  bandwidth each datanode is allowed to used for balancing (in bytes) when
+#  balancer is run.
+# hadoop_config_dfs_permissions_enabled: Enables permission checking in HDFS if
+#  true
+# hadoop_config_namenode_handler_count: Number of threads used to process RPC
+#  requests from clients and from other cluster daemons
+# hadoop_config_dfs_namenode_safemode_threshold_pct: Specifies the percentage of
+#  blocks that should satisfy the minimal replication requirement defined by
+#  hadoop_config_dfs_namenode_replication_min before leaving safemode
+# hadoop_config_dfs_namenode_replication_min: Minimal block replication
+# hadoop_config_dfs_namenode_safemode_extension: Determines extension of safe
+#  mode in milliseconds after the threshold level is reached
+# hadoop_config_dfs_df_interval: Disk usage statistics refresh interval in milli
+#  sec.
+# hadoop_config_dfs_client_block_write_retries: Number of retries for writing
+#  blocks to the data nodes, before we signal failure to the application.
 ########################################################
-# Replication - HDFS blocks are by default reproduced (replicated) to this many
-# machines
 hadoop_config_dfs_replication: 3
-# Block Size - Default block size for all newly created files in hdfs
 hadoop_config_dfs_block_size: 67108864
-# The number of bytes per checksum. Must not be larger than
-# hadoop_config_io_file_buffer_size
 hadoop_config_io_bytes_per_checksum: 512
-# Amount in time in minutes, the file is retained in the .Trash directory prior 
-# to being permanently deleted from HDFS
 hadoop_config_fs_trash_interval: 0
-# Group to which special privileges are granted and users who belong to this 
-# group can do any kind of filesystem operations.
 hadoop_config_dfs_permissions_supergroup: 'hadoop'
-# Specifies the maximum number of threads to use for transferring data in and 
-# out of the DataNode
 hadoop_config_dfs_datanode_max_transfer_threads: 4096
-# Specifies the amount of space (in bytes) to be reserved on each disk in
-# dfs.data.dir. No disk space is reserved by default, meaning HDFS is allowed to
-# consume all disk space on each data disk. Provided value 10GB.
 hadoop_config_dfs_datanode_du_reserved: 10737418240
-# Specifies how much bandwidth each datanode is allowed to used for balancing
-# (in bytes) when balancer is run.
 hadoop_config_dfs_datanode_balance_bandwidthpersec: 1048576
-# Enables permission checking in HDFS if true
 hadoop_config_dfs_permissions_enabled: 'true'
-# Number of threads used to process RPC requests from clients and from other 
-# cluster daemons
 hadoop_config_namenode_handler_count: 10
-# Specifies the percentage of blocks that should satisfy the minimal replication
-# requirement defined by hadoop_config_dfs_namenode_replication_min before 
-# leaving safemode
 hadoop_config_dfs_namenode_safemode_threshold_pct: 0.999f
-# Minimal block replication
 hadoop_config_dfs_namenode_replication_min: 1
-# Determines extension of safe mode in milliseconds after the threshold level is 
-# reached
 hadoop_config_dfs_namenode_safemode_extension: 30000
-# Disk usage statistics refresh interval in milli sec.
 hadoop_config_dfs_df_interval: 60000
-# Number of retries for writing blocks to the data nodes, before we signal 
-# failure to the application.
 hadoop_config_dfs_client_block_write_retries: 3
 
 ########################################################
-# MapReduce
+# MapReduce specific properties
+# =============================
+#
+# hadoop_config_mapred_child_java_opts: JVM size of the child processes
+#  (map & reduces) invoked by the tasktracker
+# hadoop_config_io_sort_mb: Size of the in-memory circular buffer used by map
+#  tasks to write the output
+# hadoop_config_io_sort_factor: Number of files to merge at once, used by both
+#  map and reduce tasks
+# hadoop_config_mapred_map_sort_spill_percent: Percentage of buffer size after
+#  which the data will be spilled to disk
+# hadoop_config_mapred_job_tracker_handler_count: Size of the thread pool which
+#  handles RPCs
+# hadoop_config_mapred_map_tasks_speculative_execution: Enables speculative
+#  execution for map tasks
+# hadoop_config_mapred_reduce_parallel_copies: Number of copies to fetch
+#  parallely from map tasks by reducers
+# hadoop_config_mapred_reduce_tasks_speculative_execution: Enables speculative
+#  execution for reduce tasks
+# hadoop_config_mapred_tasktracker_map_tasks_maximum: Number of map tasks to run
+#  per tasktracker, this gets automatically evaluated by ankus based on the
+#  number of cores in a node
+# hadoop_config_mapred_tasktracker_reduce_tasks_maximum: Number of reduce tasks
+#  to run per tasktracker, this gets automatically evaluated by ankus based on
+#  the number of cores in a node
+# hadoop_config_mapred_reduce_tasks: Specifies the number of reduce tasks to
+#  run per job
+# hadoop_config_tasktracker_http_threads: Number of http threads used to serve
+#  output generated by map tasks
+# hadoop_config_use_map_compression: Enable|Disable compression of map output
+# hadoop_config_mapred_reduce_slowstart_completed_maps: Indicates when to begin
+#  allocating reducers as a percentage of completed map tasks, a value of 0.5
+#  means reducers will be started when 50% of map tasks are completed in job.
+#
+# !!! NOTE !!!: Commenting the properties below will allow ankus to
+#  automatically configure based on the system's memory (takes into
+#  consideration the number of daemons to colocate such as hbase and hadoop).
 ########################################################
-# Controls the JVM size of the child processes (map & reduce tasks) invoked by
-# tasktracker
 hadoop_config_mapred_child_java_opts: 256
-# Size of the in-memory circular buffer used by map tasks to write the output
 hadoop_config_io_sort_mb: 128
-# Number of files to merge at once, used by both map and reduce tasks
 hadoop_config_io_sort_factor: 64
-# Percentage of buffer size after which the data will be spilled to disk
 hadoop_config_mapred_map_sort_spill_percent: 0.8
-# Size of the thread pool which handles RPCs
 hadoop_config_mapred_job_tracker_handler_count: 10
-# Enables speculative execution for map tasks
 hadoop_config_mapred_map_tasks_speculative_execution: 'true'
-# Number of copies to fetch parallely from map tasks by reducers
 hadoop_config_mapred_reduce_parallel_copies: 5
-# Enables speculative execution for reduce tasks
 hadoop_config_mapred_reduce_tasks_speculative_execution: 'true'
-# Number of map tasks to run per tasktracker, this gets automatically evaluated 
-# by ankus based on the number of cores in a node
 hadoop_config_mapred_tasktracker_map_tasks_maximum: 2
-# Number of reduce tasks to run per tasktracker, this gets automatically 
-# evaluated by ankus based on the number of cores in a node
 hadoop_config_mapred_tasktracker_reduce_tasks_maximum: 2
-# Specifies the number of reduce tasks to run per job, this gets automatically 
-# evaluated by ankus based on the number of nodes
-#hadoop_config_mapred_reduce_tasks: 1
-# Number of http threads used to serve output generated by map tasks
+hadoop_config_mapred_reduce_tasks: 1
 hadoop_config_tasktracker_http_threads: 40
-# Enable|Disable compression of map output
 hadoop_config_use_map_compression: 'false'
-# Indicates when to begin allocating reducers as a percentage of completed map 
-# tasks, a value of 0.5 means reducers will be started when 50% of map tasks are
-# completed in job.
 hadoop_config_mapred_reduce_slowstart_completed_maps: 0.05
 
 ########################################################
-# YARN & MapReduce 2
+# YARN & MapReduce 2 specific properties
+# ======================================
+#
+# hadoop_config_yarn_nodemanager_resource_memory_mb: The maximum memory YARN can
+#  utilize on the node (in MB)
+# hadoop_config_yarn_scheduler_minimum_allocation_mb: Minimum memory assigned
+#  per container (in MB)
+# hadoop_config_yarn_scheduler_maximum_allocation_mb: Maximum memory assigned
+#  per container (in MB)
+# hadoop_config_mapreduce_map_memory_mb: Physical memory limit for each map
+#  task (in MB)
+# hadoop_config_mapreduce_reduce_memory_mb: Physical memory limit for each
+#  reduce task (in MB)
+# hadoop_config_mapreduce_map_java_opts: JVM heap size limit for map task
+#  (in MB), should not exceed physical memory limit
+# hadoop_config_mapreduce_reduce_java_opts: JVM heap size limit for reduce task
+#  (in MB), should not exceed physical memory limit
+# hadoop_config_yarn_nodemanager_vmem_pmem_ratio: Virtual memory upper limit
+#  (ratio of virtual memory to available pysical memory) 2.1 means virtual
+#  memory will be double the size of physical memory
+# hadoop_config_mapreduce_task_io_sort_mb: Memory-limit while sorting data
+# hadoop_config_mapreduce_task_io_sort_factor: More streams merged at once while
+#  sorting files
+# hadoop_config_mapreduce_reduce_shuffle_parallelcopies: Higher number of
+#  parallel copies run by reduces to fetch outputs from very large number of
+#  maps.
+#
+# !!! NOTE !!!: Commenting the properties below will allow ankus to
+#  automatically configure based on the system's memory (takes into
+#  consideration the number of daemons to colocate such as hbase and hadoop).
 ########################################################
-# The maximum memory YARN can utilize on the node (in MB)
 hadoop_config_yarn_nodemanager_resource_memory_mb: 8048
-# Minimum memory assigned per container (in MB)
 hadoop_config_yarn_scheduler_minimum_allocation_mb: 1024
-# Maximum memory assigned per container (in MB)
 hadoop_config_yarn_scheduler_maximum_allocation_mb: 10240
-# Physical memory limit for each map task (in MB)
 hadoop_config_mapreduce_map_memory_mb: 2048
-# Physical memory limit for each reduce task (in MB)
 hadoop_config_mapreduce_reduce_memory_mb: 4096
-# JVM heap size limit for map task (in MB), should not exceed physical memory 
-# limit
 hadoop_config_mapreduce_map_java_opts: 1536
-# JVM heap size limit for reduce task (in MB), should not exceed physical memory 
-# limit
 hadoop_config_mapreduce_reduce_java_opts: 3556
-# Virtual memory upper limit (ratio of virtual memory to available pysical
-# memory) 2.1 means virtual memory will be double the size of physical memory
 hadoop_config_yarn_nodemanager_vmem_pmem_ratio: 2.1
-# Memory-limit while sorting data
 hadoop_config_mapreduce_task_io_sort_mb: 512
-# More streams merged at once while sorting files
 hadoop_config_mapreduce_task_io_sort_factor: 100
-# Higher number of parallel copies run by reduces to fetch outputs from very 
-# large number of maps
 hadoop_config_mapreduce_reduce_shuffle_parallelcopies: 50
 
 ########################################################
-# Ports
+# Ports - custom ports for hadoop daemons to run on
 ########################################################
 hadoop_namenode_port: 8020
 hadoop_resourcemanager_port: 8032

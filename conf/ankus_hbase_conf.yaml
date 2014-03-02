@@ -21,120 +21,146 @@ hbase_regionserver_java_heap_size_max: 2000m
 hbase_regionserver_java_heap_size_new: 256m
 # JVM garbage collection tuning for the hbase regionserver
 hbase_regionserver_gc_tuning_opts: "-XX:+UseConcMarkSweepGC -XX:+CMSIncrementalMode -XX:CMSInitiatingOccupancyFraction=70"
-# What details to log about JVM garbage collection statistics for the hbase regionserver
+# What details to log about JVM garbage collection statistics for the hbase
+#  regionserver
 hbase_regionserver_gc_log_opts: '-verbose:gc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps'
-# HRegion server lease period in milliseconds. Default is 60 seconds. Clients must report in within this period else
-# they are considered dead.
+# HRegion server lease period in milliseconds. Default is 60 seconds. Clients
+#  must report in within this period else they are considered dead.
 hbase_regionserver_lease_period: 60000
-# Count of RPC Server instances spun up on RegionServers. Same property is used by the Master for count of master handlers.
+# Count of RPC Server instances spun up on RegionServers. Same property is used
+#  by the Master for count of master handlers.
 hbase_regionserver_handler_count: 10
-# Limit for the number of regions after which no more region splitting should take place. This is not a hard limit for
-#   the number of regions but acts as a guideline for the regionserver to stop splitting after a certain limit.
-#   Default is set to MAX_INT; i.e. do not block splitting.
+# Limit for the number of regions after which no more region splitting should
+#  take place. This is not a hard limit for the number of regions but acts as a
+#  guideline for the regionserver to stop splitting after a certain limit.
+#  Default is set to MAX_INT; i.e. do not block splitting.
 hbase_regionserver_split_limit: 2147483647
 # Interval between messages from the RegionServer to Master in milliseconds.
 hbase_regionserver_msg_period: 3000
-# Sync the HLog to the HDFS after this interval if it has not accumulated enough entries to trigger a sync.
-#   Default 1 second. Units: milliseconds.
+# Sync the HLog to the HDFS after this interval if it has not accumulated enough
+#  entries to trigger a sync. Default 1 second. Units: milliseconds.
 hbase_regionserver_log_flush_period: 1000
-# Period at which we will roll the commit log regardless of how many edits it has.
+# Period at which we will roll the commit log regardless of how many edits it
+#  has.
 hbase_regionserver_logroll_period: 3600000
 # How often a region server runs the split/compaction check.
 hbase_regionserver_split_check_period: 20000
-# Time to sleep in between searches for work (in milliseconds). Used as sleep interval by service threads such as log roller.
+# Time to sleep in between searches for work (in milliseconds). Used as sleep
+#  interval by service threads such as log roller.
 hbase_regionserver_worker_period: 10000
 # Period at which the region balancer runs in the Master.
 hbase_regionserver_balancer_period: 300000
-# Re-balance if any regionserver has more than average + (average * slop) regions
+# Re-balance if any regionserver has more than average + (average * slop)
+#  regions
 hbase_regionserver_balancer_slop: 0
-# Maximum HStoreFile size. If any one of a column families' HStoreFiles has grown to exceed this value, the hosting
-#   HRegion is split in two.
+# Maximum HStoreFile size. If any one of a column families' HStoreFiles has
+#  grown to exceed this value, the hosting HRegion is split in two.
 hbase_regionserver_max_filesize: 268435456
-# The mapreduce HFileOutputFormat writes storefiles/hfiles. This is the minimum hfile blocksize to emit. Usually in
-#   hbase, writing hfiles, the blocksize is gotten from the table schema (HColumnDescriptor) but in the mapreduce
-#   outputformat context, we don't have access to the schema so get blocksize from Configuation. The smaller you make
-#   the blocksize, the bigger your index and the less you fetch on a random-access. Set the blocksize down if you have
-#   small cells and want faster random-access of individual cells.
+# The mapreduce HFileOutputFormat writes storefiles/hfiles. This is the minimum
+#  hfile blocksize to emit. Usually in hbase, writing hfiles, the blocksize is
+#  gotten from the table schema (HColumnDescriptor) but in the mapreduce
+#  outputformat context, we don't have access to the schema so get blocksize
+#  from Configuation. The smaller you make the blocksize, the bigger your index
+#  and the less you fetch on a random-access. Set the blocksize down if you have
+#  small cells and want faster random-access of individual cells.
 hbase_regionserver_hfile_block_size: 65536
-# To have a RegionServer test a set of codecs and fail-to-start if any code is missing or misinstalled, add the
-#   configuration hbase.regionserver.codecs to your hbase-site.xml with a value of codecs to test on startup. For
-#   example if the hbase.regionserver.codecs value is "lzo,gz" and if lzo is not present or improperly installed, the
-#   mis-configured RegionServer will fail to start.
+# To have a RegionServer test a set of codecs and fail-to-start if any code is
+#  missing or misinstalled, add the configuration hbase.regionserver.codecs to
+#  your hbase-site.xml with a value of codecs to test on startup. For example if
+#  the hbase.regionserver.codecs value is "lzo,gz" and if lzo is not present or
+#  improperly installed, the mis-configured RegionServer will fail to start.
 hbase_regionserver_required_codecs: ''
-# Percentage of maximum heap (-Xmx setting) to allocate to block cache used by HFile/StoreFile. Default of 0.2 means
-#   allocate 20%. Set to 0 to disable.
+# Percentage of maximum heap (-Xmx setting) to allocate to block cache used by
+#  HFile/StoreFile. Default of 0.2 means allocate 20%. Set to 0 to disable.
 hbase_regionserver_block_cache_size: 0.2
-# The hashing algorithm for use in HashFunction. Two values are supported now: murmur (MurmurHash) and jenkins
-#   (JenkinsHash). Used by bloom filters.
+# The hashing algorithm for use in HashFunction. Two values are supported now:
+#  murmur (MurmurHash) and jenkins (JenkinsHash). Used by bloom filters.
 hbase_regionserver_hash_type: murmur
 
 ################
 # Common
 ################
-# Limit on number of concurrent connections (at the socket level) that a single client, identified by IP address,
-#   may make to a single member of the ZooKeeper ensemble. Set high to avoid zk connection issues running standalone
-#   and pseudo-distributed.
+# Limit on number of concurrent connections (at the socket level) that a single
+#  client, identified by IP address, may make to a single member of the
+#  ZooKeeper ensemble. Set high to avoid zk connection issues running standalone
+#  and pseudo-distributed.
 hbase_zookeeper_max_client_connections: 2000
-# Default size of the HTable client write buffer in bytes. A bigger buffer takes more memory -- on both the client
-#   and server side since server instantiates the passed write buffer to process it -- but a larger buffer size reduces
-#   the number of RPCs made. For an estimate of server-side memory-used, evaluate hbase.client.write.buffer
-#   * hbase.regionserver.handler.count
+# Default size of the HTable client write buffer in bytes. A bigger buffer takes
+#  more memory -- on both the client and server side since server instantiates
+#  the passed write buffer to process it -- but a larger buffer size reduces
+#  the number of RPCs made. For an estimate of server-side memory-used, evaluate
+#  hbase.client.write.buffer * hbase.regionserver.handler.count
 hbase_client_write_buffer: 2097152
-# General client pause value. Used mostly as value to wait before running a retry of a failed get, region lookup, etc.
+# General client pause value. Used mostly as value to wait before running a
+#  retry of a failed get, region lookup, etc.
 hbase_client_pause_period_ms: 1000
-# Maximum retries. Used as maximum for all retryable operations such as fetching of the root region from root region
-#   server, getting a cell's value, starting a row update, etc.
+# Maximum retries. Used as maximum for all retryable operations such as fetching
+#  of the root region from root region server, getting a cell's value, starting
+#  a row update, etc.
 hbase_client_retry_count: 10
-# Number of rows that will be fetched when calling next on a scanner if it is not served from (local, client) memory.
-#   Higher caching values will enable faster scanners but will eat up more memory and some calls of next may take longer
-#   and longer times when the cache is empty. Do not set this value such that the time between invocations is greater
-#   than the scanner timeout; i.e. hbase.regionserver.lease.period
+# Number of rows that will be fetched when calling next on a scanner if it is
+#  not served from (local, client) memory. Higher caching values will enable
+#  faster scanners but will eat up more memory and some calls of next may take
+#  longer and longer times when the cache is empty. Do not set this value such
+#  that the time between invocations is greater than the scanner timeout;
+#  i.e. hbase.regionserver.lease.period
 hbase_client_scanner_prefetch_rows: 1
-# Specifies the combined maximum allowed size of a KeyValue instance. This is to set an upper boundary for a single
-#   entry saved in a storage file. Since they cannot be split it helps avoiding that a region cannot be split any
-#   further because the data is too large. It seems wise to set this to a fraction of the maximum region size. Setting
-#   it to zero or less disables the check.
+# Specifies the combined maximum allowed size of a KeyValue instance. This is to
+#  set an upper boundary for a single entry saved in a storage file. Since they
+#  cannot be split it helps avoiding that a region cannot be split any further
+#  because the data is too large. It seems wise to set this to a fraction of the
+#  maximum region size. Setting it to zero or less disables the check.
 hbase_client_max_keyvalue_size: 10485760
-# Maximum size of all memstores in a region server before new updates are blocked and flushes are forced.
-#   Defaults to 40% of heap
+# Maximum size of all memstores in a region server before new updates are
+#  blocked and flushes are forced. Defaults to 40% of heap
 hbase_memstore_flush_upper_heap_pct: 0.4
-# When memstores are being forced to flush to make room in memory, keep flushing until we hit this mark. Defaults
-#   to 35% of heap. This value equal to hbase.regionserver.global.memstore.upperLimit causes the minimum possible
-#   flushing to occur when updates are blocked due to memstore limiting.
+# When memstores are being forced to flush to make room in memory, keep flushing
+#  until we hit this mark. Defaults to 35% of heap. This value equal to
+#  hbase.regionserver.global.memstore.upperLimit causes the minimum possible
+#  flushing to occur when updates are blocked due to memstore limiting.
 hbase_memstore_flush_lower_heap_pct: 0.35
-# Memstore will be flushed to disk if size of the memstore exceeds this number of bytes. Value is checked by a thread
-#   that runs every hbase.server.thread.wakefrequency.
+# Memstore will be flushed to disk if size of the memstore exceeds this number
+#  of bytes. Value is checked by a thread that runs every
+#  hbase.server.thread.wakefrequency.
 hbase_memstore_flush_size_trigger: 67108864
-# If the memstores in a region are this size or larger when we go to close, run a "pre-flush" to clear out memstores
-#   before we put up the region closed flag and take the region offline. On close, a flush is run under the close flag
-#   to empty memory. During this time the region is offline and we are not taking on any writes. If the memstore content
-#   is large, this flush could take a long time to complete. The preflush is meant to clean out the bulk of the memstore
-#   before putting up the close flag and taking the region offline so the flush that runs under the close flag has
-#   little to do.
+# If the memstores in a region are this size or larger when we go to close,
+#  run a "pre-flush" to clear out memstores before we put up the region closed
+#  flag and take the region offline. On close, a flush is run under the close
+#  flag to empty memory. During this time the region is offline and we are not
+#  taking on any writes. If the memstore content is large, this flush could take
+#  a long time to complete. The preflush is meant to clean out the bulk of the
+#  memstore before putting up the close flag and taking the region offline so
+#  the flush that runs under the close flag has little to do.
 hbase_memstore_preflush_trigger: 5242880
-# Block updates if memstore has hbase.hregion.block.memstore time hbase.hregion.flush.size bytes. Useful preventing
-#   runaway memstore during spikes in update traffic. Without an upper-bound, memstore fills such that when it flushes
-#   the resultant flush files take a long time to compact or split, or worse, we OOME.
+# Block updates if memstore has hbase.hregion.block.memstore time
+#  hbase.hregion.flush.size bytes. Useful preventing runaway memstore during
+#  spikes in update traffic. Without an upper-bound, memstore fills such that
+#  when it flushes the resultant flush files take a long time to compact or
+#  split, or worse, we OOME.
 hbase_memstore_flush_stall_trigger: 8
-# Experimental: Enables the MemStore-Local Allocation Buffer, a feature which works to prevent heap fragmentation under
-#   heavy write loads. This can reduce the frequency of stop-the-world GC pauses on large heaps.
+# Experimental: Enables the MemStore-Local Allocation Buffer, a feature which
+#  works to prevent heap fragmentation under heavy write loads. This can reduce
+#  the frequency of stop-the-world GC pauses on large heaps.
 hbase_memstore_mslab_enabled: false
-# If more than this number of HStoreFiles in any one HStore (one HStoreFile is written per flush of memstore) then a
-#   compaction is run to rewrite all HStoreFiles files as one. Larger numbers put off compaction but when it runs, it
-#   takes longer to complete.
+# If more than this number of HStoreFiles in any one HStore (one HStoreFile is
+#  written per flush of memstore) then a compaction is run to rewrite all
+#  HStoreFiles files as one. Larger numbers put off compaction but when it runs,
+#  it takes longer to complete.
 hbase_compaction_files_trigger: 3
-# If more than this number of StoreFiles in any one Store (one StoreFile is written per flush of MemStore) then
-#   updates are blocked for this HRegion until a compaction is completed, or until hbase.hstore.blockingWaitTime has
-#   been exceeded.
+# If more than this number of StoreFiles in any one Store (one StoreFile is
+#  written per flush of MemStore) then updates are blocked for this HRegion
+#  until a compaction is completed, or until hbase.hstore.blockingWaitTime has
+#  been exceeded.
 hbase_compaction_pause_trigger: 7
-# The time an HRegion will block updates for after hitting the StoreFile limit defined by hbase.hstore.blockingStoreFiles.
-#   After this time has elapsed, the HRegion will stop blocking updates even if a compaction has not been completed.
-#   Default: 90 seconds.
+# The time an HRegion will block updates for after hitting the StoreFile limit
+#  defined by hbase.hstore.blockingStoreFiles. After this time has elapsed, the
+#  HRegion will stop blocking updates even if a compaction has not been
+#  completed. Default: 90 seconds.
 hbase_compaction_pause_time: 90000
 # Max number of HStoreFiles to compact per 'minor' compaction.
 hbase_compaction_max_combine_files: 10
-# The time (in miliseconds) between 'major' compactions of all HStoreFiles in a region. Default: 1 day. Set to 0 to
-#   disable automated major compactions.
+# The time (in miliseconds) between 'major' compactions of all HStoreFiles in a
+#  region. Default: 1 day. Set to 0 to disable automated major compactions.
 hbase_compaction_period: 86400000
 
 ################

@@ -50,7 +50,7 @@ module Ankus
     desc 'parse', 'Parse the config file for errors'
     def parse
       $logger.info "Parsing config file '#{options[:config]}' ... "
-      parse_config options[:debug]
+      parse_config options[:debug], options[:mock]
       $logger.info 'Parsing config file ... ' + '[OK]'.green
     end
 
@@ -100,18 +100,19 @@ module Ankus
                   :default => false
     def info
       if @config.nil? or @config.empty?
-        parse_config
+        parse_config options[:debug], options[:mock]
       end
       deployment_info(@config)
     end
 
     desc 'ssh', 'SSH into instance'
-    method_option :role, :required => true, :desc => 'role of the instance to ssh into'
+    method_option :role, :desc => 'role of the instance to ssh into'
+    method_option :list_roles, :desc => 'list available roles', :type => :boolean
     def ssh
       if @config.nil? or @config.empty?
-        parse_config
+        parse_config options[:debug], options[:mock]
       end
-      ssh_into_instance options[:role], @config
+      ssh_into_instance options, @config
     end
 
     desc 'pssh', 'Parallel ssh and execute set of commands'
@@ -127,7 +128,7 @@ module Ankus
     method_option :commands, :desc => 'commands to execute', :type => :array, :required => true
     def pssh
       if @config.nil? or @config.empty?
-        parse_config
+        parse_config options[:debug], options[:mock]
       end
       pssh_commands options, @config
     end
@@ -139,7 +140,7 @@ module Ankus
                   :desc => 'deletes volumes attached to instances as well (danger zone)'
     def destroy
       if @config.nil? or @config.empty?
-        parse_config
+        parse_config options[:debug], options[:mock]
       end
       if @config['install_mode'] == 'local'
         $logger.fatal 'Only applicable for cloud deployments'
@@ -153,8 +154,8 @@ module Ankus
     # Parses the configuration file
     # @param [TrueClass] debug whether to print verbose output during parsing the configuration file
     # @return [Hash] configuration hash to work with
-    def parse_config(debug = false)
-      @config = ConfigParser.new(options[:config], $logger, debug).parse_config
+    def parse_config(debug = false, mock = false)
+      @config = ConfigParser.new(options[:config], $logger, debug, mock).parse_config
     end
 
     # Creates a cloud object which is an encapsulation for all the cloud providers
@@ -192,7 +193,7 @@ module Ankus
       options[:run_only] ? $logger.info('Orchestrating puppet runs') : $logger.info('Starting deployment')
       if @config.nil? or @config.empty?
         $logger.info 'Parsing config file ...'
-        parse_config
+        parse_config options[:debug], options[:mock]
         $logger.info 'Parsing config file ... ' + '[OK]'.green
       end
 
@@ -312,7 +313,7 @@ module Ankus
         end
       end # unless options[:run_only]
 
-      
+
       @nodes = YamlUtils.parse_yaml(NODES_FILE)
 
       #
@@ -414,20 +415,21 @@ module Ankus
       unless @nodes.is_a? Hash
         abort 'No cluster found to refresh'.red
       end
-      parse_config if @config.nil? or @config.empty?
+      parse_config(options[:debug], options[:mock]) if @config.nil? or @config.empty?
       $logger.info 'Reloading Configurations ...'
       if @config[:install_mode] == 'cloud'
         cloud = create_cloud_obj(@config)
         @config, @config_with_internal_ips = cloud.modify_cloud_config(@config, @nodes)
       end
       puppet = Deploy::Puppet.new(
-          @nodes,
-          @config[:ssh_key],
-          @config,
-          options[:thread_pool_size],
-          @config[:ssh_user],
-          options[:debug],
-          options[:mock]
+          @nodes,                       # puppet nodes hash
+          @config[:ssh_key],            # ssh_key to use
+          @config,                      # parsed config hash
+          $logger,                      # logger instance
+          options[:thread_pool_size],   # number of threads to use
+          @config[:ssh_user],           # ssh_user
+          options[:debug],              # enabled debug mode
+          options[:mock],               # enable mocking
       )
       @config[:install_mode] == 'cloud' ?
           puppet.generate_hiera(@config_with_internal_ips) :
@@ -471,8 +473,8 @@ module Ankus
 
       (cluster_info ||= '') << 'Ankus Cluster Info'.yellow_on_cyan.bold.underline << "\n"
       if config[:hadoop_deploy] != 'disabled'
-        cluster_info << "\r" << ' #'.green << ' Hadoop High Availability Configuration:' +
-                                              " #{config[:hadoop_deploy][:hadoop_ha]} \n"
+        cluster_info << "\r" << ' #'.green << ' Hadoop HA Configuration:' +
+                                              " #{config[:hadoop_deploy][:ha]} \n"
         cluster_info << "\r" << ' #'.green << " MapReduce Framework: #{mapreduce} \n"
       else
         cluster_info << "\r" << ' #'.green << " Hadoop Deploy: disabled \n"
@@ -531,10 +533,13 @@ module Ankus
               cluster_info << "\r" << ' *'.cyan << " Resource Manager: #{jt} \n"
               urls << "\r" << ' %'.black << " Resource Manager: http://#{jt}:8088 \n"
               urls << "\r" << ' %'.black << " Job History Server: http://#{jt}:19888 \n"
-            end              
+            end
             #hadoop_ecosystem
-            if config[:hadoop_deploy][:hadoop_ecosystem] and config[:hadoop_deploy][:hadoop_ecosystem].include?('oozie')
+            if config[:hadoop_deploy][:ecosystem] and config[:hadoop_deploy][:ecosystem].include?('oozie')
               urls << "\r" << ' %'.black << " Oozie Console: http://#{jt}:11000/oozie \n"
+            end
+            if config[:hadoop_deploy][:ecosystem] and config[:hadoop_deploy][:ecosystem].include?('hue')
+              urls << "\r" << ' %'.black << " Hue Console: http://#{jt}:8888 \n"
             end
           end
           if config[:hadoop_deploy][:hadoop_ha] == 'enabled' or config[:hbase_deploy] != 'disabled'
@@ -554,7 +559,7 @@ module Ankus
           hms.each do |k, v|
             cluster_info << "\r" << ' *'.cyan << " #{k.capitalize}: #{v.first} \n"
           end
-          urls << "\r" << ' %'.black << " HBaseMaster: " + 
+          urls << "\r" << ' %'.black << " HBaseMaster: " +
                           "http://#{Hash[hms.select {|k,v| k.include? 'hbasemaster1'}].values.flatten.first}:60010 \n"
         end
         if storm_deploy != 'disabled'
@@ -565,7 +570,7 @@ module Ankus
         if config[:solr_deploy] != 'disabled'
           solr_nodes = find_fqdn_for_tag(cloud_instances, 'solr')
           urls << "\r" << ' %'.black << " Solr Admin: http://#{solr_nodes.sample}:8983/solr \n"
-        end        
+        end
         if options[:extended]
           if config[:hadoop_deploy] != 'disabled' or config[:hbase_deploy] != 'disabled'
             cluster_info << "\r" << ' *'.cyan << " Slaves: \n"
@@ -589,7 +594,7 @@ module Ankus
             cluster_info << "\r" << ' *'.cyan << " Kafka Nodes: \n"
             find_fqdn_for_tag(cloud_instances, 'kafka').each_with_index do |k, i|
               cluster_info << "\r" << "\t" << "- ".cyan << "kafka#{i+1}: #{k}" << "\n"
-            end            
+            end
           end
           if solr_deploy != 'disabled'
             cluster_info << "\r" << ' *'.cyan << " Solr Nodes: \n"
@@ -620,9 +625,9 @@ module Ankus
             cluster_info << "\r" << ' *'.cyan << " Namenode(s): \n"
             cluster_info << "\r" << "\t - Active Namenode: #{config[:hadoop_deploy][:hadoop_namenode].first} \n"
             cluster_info << "\r" << "\t - Standby Namenode: #{config[:hadoop_deploy][:hadoop_namenode].last} \n"
-            urls << "\r" << ' %'.black << " Active Namenode: " + 
+            urls << "\r" << ' %'.black << " Active Namenode: " +
                                           "http://#{config[:hadoop_deploy][:hadoop_namenode].first}:50070 \n"
-            urls << "\r" << ' %'.black << " Standby Namenode:" + 
+            urls << "\r" << ' %'.black << " Standby Namenode:" +
                                           " http://#{config[:hadoop_deploy][:hadoop_namenode].last}:50070 \n"
             cluster_info << "\r" << ' *'.cyan << " Journal Quorum: \n"
             config[:hadoop_deploy][:journal_quorum].each do |jn|
@@ -630,7 +635,7 @@ module Ankus
             end
           else
             cluster_info << "\r" << ' *'.cyan << " Namenode: #{config[:hadoop_deploy][:hadoop_namenode].first}\n"
-            cluster_info << "\r" << ' *'.cyan << " Secondary Namenode:" + 
+            cluster_info << "\r" << ' *'.cyan << " Secondary Namenode:" +
                                                  " #{config[:hadoop_deploy][:hadoop_secondarynamenode]}\n"
             urls << "\r" << ' %'.black << " Namenode: http://#{config[:hadoop_deploy][:hadoop_namenode].first}:50070 \n"
           end
@@ -670,30 +675,30 @@ module Ankus
             cluster_info << "\r" << ' *'.cyan << " Cassandra Seed Node(s): \n"
             config[:cassandra_deploy][:cassandra_seeds].each do |cn|
               cluster_info << "\r" << "\t" << '- '.cyan << cn << "\n"
-            end            
+            end
           end
           if config[:storm_deploy] != 'disabled'
             cluster_info << "\r" << ' *'.cyan << " Storm Supervisors: \n"
             config[:storm_deploy][:storm_supervisors].each do |cn|
               cluster_info << "\r" << "\t" << '- '.cyan << cn << "\n"
             end
-            urls << "\r" << ' %'.black << " Storm Master: http://#{config[:storm_deploy][:storm_master]}:8080" 
+            urls << "\r" << ' %'.black << " Storm Master: http://#{config[:storm_deploy][:storm_master]}:8080"
           end
           if config[:kafka_deploy] != 'disabled'
             cluster_info << "\r" << ' *'.cyan << " Kafka Brokers: \n"
             config[:kafka_deploy][:kafka_brokers].each do |cn|
               cluster_info << "\r" << "\t" << '- '.cyan << cn << "\n"
-            end            
+            end
             # cluster_info << "\r" << ' *'.cyan << " Kafka Node(s): \n"
             # config[:kafka_deploy][:kafka_nodes].each do |cn|
             #   cluster_info << "\r" << "\t" << '- '.cyan << cn << "\n"
-            # end            
+            # end
           end
           if config[:solr_deploy] != 'disabled'
             config[:solr_deploy][:solr_nodes].each do |sn|
               cluster_info << "\r" << "\t" << '- '.cyan << sn << "\n"
             end
-          end          
+          end
         end
       end
       cluster_info << "\n"
@@ -703,7 +708,7 @@ module Ankus
       if config[:install_mode] == 'cloud'
         if config[:cloud_platform] == 'aws'
           username = config[:cloud_os_type].downcase == 'centos' ? 'root' : 'ubuntu'
-          login_info << "\r" << " (or) using `ssh -i ~/.ssh/#{config[:cloud_credentials][:aws_key]}" + 
+          login_info << "\r" << " (or) using `ssh -i ~/.ssh/#{config[:cloud_credentials][:aws_key]}" +
                                 " #{username}@[host]`\n"
         elsif config[:cloud_platform] == 'rackspace'
           login_info << "\r" << " (or) using `ssh -i #{config[:cloud_credentials][:rackspace_ssh_key]} root@[host]`\n"
@@ -808,16 +813,20 @@ module Ankus
     # Invoke ssh process on the instance specified with role
     # @param [String] role => role of the instance to perform ssh
     # @param [Hash] config => configuration hash
-    def ssh_into_instance(role, config)
+    def ssh_into_instance(options, config)
       instances = YamlUtils.parse_yaml(NODES_FILE)
       roles_available = instances.map {|_,v| v[:tags]}.flatten.uniq
       username, private_key = find_ssh_user_and_key(config)
-      host = find_fqdn_for_tag(instances, role) && find_fqdn_for_tag(instances, role).first
-      if host
-        $logger.info "ssh into #{host} as user:#{username} with key:#{private_key}"
-        SshUtils.ssh_into_instance(host, username, private_key, 22)
-      else
-        $logger.warn "No such role found: #{role}. Available roles: #{roles_available}"
+      if options[:role]
+        host = find_fqdn_for_tag(instances, options[:role]) && find_fqdn_for_tag(instances, options[:role]).first
+        if host
+          $logger.info "ssh into #{host} as user:#{username} with key:#{private_key}"
+          SshUtils.ssh_into_instance(host, username, private_key, 22)
+        else
+          $logger.warn "No such role found: #{role}. Available roles: #{roles_available}"
+        end
+      elsif options[:list_roles]
+        $logger.info "Avaible roles to ssh: #{roles_available.join(',')}"
       end
     end
   end

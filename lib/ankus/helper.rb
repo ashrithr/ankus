@@ -59,7 +59,80 @@ module Ankus
     :zookeeper_deploy
   ]
 
-  HADOOP_CONF_KEYS = %w{
+  ANKUS_CONF_VALID_KEYS = [
+    :install_mode,
+    :cloud_platform,
+    :cloud_credentials,
+    :aws_access_id,
+    :aws_secret_key,
+    :aws_machine_type,
+    :aws_region,
+    :aws_key,
+    :os_auth_url,
+    :os_username,
+    :os_password,
+    :os_tenant,
+    :os_flavor,
+    :os_ssh_key,
+    :os_ssh_user,
+    :os_sec_groups,
+    :os_image_ref,
+    :cluster_identifier,
+    :rackspace_username,
+    :rackspace_api_key,
+    :rackspace_instance_type,
+    :rackspace_ssh_key,
+    :cluster_identifier,
+    :cloud_os_type,
+    :hadoop_deploy,
+    :packages_source,
+    :ha,
+    :mapreduce,
+    :type,
+    :ecosystem,
+    :worker_volumes,
+    :master_volumes,
+    :type,
+    :iops,
+    :size,
+    :count,
+    :namenode,
+    :secondarynamenode,
+    :journal_quorum,
+    :data_dirs,
+    :master_dirs,
+    :hbase_deploy,
+    :master,
+    :master_count,
+    :zookeeper_deploy,
+    :quorum,
+    :dirs,
+    :quorum_count,
+    :worker_nodes_count,
+    :worker_nodes,
+    :solr_deploy,
+    :hdfs_integration,
+    :number_of_instances,
+    :cassandra_deploy,
+    :collocate,
+    :number_of_instances,
+    :number_of_seeds,
+    :kafka_deploy,
+    :number_of_brokers,
+    :storm_deploy,
+    :nodes,
+    :number_of_supervisors,
+    :workers_count,
+    :security,
+    :kerberos_realm,
+    :kerberos_domain,
+    :monitoring,
+    :alerting,
+    :admin_email,
+    :log_aggregation
+  ]
+
+  HADOOP_CONF_KEYS_COMPLETE = %w{
     hadoop_heap_size
     yarn_heapsize
     hadoop_namenode_opts
@@ -105,6 +178,7 @@ module Ankus
     hadoop_config_tasktracker_http_threads
     hadoop_config_use_map_compression
     hadoop_config_mapred_reduce_slowstart_completed_maps
+    hadoop_config_mapred_reduce_tasks
     hadoop_namenode_port
     hadoop_resourcemanager_port
     hadoop_resourcetracker_port
@@ -128,6 +202,53 @@ module Ankus
     hadoop_config_mapreduce_task_io_sort_mb
     hadoop_config_mapreduce_task_io_sort_factor
     hadoop_config_mapreduce_reduce_shuffle_parallelcopies
+  }
+
+  HADOOP_CONF_KEYS = %w{
+    hadoop_heap_size
+    yarn_heapsize
+    hadoop_namenode_opts
+    hadoop_jobtracker_opts
+    hadoop_secondarynamenode_opts
+    hadoop_datanode_opts
+    hadoop_tasktracker_opts
+    hadoop_balancer_opts
+    yarn_resourcemanager_opts
+    yarn_nodemanager_opts
+    yarn_proxyserver_opts
+    hadoop_job_historyserver_opts
+    hadoop_snappy_codec
+    hadoop_config_fs_inmemory_size_mb
+    hadoop_config_io_file_buffer_size
+    hadoop_config_hadoop_tmp_dir
+    hadoop_ha_nameservice_id
+    hadoop_config_dfs_replication
+    hadoop_config_dfs_block_size
+    hadoop_config_io_bytes_per_checksum
+    hadoop_config_fs_trash_interval
+    hadoop_config_dfs_permissions_supergroup
+    hadoop_config_dfs_datanode_max_transfer_threads
+    hadoop_config_dfs_datanode_du_reserved
+    hadoop_config_dfs_datanode_balance_bandwidthpersec
+    hadoop_config_dfs_permissions_enabled
+    hadoop_config_namenode_handler_count
+    hadoop_config_dfs_namenode_safemode_threshold_pct
+    hadoop_config_dfs_namenode_replication_min
+    hadoop_config_dfs_namenode_safemode_extension
+    hadoop_config_dfs_df_interval
+    hadoop_config_dfs_client_block_write_retries
+    hadoop_namenode_port
+    hadoop_resourcemanager_port
+    hadoop_resourcetracker_port
+    hadoop_resourcescheduler_port
+    hadoop_resourceadmin_port
+    hadoop_resourcewebapp_port
+    hadoop_proxyserver_port
+    hadoop_jobhistory_port
+    hadoop_jobhistory_webapp_port
+    hadoop_jobtracker_port
+    hadoop_tasktracker_port
+    hadoop_datanode_port
   }
 
   HBASE_CONF_KEYS = %w{
@@ -240,7 +361,7 @@ module Ankus
     else
       found_clients.map { |k| nodes[k][:fqdn] }
     end
-  end 
+  end
 
   # Returns private_ip for input tag
   # @param [Hash] nodes to search for tag in
@@ -261,7 +382,7 @@ module Ankus
   # Return hash key for input tag
   # @param [Hash] nodes to search for tag in
   # @param [tag] tag to search
-  # @return [Array] || nil  
+  # @return [Array] || nil
   def find_key_for_tag(nodes, tag)
     found_clients = []
     nodes.each do |k, v|
@@ -287,6 +408,15 @@ module Ankus
   # @return [String] => pip private ip to lookup
   def find_key_for_pip(nodes, pip)
     nodes.select { |k, v| k if v[:private_ip] == pip }.keys.first
+  end
+
+  # Converts a nested hash to flat hash
+  # @param [Hash] nested hash to convert
+  # @param [Array] grouped nested keys
+  # @return [Hash] flattenend hash
+  def flat_hash(hash, k = [])
+    return {k => hash} unless hash.is_a?(Hash)
+    hash.inject({}){ |h, v| h.merge! flat_hash(v[-1], k + [v[0]]) }
   end
 
   #
@@ -352,11 +482,22 @@ class Hash
   def diff(other)
     self.keys.inject({}) do |memo, key|
       unless self[key] == other[key]
-        memo[key] = [self[key], other[key]] 
+        memo[key] = [self[key], other[key]]
       end
       memo
     end
-  end  
+  end
+
+  # retunrs value for a key nested deep in the hash
+  def deep_find(key)
+    if key?(key)
+      true
+    else
+      self.values.inject(nil) do |memo, v|
+        memo ||= v.deep_find(key) if v.respond_to?(:deep_find)
+      end
+    end
+  end
 end
 
 #
