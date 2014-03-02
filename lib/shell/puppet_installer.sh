@@ -27,7 +27,7 @@
 ## Configuration Variables (change these, only if you know what you are doing)
 ####
 puppet_modules_path="/etc/puppet/modules"
-puppet_modules_download="https://github.com/cloudwicklabs/ankus-modules/archive/v2.2.tar.gz"
+puppet_modules_download="https://github.com/cloudwicklabs/ankus-modules/archive/v2.4.tar.gz"
 debug="false"
 
 ### !!! DONT CHANGE BEYOND THIS POINT. DOING SO MAY BREAK THE SCRIPT !!!
@@ -393,6 +393,21 @@ function configure_postgres () {
         file_change="true"
         echo 'host puppetdb puppetdb 0.0.0.0/0 trust' >> $psql_config
       fi
+      execute "grep hive_metastore $psql_config"
+      if [[ $? -ne 0 ]]; then
+        file_change="true"
+        echo 'host hive_metastore hiveuser 0.0.0.0/0 trust' >> $psql_config
+      fi
+      execute "grep oozie $psql_config"
+      if [[ $? -ne 0 ]]; then
+        file_change="true"
+        echo 'host oozie oozie 0.0.0.0/0 trust' >> $psql_config
+      fi
+      execute "grep hue $psql_config"
+      if [[ $? -ne 0 ]]; then
+        file_change="true"
+        echo 'host hue hue 0.0.0.0/0 trust' >> $psql_config
+      fi
       execute "grep \"listen_addresses = '0.0.0.0'\" $psql_data_conf"
       if [[ $? -ne 0 ]]; then
         file_change="true"
@@ -411,6 +426,21 @@ function configure_postgres () {
       if [[ $? -ne 0 ]]; then
         file_change="true"
         echo 'host  puppetdb  puppetdb  0.0.0.0/0   trust' >> $psql_config
+      fi
+      execute "grep hive_metastore $psql_config"
+      if [[ $? -ne 0 ]]; then
+        file_change="true"
+        echo 'host hive_metastore hiveuser 0.0.0.0/0 trust' >> $psql_config
+      fi
+      execute "grep oozie $psql_config"
+      if [[ $? -ne 0 ]]; then
+        file_change="true"
+        echo 'host oozie oozie 0.0.0.0/0 trust' >> $psql_config
+      fi
+      execute "grep hue $psql_config"
+      if [[ $? -ne 0 ]]; then
+        file_change="true"
+        echo 'host hue hue 0.0.0.0/0 trust' >> $psql_config
       fi
       execute "grep \"listen_addresses = '0.0.0.0'\" $psql_data_conf"
       if [[ $? -ne 0 ]]; then
@@ -446,6 +476,13 @@ function configure_postgres_users () {
   sudo -u postgres psql template1 <<END 1>>$stdout_log 2>>$stderr_log
 create user puppetdb with password '$postgresql_password';
 create database puppetdb with owner puppetdb;
+create user hiveuser with password 'hiveuser';
+create database hive_metastore with owner hiveuser;
+alter database hive_metastore SET standard_conforming_strings = off;
+create user oozie with password 'oozie';
+create database oozie with owner oozie;
+create user hue with password 'hue';
+create database hue with owner hue;
 END
 }
 

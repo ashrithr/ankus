@@ -71,21 +71,23 @@ To install ruby 1.9.3 and other dependencies on supported platforms follow these
 
  	*Requirements*:
 
-	- Install XCode Command Line Tools from [connect.apple.com](http://connect.apple.com/) (or) from [Github](https://github.com/kennethreitz/osx-gcc-installer/downloads)
+	- Download and install XCode Command Line Tools (using any of the following ways)
+		* from [apple developer console](http://developer.apple.com/downloads/) and logging using developer account
+		* from [Github](https://github.com/kennethreitz/osx-gcc-installer/downloads) 
+		* for OSX Mavericks you can use `xcode-select --install` command from terminal to install command line tools
 	- Install [Homebrew](http://mxcl.github.io/homebrew/)
 		
 		```bash
-		ruby -e "$(curl -fsSL https://raw.github.com/mxcl/homebrew/go)"
+		ruby -e "$(curl -fsSL https://raw.github.com/Homebrew/homebrew/go/install)"
 		```
 	
-	Install dependencies:
+	Install dependencies for mac osx:
 
 	```bash
 	brew install libxml2 libxslt
 	brew link libxml2 libxslt
-    curl -L get.rvm.io | bash -s stable
-    source /etc/profile.d/rvm.sh
-    #source ~/.rvm/scripts/rvm || source /usr/local/rvm/scripts/rvm
+  curl -L get.rvm.io | bash -s stable  
+  source ~/.rvm/scripts/rvm || source /usr/local/rvm/scripts/rvm
 	rvm requirements --verify-downloads 1
 	rvm install 1.9.3
 	rvm use 1.9.3 --default
@@ -103,7 +105,7 @@ To install ruby 1.9.3 and other dependencies on supported platforms follow these
 	```bash
 	cd ~ && git clone https://github.com/ashrithr/ankus.git
 	gem install bundle --no-ri --no-rdoc
-	cd ankus && git checkout improvements && bundle install
+	cd ankus && bundle install
 	```
 OR
 

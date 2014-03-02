@@ -53,6 +53,10 @@ cloud_os_type: CentOS
 #           volumes (valid values: 1 - 4000)
 #     size: size of each volume in GB
 #     count: number of volumes to attach to each master instance
+#   packages_source: specifies which packages to use, available sources are
+#     'cdh' - installs cloudera cdh packages
+#     'hdp' - installs hortonworks hdp packages
+#     default: cdh
 # ===============DEPLOYMENT SCENARIO 1==================
 #               TO DEPLOY HADOOP (NON-HA)
 # ======================================================

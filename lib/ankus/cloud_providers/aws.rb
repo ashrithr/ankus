@@ -92,15 +92,17 @@ module Ankus
                                                            '-topk8 -outform DER | openssl sha1 -c')
               remote_fp = conn.key_pairs.get(key).fingerprint
               unless out_fp.chomp == remote_fp
-                @log.error "key #{key_path} fingerprint does not match remote key_pair fingerprint"
+                @log.error "Key '#{key}' already exists on local system and it's fingerprint does not match with remote "\
+                           "key_pair's fingerprint. Either delete the key in aws and rename the local file ['#{key_path}'] "\
+                           "(or) update the 'aws_key' property in the config file to another name."
                 abort
               end
             else
               @log.warn 'Cannot find openssl, its recommended to install openssl to check fingerprints of the keypair(s)'
             end
           else
-            @log.error + "Key '#{key}' already exists but failed to find the key in " +
-                "'#{key_path}', please change the 'aws_key' name or delete the key in aws to recreate the key"
+            @log.error + "Key '#{key}' already exists in aws but failed to find the key in local path " +
+                "'#{key_path}', please update the 'aws_key' property (or) delete the key in aws to recreate the key"
             abort
           end
         else # key pair does not exist in aws
