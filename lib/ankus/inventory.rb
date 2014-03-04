@@ -52,7 +52,7 @@ module Ankus
       def create_nodes
         nodes_hash =  if File.exists?(NODES_FILE) && YamlUtils.parse_yaml(NODES_FILE).is_a?(Hash)
                         YamlUtils.parse_yaml(NODES_FILE)
-                      else 
+                      else
                         Hash.new
                       end
         @config = @config.deep_symbolize
@@ -69,7 +69,7 @@ module Ankus
           end
           if @config[:hadoop_deploy][:hadoop_ha] == 'enabled' or @config[:hbase_deploy] != 'disabled'
             @config[:zookeeper_deploy][:quorum].each_with_index do |zk, i|
-              add_or_update_node(nodes_hash, zk, "zookeeper#{i+1}") 
+              add_or_update_node(nodes_hash, zk, "zookeeper#{i+1}")
             end
           end
           if @config[:hadoop_deploy][:mapreduce] != 'disabled'
@@ -80,12 +80,12 @@ module Ankus
           end
           if @config[:hbase_deploy] != 'disabled'
             @config[:hbase_deploy][:master].each_with_index do |hm, i|
-              add_or_update_node(nodes_hash, hm, "hbasemaster#{i+1}")   
+              add_or_update_node(nodes_hash, hm, "hbasemaster#{i+1}")
             end
           end
           @config[:worker_nodes].each_with_index do |hw, i|
             add_or_update_node(nodes_hash, hw, "slaves#{i+1}")
-          end          
+          end
         end
         # Cassandra
         if @config[:cassandra_deploy] != 'disabled'
@@ -107,8 +107,8 @@ module Ankus
         end
         if @config[:kafka_deploy] != 'disabled' or @config[:storm_deploy] != 'disabled'
           @config[:zookeeper_deploy][:quorum].each_with_index do |zk, i|
-            add_or_update_node(nodes_hash, zk, "zookeeper#{i+1}") 
-          end          
+            add_or_update_node(nodes_hash, zk, "zookeeper#{i+1}")
+          end
         end
         if @config[:solr_deploy] != 'disabled'
           @config[:solr_deploy][:nodes].each_with_index do |sn, i|
@@ -129,7 +129,7 @@ module Ankus
           :puppet_run_status => false,
           :last_run => '',
           :tags => tags
-        }        
+        }
       end #end create_node
 
       # Either creates a new node definition or if node already exists updates the node tag
@@ -145,7 +145,7 @@ module Ankus
           nodes[fqdn] = create_node(fqdn, [tag])
         end
         nodes
-      end      
+      end
 
       # Get the host configuration such as number of cores, amount of ram for given node
       def fetch_host_info(fqdn)
@@ -193,7 +193,7 @@ module Ankus
         roles_hash = Hash.new
 
         roles_hash[@ps]                     = {}
-        # roles_hash[@ps]['java']             = nil
+        roles_hash[@ps]['ntp']              = nil
         roles_hash[@ps]['nagios::server']   = nil if @config[:alerting] == 'enabled'
         roles_hash[@ps]['ganglia::server']  = nil if @config[:monitoring] == 'enabled'
         roles_hash[@ps]['kerberos::server'] = nil if @config[:security] == 'kerberos'
@@ -223,8 +223,8 @@ module Ankus
         storm_supervisors   = @config[:storm_deploy][:supervisors] if storm_install != 'disabled'
         @pcs.each do |pc|
           roles_hash[pc] = {}
-          # Java
-          # roles_hash[pc]['java'] = nil
+          # NTP
+          roles_hash[pc]['ntp'] = nil
           if hadoop_install != 'disabled'
             # Namenode
             roles_hash[pc]['hadoop::namenode'] = nil if namenode.include? pc
@@ -286,17 +286,13 @@ module Ankus
           roles_hash[pc]['nagios::nrpe'] = nil if @config[:alerting] == 'enabled'
           roles_hash[pc]['ganglia::client'] = nil if @config[:monitoring] == 'enabled'
           ##log aggregation
-          #if @config['log_aggregation'] == 'enabled'
-          #  roles_hash[pc]['logstash::lumberjack'] = {
-          #    'logstash_host' => @ps,
-          #    'logstash_port' => 5672,
-          #    'daemon_name' => 'lumberjack_general',
-          #    'field' => "general_#{pc}"
-          #  }
-          #end
+          if @config[:log_aggregation] == 'enabled'
+           roles_hash[pc]['utils::lumberjack_general'] = nil
+          end
           #cassandra
           if cassandra_install != 'disabled'
             roles_hash[pc]['cassandra'] = nil if cassandra_nodes.include? pc
+            roles_hash[pc]['jmxtrans::cassandra'] = nil if @config[:monitoring] == 'enabled'
           end
           if solr_install != 'disabled'
             if solr_install[:hdfs_integration] != 'disabled'

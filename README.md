@@ -73,14 +73,14 @@ To install ruby 1.9.3 and other dependencies on supported platforms follow these
 
 	- Download and install XCode Command Line Tools (using any of the following ways)
 		* from [apple developer console](http://developer.apple.com/downloads/) and logging using developer account
-		* from [Github](https://github.com/kennethreitz/osx-gcc-installer/downloads) 
+		* from [Github](https://github.com/kennethreitz/osx-gcc-installer/downloads)
 		* for OSX Mavericks you can use `xcode-select --install` command from terminal to install command line tools
 	- Install [Homebrew](http://mxcl.github.io/homebrew/)
-		
+
 		```bash
 		ruby -e "$(curl -fsSL https://raw.github.com/Homebrew/homebrew/go/install)"
 		```
-	
+
 	Install dependencies for mac osx:
 
 	```bash
@@ -91,7 +91,7 @@ To install ruby 1.9.3 and other dependencies on supported platforms follow these
 	rvm requirements --verify-downloads 1
 	rvm install 1.9.3
 	rvm use 1.9.3 --default
-	rvm rubygems current	
+	rvm rubygems current
 	```
 
 **NOTE: Ankus requires ruby version >= 1.9.2.**
@@ -119,7 +119,7 @@ OR
 
 ## Usage:
 
-###Deployment in Cloud (AWS or Rackspace):
+###Deployment in Cloud (AWS | Rackspace | Openstack):
 
 To quickly deploy big-data clusters like hadoop, hbase, cassandra, storm or kafka in the cloud, follow these steps:
 

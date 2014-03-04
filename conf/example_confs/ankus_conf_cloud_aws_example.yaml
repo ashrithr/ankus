@@ -133,7 +133,7 @@ worker_nodes_count: 3
 # Solr Cluster Configuration
 #   solr_deploy         : specifies the deployment of solr cluster
 #                         possible values: Hash (or) enabled
-#   hdfs_integration    : specifies whether to integrate solr and hdfs (requires 
+#   hdfs_integration    : specifies whether to integrate solr and hdfs (requires
 #                         deployment of hdfs, see configuring hadoop), if
 #                         enabled solr instances will be deployed on hadoop
 #                         slave nodes
@@ -168,7 +168,7 @@ solr_deploy: 'disabled'
 #  collocate          : whether to collocate cassandra daemons with hadoop &
 #                       hbase daemons or deploy cassandra on their own instances
 #                       default: no (*not recommended to collocate daemons*)
-#  number_of_instances: number of cassandra instances to launch(not required 
+#  number_of_instances: number of cassandra instances to launch(not required
 #                       when collocation instances)
 #  number_of_seeds    : number of nodes to use as seeds, chosen randomly
 #                       default: 1
@@ -184,7 +184,7 @@ solr_deploy: 'disabled'
 #     count: number of volumes to attach to each cassandra instance
 #
 # ===============DEPLOYMENT SCENARIO 1==================
-#                 TO DEPLOY CASSANDRA 
+#                 TO DEPLOY CASSANDRA
 # ======================================================
 #cassandra_deploy:
 # number_of_instances: 5
@@ -243,7 +243,7 @@ kafka_deploy: 'disabled'
 #                         other cluster daemons such as hadoop, hbase or
 #                         cassandra
 #                         default: no (*not recommended to collocate daemons*)
-#  number_of_supervisors: number of supervisor nodes to deploy (not required 
+#  number_of_supervisors: number of supervisor nodes to deploy (not required
 #                         when collocating instances)
 #  workers_count        : number of worker processes to run per supervisor node
 #
@@ -251,7 +251,7 @@ kafka_deploy: 'disabled'
 # ===============DEPLOYMENT SCENARIO 1==================
 #                   TO DEPLOY STORM
 # ======================================================
-#kafka_deploy:
+#storm_deploy:
 # number_of_supervisors: 5
 # workers_count: 8
 #

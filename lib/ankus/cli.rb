@@ -112,6 +112,10 @@ module Ankus
       if @config.nil? or @config.empty?
         parse_config options[:debug], options[:mock]
       end
+      if options[:role] and options[:list_roles]
+        $logger.error 'ankus ssh is called with both [--role, --list-roles]'
+        abort
+      end
       ssh_into_instance options, @config
     end
 
