@@ -1,5 +1,5 @@
 #!/usr/bin/env ruby
-
+# encoding: utf-8
 # Copyright 2013, Cloudwick, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-$LOAD_PATH.unshift(File.dirname(__FILE__) + '/../lib') unless $LOAD_PATH.include?(File.dirname(__FILE__) + '/../lib')
+unless $LOAD_PATH.include?(File.dirname(__FILE__) + '/../lib')
+  $LOAD_PATH.unshift(File.dirname(__FILE__) + '/../lib')
+end
 
 begin
   require 'ankus'
@@ -26,9 +28,10 @@ end
 # Store the state of the terminal
 stty_save = `stty -g`.chomp
 
-#Start the app
+# Start the app
 begin
-  STDOUT.sync = true
+  $stdout.sync = true
+  $stderr.sync = true
   puts '
       ___          __
      /   |  ____  / /____  _______
@@ -42,7 +45,7 @@ begin
 rescue Interrupt
   system('stty', stty_save)
   puts 'Caught Interrupt, Exiting...'
-rescue ArgumentError
+rescue ArgumentError => ex
   system('stty', stty_save)
-  puts "Cannot recognize the argument passed, #{$!}"
+  puts "Cannot recognize the argument passed, #{ex.message}"
 end

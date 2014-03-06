@@ -26,7 +26,7 @@ module Ankus
       @config_file  = file_path
       @parsed_hash  = {}
       @log          = log
-      @debug        = debug
+      # @debug        = debug
       @mock         = mock
       @errors_count = 0
     end
@@ -36,8 +36,8 @@ module Ankus
     def parse_config
       @parsed_hash = Settings.load! @config_file
       validate @parsed_hash
-      HadoopConfigParser.new(HADOOP_CONF, @log, @debug)
-      HBaseConfigParser.new(HBASE_CONF, @log, @debug)
+      HadoopConfigParser.new(HADOOP_CONF, @log)
+      HBaseConfigParser.new(HBASE_CONF, @log)
       unless @errors_count == 0
         @log.error "Number of Errors: #{@errors_count}"
         @log.error 'Parsing config file ... ' + '[Failed]'.red
@@ -50,7 +50,7 @@ module Ankus
       exit
     rescue
       @log.error "#{$!.message} (#{$!.class})"
-      puts $@ if @debug
+      puts $@
       exit
     end
 
@@ -104,7 +104,7 @@ module Ankus
     # Validations specific to local install_mode
     # @param [Hash] hash_to_validate => hash to validate
     def local_validator(hash_to_validate)
-      @log.debug 'Calling local validator' if @debug
+      @log.debug 'Calling local validator'
       #controller:
       if hash_to_validate[:controller].nil? or hash_to_validate[:controller].empty?
         @log.error "Property 'controller' is required for local install_mode"
@@ -123,7 +123,7 @@ module Ankus
       end
       #ssh_user
       if hash_to_validate[:ssh_user].nil? or hash_to_validate[:ssh_user].empty?
-        @log.debug 'Property \'ssh_user\' is not specified assuming ssh_user as \'root\'' if @debug
+        @log.debug 'Property \'ssh_user\' is not specified assuming ssh_user as \'root\''
         hash_to_validate[:ssh_user] = 'root'
       end
 
@@ -139,14 +139,14 @@ module Ankus
       end
       unless @mock
         nodes.keys.each do |node|
-          unless Ankus::PortUtils.port_open?(node, 22, 2)
+          unless Ankus::Util::PortUtils.port_open?(node, 22, 2)
             @log.error "Node: #{node} is not reachable"
             @errors_count += 1
           end
         end
         nodes.keys.each do |node|
           begin
-            Ankus::SshUtils.sshable?(node, hash_to_validate[:ssh_user], hash_to_validate[:ssh_key])
+            Util::SshUtils.sshable?(node, hash_to_validate[:ssh_user], hash_to_validate[:ssh_key])
           rescue
             @log.error "Cannot ssh into instance '#{node}' with user: #{hash_to_validate[:ssh_user]} and " +
             "key: #{hash_to_validate[:ssh_key]}"
@@ -159,7 +159,7 @@ module Ankus
     # Validations specific to cloud install_mode
     # @param [Hash] hash_to_validate => hash to validate
     def cloud_validator(hash_to_validate)
-      @log.debug 'Calling cloud validator' if @debug
+      @log.debug 'Calling cloud validator'
       cloud_platform = hash_to_validate[:cloud_platform]
       cloud_credentials = hash_to_validate[:cloud_credentials]
       cloud_os_type = hash_to_validate[:cloud_os_type]
@@ -207,7 +207,7 @@ module Ankus
         end
 
         # validate aws connection
-        @log.debug 'Validating aws connection' if @debug
+        @log.debug 'Validating aws connection'
         aws = Aws.new(cloud_credentials[:aws_access_id],
           cloud_credentials[:aws_secret_key],
           cloud_credentials[:aws_region],
@@ -452,16 +452,16 @@ module Ankus
           end
         end
         @log.debug "Instances will be booted with '#{volumes[:count]}' volumes of type(#{volumes[:type]}) each with " +
-                       "size(#{volumes[:size]}GB)" if @debug
+                       "size(#{volumes[:size]}GB)"
       else
-        @log.warn "Volumes configuration disabled for #{deploy_mode}" if @debug
+        @log.debug "Volumes configuration disabled for #{deploy_mode}"
       end
     end
 
     # Validates params which are common for both local and cloud install_modes
     # @param [Hash] hash_to_validate => hash to validate
     def common_validator(hash_to_validate)
-      @log.debug 'Calling common validator' if @debug
+      @log.debug 'Calling common validator'
       security = hash_to_validate[:security]
       monitoring = hash_to_validate[:monitoring]
       alerting = hash_to_validate[:alerting]
@@ -480,10 +480,10 @@ module Ankus
         realm_name = hash_to_validate[:kerberos_realm]
         domain_name = hash_to_validate[:kerberos_domain]
         if realm_name.nil? or realm_name.empty?
-          @log.debug 'Kerberos realm name is not provided, using default realm name' if @debug
+          @log.debug 'Kerberos realm name is not provided, using default realm name'
         end
         if domain_name.nil? or domain_name.empty?
-          @log.debug 'Kerberos domain name is not provided, using default domain name' if @debug
+          @log.debug 'Kerberos domain name is not provided, using default domain name'
         end
       end
 
@@ -552,7 +552,7 @@ module Ankus
     # Validates hadoop related conf params for local install_mode
     # @param [String] hash_to_validate
     def hadoop_validator(hash_to_validate)
-      @log.debug 'Calling hadoop validator' if @debug
+      @log.debug 'Calling hadoop validator'
 
       hadoop_ha = hash_to_validate[:hadoop_deploy][:ha]
       hadoop_ecosystem = hash_to_validate[:hadoop_deploy][:ecosystem]
@@ -649,14 +649,14 @@ module Ankus
             @errors_count += 1
           end
         else
-          @log.warn 'Mapreduce is disabled, no mapreduce daemons will be installed' if @debug
+          @log.debug 'Mapreduce is disabled, no mapreduce daemons will be installed'
         end
       else # Cloud deployment
         if mapreduce.nil? or mapreduce.empty?
           @log.error 'Mapreduce should be specified'
           @errors_count += 1
         elsif mapreduce == 'disabled'
-          @log.warn 'Mapreduce is disabled, no mapreduce daemons will be installed' if @debug
+          @log.debug 'Mapreduce is disabled, no mapreduce daemons will be installed'
         elsif ! mapreduce.is_a? Hash
           @log.error + "Unrecognized value set for 'mapreduce' : #{mapreduce}"
           @errors_count += 1
@@ -802,7 +802,7 @@ module Ankus
         @log.error "Property 'hbase_deploy' is required parameter, valid values: hash|disabled"
         @errors_count += 1
       elsif hbase_install == 'disabled'
-        @log.debug 'HBase deploy is disabled' if @debug
+        @log.debug 'HBase deploy is disabled'
       elsif ! hbase_install.is_a? Hash
         @log.error "Unrecognized value set for 'hbase_deploy' : #{hbase_install}"
         @errors_count += 1
@@ -908,13 +908,13 @@ module Ankus
     # Validate cassandra related configuration parameters
     # @param [Hash] hash_to_validate
     def cassandra_validator(hash_to_validate)
-      @log.debug 'Cassandra validator initialized' if @debug
+      @log.debug 'Cassandra validator initialized'
       cassandra_deploy = hash_to_validate[:cassandra_deploy]
       if cassandra_deploy.nil? or cassandra_deploy.empty?
         @log.error " 'cassandra_deploy' is required parameter, valid values: hash|disabled"
         @errors_count += 1
       elsif cassandra_deploy == 'disabled'
-        @log.debug 'Cassandra deployment is disabled' if @debug
+        @log.debug 'Cassandra deployment is disabled'
       elsif ! cassandra_deploy.is_a? Hash
         @log.error "Unrecognized value set for 'cassandra_deploy' : #{cassandra_deploy}"
         @errors_count += 1
@@ -1026,7 +1026,7 @@ module Ankus
           end
           cassandra_seeds_count = cassandra_deploy[:number_of_seeds]
           if cassandra_seeds_count.nil?
-            @log.debug "'number_of_seeds' is not provided cassandra_deploy defaulting to 1" if @debug
+            @log.debug "'number_of_seeds' is not provided cassandra_deploy defaulting to 1"
             hash_to_validate[:cassandra_deploy][:number_of_seeds] = 1
           elsif ! cassandra_seeds_count.is_a? Numeric
             @log.error "expecting numeric value for 'number_of_seeds' in cassandra_deploy"
@@ -1040,13 +1040,13 @@ module Ankus
     # Validate solr related conf params
     # @param [Hash] hash_to_validate
     def solr_validator(hash_to_validate)
-      @log.debug 'Calling solr validator' if @debug
+      @log.debug 'Calling solr validator'
       solr_deploy = hash_to_validate[:solr_deploy]
       if solr_deploy.nil? or solr_deploy.empty?
         @log.error "'solr_deploy' is required parameter, valid values: hash|disabled"
         @errors_count += 1
       elsif solr_deploy == 'disabled'
-        @log.debug 'Solr deployment is disabled' if @debug
+        @log.debug 'Solr deployment is disabled'
       elsif ! solr_deploy.is_a? Hash
         @log.error "Unrecognized value set for 'solr_deploy' : #{solr_deploy}"
         @errors_count += 1
@@ -1129,7 +1129,7 @@ module Ankus
         @log.error "'kafka_deploy' is required parameter, valid values: hash|disabled"
         @errors_count += 1
       elsif kafka_deploy == 'disabled'
-        @log.debug 'Kafka deployment is disabled' if @debug
+        @log.debug 'Kafka deployment is disabled'
       elsif ! kafka_deploy.is_a? Hash
         @log.error "unrecognized value set for 'kafka_deploy' : #{kafka_deploy}"
         @errors_count += 1
@@ -1176,7 +1176,7 @@ module Ankus
           end
           kafka_brokers_count = kafka_deploy[:number_of_brokers]
           if kafka_brokers_count.nil?
-            @log.debug "'number_of_brokers' is not provided for kafka_deploy defaulting to 1" if @debug
+            @log.debug "'number_of_brokers' is not provided for kafka_deploy defaulting to 1"
             hash_to_validate[:kafka_deploy][:number_of_brokers] = 1
           elsif ! kafka_brokers_count.is_a? Numeric
             @log.error "Expecting numeric value for 'number_of_brokers' in kafka_deploy hash"
@@ -1194,7 +1194,7 @@ module Ankus
         @log.error "'storm_deploy' is required parameter, valid values: hash|disabled"
         @errors_count += 1
       elsif storm_deploy == 'disabled'
-        @log.debug 'Storm deployment is disabled' if @debug
+        @log.debug 'Storm deployment is disabled'
       elsif ! storm_deploy.is_a? Hash
         @log.error "Unrecognized value set for 'storm_deploy' : #{storm_deploy}"
         @errors_count += 1
@@ -1256,7 +1256,7 @@ module Ankus
   class HadoopConfigParser
     def initialize(hadoop_conf_file, log, debug = false)
       log.debug 'Validating hadoop conf' if debug
-      hadoop_conf = YamlUtils.parse_yaml(hadoop_conf_file).keys
+      hadoop_conf = Util::YamlUtils.parse_yaml(hadoop_conf_file).keys
       unless HADOOP_CONF_KEYS.all?{|key| hadoop_conf.include?(key)}
         log.error "Required keys are not present in #{hadoop_conf_file}"
         log.error "Missing keys: #{HADOOP_CONF_KEYS - hadoop_conf}"
@@ -1273,7 +1273,7 @@ module Ankus
   class HBaseConfigParser
     def initialize(hbase_conf_file, log, debug = false)
       log.debug 'Validating hbase conf' if debug
-      hbase_conf = YamlUtils.parse_yaml(hbase_conf_file).keys
+      hbase_conf = Util::YamlUtils.parse_yaml(hbase_conf_file).keys
       unless HBASE_CONF_KEYS.all?{|key| hbase_conf.include?(key) }
         log.error "Required keys are not present in #{hbase_conf_file}"
         log.error "Missing keys: #{HBASE_CONF_KEYS - hbase_conf}"
