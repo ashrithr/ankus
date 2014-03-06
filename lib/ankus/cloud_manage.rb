@@ -25,9 +25,9 @@ module Ankus
     # @param [String] provider => Cloud service provider; aws|rackspace
     # @param [Hash] parsed_config => Configuration that has been already parsed from cloud_configuration file
     # @param [Hash] cloud_credentials => Credentials configurations
-    #     if aws: cloud_credentials => { aws_access_id: '', aws_secret_key: '', aws_machine_type: 'm1.large', 
+    #     if aws: cloud_credentials => { aws_access_id: '', aws_secret_key: '', aws_machine_type: 'm1.large',
     #                                    aws_region: 'us-west-1', aws_key: 'ankus' }
-    #     if rackspace: cloud_credentials => { rackspace_username: '', rackspace_api_key: '', 
+    #     if rackspace: cloud_credentials => { rackspace_username: '', rackspace_api_key: '',
     #                                          rackspace_instance_type: '', rackspace_ssh_key: '~/.ssh/id_rsa.pub' }
     # @param [Integer] thread_pool_size => number of threads to use to perform instance creation, volume attachments
     # @param [Log4r] log => logger object to use
@@ -214,8 +214,8 @@ module Ankus
         num_of_zks.times do |i|
           nodes_to_create_masters["zookeeper#{i+1}".to_sym] = %w(zookeeper)
         end
-      elsif @parsed_hash[:hbase_deploy] != 'disabled' or 
-        @parsed_hash[:kafka_deploy] != 'disabled' or 
+      elsif @parsed_hash[:hbase_deploy] != 'disabled' or
+        @parsed_hash[:kafka_deploy] != 'disabled' or
         @parsed_hash[:storm_deploy] != 'disabled' or
         @parsed_hash[:solr_deploy] != 'disabled'
         unless nodes_to_create_masters.keys.find { |e| /zookeeper/ =~ e }
@@ -223,7 +223,7 @@ module Ankus
             nodes_to_create_masters["zookeeper#{i+1}".to_sym] = %w(zookeeper)
           end
         end
-      end 
+      end
 
       # If provider is rackspace add domain to roles to form fqdn's
       if @provider == 'rackspace' or @provider == 'openstack'
@@ -329,7 +329,7 @@ module Ankus
     # Create a single instance and return instance mappings
     # @param [Array] tags => name of the server(s), if aws used as tag | if rackspace used as fqdn
     # @return [Hash] nodes:
-    #   for aws cloud, nodes: { 'tag' => [public_dns_name, private_dns_name], 
+    #   for aws cloud, nodes: { 'tag' => [public_dns_name, private_dns_name],
     #                           'tag' => [public_dns_name, private_dns_name] }
     #   for rackspace, nodes: { 'tag(fqdn)' => [public_ip_address, private_ip_address] }
     def create_instances_on_count(tags)
@@ -353,7 +353,7 @@ module Ankus
     # @param [Hash] nodes_hash => hash containing info about instances (as returned by Cloud#create_instances)
     # @param [Boolean] delete_volumes => specifies whether to delete volumes attached to instances as well
     def delete_instances(nodes_hash, delete_volumes = false)
-      threads_pool = Ankus::ThreadPool.new(@thread_pool_size)
+      threads_pool = Util::ThreadPool.new(@thread_pool_size)
       if @parsed_hash[:cloud_platform] == 'aws'
         aws  = create_aws_connection
         conn = aws.create_connection
@@ -401,7 +401,7 @@ module Ankus
     #         if aws [Hash, Hash] parsed_hash, parsed_internal_ips => which can be used same as local install_mode
     def modify_cloud_config(parsed_hash, nodes)
       parsed_hash_internal_ips = Marshal.load(Marshal.dump(parsed_hash))
-     
+
       parsed_hash[:ssh_key]      =  if @provider == 'aws'
                                       File.expand_path('~/.ssh') + '/' + @credentials[:aws_key]
                                     elsif @provider == 'openstack'
@@ -498,7 +498,7 @@ module Ankus
         parsed_hash[:zookeeper_deploy][:quorum] = find_fqdn_for_tag(nodes, 'zookeeper')
       end
       if parsed_hash[:hbase_deploy] != 'disabled' or
-        parsed_hash[:kafka_deploy] != 'disabled' or 
+        parsed_hash[:kafka_deploy] != 'disabled' or
         parsed_hash[:storm_deploy] != 'disabled'
         unless parsed_hash.has_key? :zookeeper_deploy
           parsed_hash[:zookeeper_deploy][:quorum] = find_fqdn_for_tag(nodes, 'zookeeper')
@@ -508,7 +508,7 @@ module Ankus
       # If AWS, hash with internal ips should contain private_ip
       # If RackSpace, hash with internal ips should contain fqdn
 
-      parsed_hash_internal_ips[:ssh_key]  = 
+      parsed_hash_internal_ips[:ssh_key]  =
           if @provider == 'aws'
             File.expand_path('~/.ssh') + '/' + @credentials[:aws_key]
           elsif @provider == 'openstack'
@@ -522,7 +522,7 @@ module Ankus
         parsed_hash_internal_ips[:hadoop_deploy][:namenode] = find_internal_ip(nodes, 'namenode')
         if parsed_hash[:hadoop_deploy][:mapreduce] != 'disabled'
           parsed_hash_internal_ips[:hadoop_deploy][:mapreduce][:master] = find_internal_ip(nodes, 'jobtracker').first
-        end    
+        end
         if parsed_hash[:hadoop_deploy][:ha] == 'disabled'
           parsed_hash_internal_ips[:hadoop_deploy][:secondarynamenode] = find_internal_ip(nodes, 'secondarynamenode').first
         end
@@ -530,7 +530,7 @@ module Ankus
         if parsed_hash[:hadoop_deploy][:ha] == 'enabled'
           parsed_hash_internal_ips[:hadoop_deploy][:journal_quorum] = find_internal_ip(nodes, 'zookeeper')
         end
-        if parsed_hash[:hbase_deploy] != 'disabled'      
+        if parsed_hash[:hbase_deploy] != 'disabled'
           parsed_hash_internal_ips[:hbase_deploy][:master] = find_internal_ip(nodes, 'hbasemaster')
         end
         parsed_hash_internal_ips[:hadoop_deploy][:data_dirs] = parsed_hash[:hadoop_deploy][:data_dirs]
@@ -562,7 +562,7 @@ module Ankus
         parsed_hash_internal_ips[:zookeeper_deploy][:quorum] = find_internal_ip(nodes, 'zookeeper')
       end
       if parsed_hash[:hbase_deploy] != 'disabled' or
-        parsed_hash[:kafka_deploy] != 'disabled' or 
+        parsed_hash[:kafka_deploy] != 'disabled' or
         parsed_hash[:storm_deploy] != 'disabled'
         unless parsed_hash_internal_ips.has_key? :zookeeper_deploy
           parsed_hash_internal_ips[:zookeeper_deploy][:quorum] = find_internal_ip(nodes, 'zookeeper')
@@ -574,13 +574,13 @@ module Ankus
 
     # Create servers on aws using Ankus::Aws
     # @param [Hash] nodes => hash of nodes to create with their info as shown below
-    # @param [Hash] credentials: {  aws_access_id: '', aws_secret_key: '', aws_machine_type: 'm1.large', 
+    # @param [Hash] credentials: {  aws_access_id: '', aws_secret_key: '', aws_machine_type: 'm1.large',
     #                               aws_region: 'us-west-1', aws_key: 'ankus'}
     # @param [Integer] thread_pool_size => size of the thread pool
     # @return [Hash] modified ver of nodes
     def create_aws_instances(nodes, credentials, thread_pool_size)
       #defaults
-      threads_pool    = Ankus::ThreadPool.new(thread_pool_size)
+      threads_pool    = Util::ThreadPool.new(thread_pool_size)
       key             = credentials[:aws_key] || 'ankus'
       groups          = credentials[:aws_sec_groups] || %w(ankus)
       flavor_id       = credentials[:aws_machine_type] || 'm1.large'
@@ -656,27 +656,26 @@ module Ankus
               tempfile.write(partition_script)
               tempfile.close
               # wait for the server to be ssh'able
-              Ankus::SshUtils.wait_for_ssh(server_objects[tag].dns_name, ssh_user, ssh_key)
+              Util::SshUtils.wait_for_ssh(server_objects[tag].dns_name, ssh_user, ssh_key)
               # upload and execute the partition script on the remote machine
-              SshUtils.upload!(
+              Util::SshUtils.upload!(
                   tempfile.path,
                   '/tmp',
                   server_objects[tag].dns_name,
                   ssh_user,
                   ssh_key,
                   @log,
-                  22,
-                  @debug
+                  22
               )
-              output = Ankus::SshUtils.execute_ssh!(
-                  "chmod +x /tmp/#{File.basename(tempfile.path)} && sudo sh -c '/tmp/#{File.basename(tempfile.path)}" +
-                      " | tee /var/log/bootstrap_volumes.log'",
+              output = Util::SshUtils.execute_ssh!(
+                  "chmod +x /tmp/#{File.basename(tempfile.path)} && /tmp/#{File.basename(tempfile.path)} | tee /var/log/bootstrap_volumes.log",
                   server_objects[tag].dns_name,
                   ssh_user,
                   ssh_key,
                   @log,
                   22,
-                  false # we don't want output of formatting volumes to be printed in real time to stdout!!
+                  true,   # execute using sudo
+                  true    # this might take a while to complete
               )
               tempfile.unlink # delete the tempfile
               if @debug
@@ -690,7 +689,7 @@ module Ankus
               # if not waiting for mounting volumes, wait for instances to become sshable
               @log.debug "Waiting for instance '#{server_objects[tag].dns_name}' to become ssh'albe using " +
                              "username: '#{ssh_user}' and key: '#{ssh_key}'" if @debug
-              Ankus::SshUtils.wait_for_ssh(server_objects[tag].dns_name, ssh_user, ssh_key)
+              Util::SshUtils.wait_for_ssh(server_objects[tag].dns_name, ssh_user, ssh_key)
             end
           end
         end
@@ -707,7 +706,7 @@ module Ankus
     # @param [Integer] thread_pool_size => size of the thread pool
     # @return [Hash] modified variant of nodes with fqdn and private_ip
     def create_rackspace_instances(nodes, credentials, thread_pool_size)
-      threads_pool        = Ankus::ThreadPool.new(thread_pool_size)
+      threads_pool        = Util::ThreadPool.new(thread_pool_size)
       machine_type        = credentials[:rackspace_instance_type] || 4
       public_ssh_key_path = credentials[:rackspace_ssh_key] || '~/.ssh/id_rsa.pub'
       ssh_key_path        = File.split(public_ssh_key_path).first + '/' + File.basename(public_ssh_key_path, '.pub')
@@ -720,10 +719,10 @@ module Ankus
       @log.info 'Creating servers with fqdn: ' + "#{nodes.keys.join(',')}".blue + ' ...'
       @log.info 'Completed instantiating servers'
       nodes.each do |tag, info|
-        server_objects[tag] = rackspace.create_server!(conn, 
-                                  tag, 
-                                  public_ssh_key_path, 
-                                  machine_type, 
+        server_objects[tag] = rackspace.create_server!(conn,
+                                  tag,
+                                  public_ssh_key_path,
+                                  machine_type,
                                   info[:config][:os_type]
                               )
       end
@@ -770,12 +769,12 @@ module Ankus
               tempfile.write(partition_script)
               tempfile.close
               # wait for the server to be ssh'able
-              Ankus::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address,
+              Util::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address,
                                            ssh_user,
                                            File.expand_path(ssh_key_path)
               )
               # upload and execute the partition script on the remote machine
-              SshUtils.upload!(
+              Util::SshUtils.upload!(
                   tempfile.path,
                   '/tmp',
                   server_objects[tag].public_ip_address,
@@ -783,17 +782,17 @@ module Ankus
                   File.expand_path(ssh_key_path),
                   @log,
                   22,
-                  @debug
               )
-              output = Ankus::SshUtils.execute_ssh!(
-                  "chmod +x /tmp/#{File.basename(tempfile.path)} && sudo sh -c '/tmp/#{File.basename(tempfile.path)}" +
-                      " | tee /var/log/bootstrap_volumes.log'",
+              output = Util::SshUtils.execute_ssh!(
+                  "chmod +x /tmp/#{File.basename(tempfile.path)} && /tmp/#{File.basename(tempfile.path)} tee /var/log/bootstrap_volumes.log",
                   server_objects[tag].public_ip_address,
                   ssh_user,
                   File.expand_path(ssh_key_path),
                   @log,
                   22,
-                  false)
+                  true, # execute using sudo
+                  true  # long ruuning job
+                )
               tempfile.unlink # delete the tempfile
               if @debug
                 @log.debug "Stdout on #{server_objects[tag].public_ip_address}"
@@ -805,7 +804,7 @@ module Ankus
             else
               # if not mounting volumes; wait for instances to become available
               @log.debug "Waiting for instance #{server_objects[tag].public_ip_address} to become ssh'albe..." if @debug
-              Ankus::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address,
+              Util::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address,
                                            ssh_user,
                                            File.expand_path(ssh_key_path)
               )
@@ -825,7 +824,7 @@ module Ankus
     # @return [Hash] modified ver of nodes
     def create_openstack_instances(nodes, credentials, thread_pool_size)
       #defaults
-      threads_pool    = Ankus::ThreadPool.new(thread_pool_size)
+      threads_pool    = Util::ThreadPool.new(thread_pool_size)
       key             = credentials[:os_ssh_key] || 'ankus'
       groups          = credentials[:os_sec_groups] || %w(ankus)
       flavor_id       = credentials[:os_flavor]
@@ -905,9 +904,9 @@ module Ankus
               tempfile.write(partition_script)
               tempfile.close
               # wait for the server to be ssh'able
-              Ankus::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, ssh_user, ssh_key)
+              Util::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, ssh_user, ssh_key)
               # upload and execute the partition script on the remote machine
-              SshUtils.upload!(
+              Util::SshUtils.upload!(
                   tempfile.path,
                   '/tmp',
                   server_objects[tag].public_ip_address,
@@ -915,17 +914,16 @@ module Ankus
                   ssh_key,
                   @log,
                   22,
-                  @debug
               )
-              output = Ankus::SshUtils.execute_ssh!(
-                  "chmod +x /tmp/#{File.basename(tempfile.path)} && sudo sh -c '/tmp/#{File.basename(tempfile.path)}" +
-                      " | tee /var/log/bootstrap_volumes.log'",
+              output = Util::SshUtils.execute_ssh!(
+                  "chmod +x /tmp/#{File.basename(tempfile.path)} /tmp/#{File.basename(tempfile.path)} tee /var/log/bootstrap_volumes.log",
                   server_objects[tag].public_ip_address,
                   ssh_user,
                   ssh_key,
                   @log,
                   22,
-                  false # we don't want output of formatting volumes to be printed in real time to stdout!!
+                  true, # execute using sudo
+                  true  # long running job
               )
               tempfile.unlink # delete the tempfile
               if @debug
@@ -939,7 +937,7 @@ module Ankus
               # if not waiting for mounting volumes, wait for instances to become sshable
               @log.debug "Waiting for instance '#{server_objects[tag].public_ip_address}' to become ssh'albe using " +
                              "username: '#{ssh_user}' and key: '#{ssh_key}'" if @debug
-              Ankus::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, ssh_user, ssh_key)
+              Util::SshUtils.wait_for_ssh(server_objects[tag].public_ip_address, ssh_user, ssh_key)
             end
           end
         end

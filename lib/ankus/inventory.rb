@@ -26,7 +26,7 @@ module Ankus
       # Generates inventory (a mapping of puppet_server and puppet_client host_names), and writes out to @nodes_file
       # @param [String] nodes_file => path to nodes_file
       def generate!(nodes_file)
-        YamlUtils.write_yaml(create_nodes, nodes_file)
+        Util::YamlUtils.write_yaml(create_nodes, nodes_file)
       end
 
       # Generates inventory
@@ -50,9 +50,9 @@ module Ankus
       #   }
       # }
       def create_nodes
-        nodes_hash =  if File.exists?(NODES_FILE) && YamlUtils.parse_yaml(NODES_FILE).is_a?(Hash)
-                        YamlUtils.parse_yaml(NODES_FILE)
-                      else 
+        nodes_hash =  if File.exists?(NODES_FILE) && Util::YamlUtils.parse_yaml(NODES_FILE).is_a?(Hash)
+                        Util::YamlUtils.parse_yaml(NODES_FILE)
+                      else
                         Hash.new
                       end
         @config = @config.deep_symbolize
@@ -69,7 +69,7 @@ module Ankus
           end
           if @config[:hadoop_deploy][:hadoop_ha] == 'enabled' or @config[:hbase_deploy] != 'disabled'
             @config[:zookeeper_deploy][:quorum].each_with_index do |zk, i|
-              add_or_update_node(nodes_hash, zk, "zookeeper#{i+1}") 
+              add_or_update_node(nodes_hash, zk, "zookeeper#{i+1}")
             end
           end
           if @config[:hadoop_deploy][:mapreduce] != 'disabled'
@@ -80,12 +80,12 @@ module Ankus
           end
           if @config[:hbase_deploy] != 'disabled'
             @config[:hbase_deploy][:master].each_with_index do |hm, i|
-              add_or_update_node(nodes_hash, hm, "hbasemaster#{i+1}")   
+              add_or_update_node(nodes_hash, hm, "hbasemaster#{i+1}")
             end
           end
           @config[:worker_nodes].each_with_index do |hw, i|
             add_or_update_node(nodes_hash, hw, "slaves#{i+1}")
-          end          
+          end
         end
         # Cassandra
         if @config[:cassandra_deploy] != 'disabled'
@@ -107,8 +107,8 @@ module Ankus
         end
         if @config[:kafka_deploy] != 'disabled' or @config[:storm_deploy] != 'disabled'
           @config[:zookeeper_deploy][:quorum].each_with_index do |zk, i|
-            add_or_update_node(nodes_hash, zk, "zookeeper#{i+1}") 
-          end          
+            add_or_update_node(nodes_hash, zk, "zookeeper#{i+1}")
+          end
         end
         if @config[:solr_deploy] != 'disabled'
           @config[:solr_deploy][:nodes].each_with_index do |sn, i|
@@ -129,7 +129,7 @@ module Ankus
           :puppet_run_status => false,
           :last_run => '',
           :tags => tags
-        }        
+        }
       end #end create_node
 
       # Either creates a new node definition or if node already exists updates the node tag
@@ -145,7 +145,7 @@ module Ankus
           nodes[fqdn] = create_node(fqdn, [tag])
         end
         nodes
-      end      
+      end
 
       # Get the host configuration such as number of cores, amount of ram for given node
       def fetch_host_info(fqdn)
@@ -183,7 +183,7 @@ module Ankus
           @log.debug 'ENC data'
           pp enc_data
         end
-        YamlUtils.write_yaml(enc_data, @roles_file)
+        Util::YamlUtils.write_yaml(enc_data, @roles_file)
       end
 
       private
