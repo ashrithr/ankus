@@ -26,7 +26,7 @@ module Ankus
       # Generates inventory (a mapping of puppet_server and puppet_client host_names), and writes out to @nodes_file
       # @param [String] nodes_file => path to nodes_file
       def generate!(nodes_file)
-        YamlUtils.write_yaml(create_nodes, nodes_file)
+        Util::YamlUtils.write_yaml(create_nodes, nodes_file)
       end
 
       # Generates inventory
@@ -50,8 +50,8 @@ module Ankus
       #   }
       # }
       def create_nodes
-        nodes_hash =  if File.exists?(NODES_FILE) && YamlUtils.parse_yaml(NODES_FILE).is_a?(Hash)
-                        YamlUtils.parse_yaml(NODES_FILE)
+        nodes_hash =  if File.exists?(NODES_FILE) && Util::YamlUtils.parse_yaml(NODES_FILE).is_a?(Hash)
+                        Util::YamlUtils.parse_yaml(NODES_FILE)
                       else
                         Hash.new
                       end
@@ -183,7 +183,7 @@ module Ankus
           @log.debug 'ENC data'
           pp enc_data
         end
-        YamlUtils.write_yaml(enc_data, @roles_file)
+        Util::YamlUtils.write_yaml(enc_data, @roles_file)
       end
 
       private

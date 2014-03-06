@@ -71,9 +71,9 @@ module Ankus
           # but file does not exist
           if File.exist?(key_path) # file already exists, validate the fingerprint to be sure
             # check if ssh-keygen exists
-            _, _, s = ShellUtils.system_quietly('which ssh-keygen')
+            _, _, s = Util::ShellUtils.system_quietly('which ssh-keygen')
             if s.exitstatus == 0
-              out_key, _, _ = ShellUtils.system_quietly("ssh-keygen -y -f #{key_path}")
+              out_key, _, _ = Util::ShellUtils.system_quietly("ssh-keygen -y -f #{key_path}")
               remote_key = conn.key_pairs.get(key).public_key.match(/ssh-rsa ([^\s]+)/)[1]
               unless out_key.match(/ssh-rsa ([^\s]+)/)[1] == remote_key
                 @log.error "Key '#{key}' already exists on local system and it's fingerprint does not match with remote "\

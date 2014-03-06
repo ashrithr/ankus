@@ -1,5 +1,5 @@
 #!/usr/bin/env ruby
-
+# encoding: utf-8
 # Copyright 2013, Cloudwick, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,13 +18,18 @@
 
 require 'yaml'
 
-NODE          = ARGV[0]                         #fqdn of host passed by puppet
-@roles_file   = %q(/etc/puppet/enc/roles.yaml)  #file which contains nodes to roles mapping
-@default_hash = { :classes => [] }              #default hash to print if node does exist
-@enc_hash     = Hash.new                        #hash to store the final roles map of node
+# fqdn of host passed by puppet
+NODE          = ARGV[0]
+# file which contains nodes to roles mapping
+@roles_file   = %q(/etc/puppet/enc/roles.yaml)
+# default hash to print if node does exist
+@default_hash = { :classes => [] }
+# hash to store the final roles map of node
+@enc_hash     = {}
 
 if NODE.nil?
-  STDERR.puts '[Error]: argument node is required to generate classes hash for a specific node'
+  STDERR.puts '[Error]: argument node is required to generate classes hash ' \
+              'for a specific node'
   STDERR.puts "Usage: #{__FILE__} fqdn"
   exit 1
 end
@@ -34,7 +39,7 @@ unless NODE =~ /(^\S+)\.(\S+\.\S+)$/
   exit 0
 end
 
-#try to find file at another possible path if ROLES_FILE is empty
+# Try to find file at another possible path if ROLES_FILE is empty
 unless File.exists? @roles_file
   @roles_file = File.expand_path(File.dirname(__FILE__) + '/../data/roles.yaml')
 end
@@ -43,7 +48,7 @@ if File.exists? @roles_file
   @enc_hash['classes'] = @map[NODE]
   puts @enc_hash.to_yaml
 else
-  #mapping file was not generated run the parser to do so
+  # mapping file was not generated run the parser to do so
   STDERR.puts "[Error]: Cannot find the enc_data file at #{@roles_file}"
   exit 1
 end

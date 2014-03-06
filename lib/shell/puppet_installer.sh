@@ -106,7 +106,18 @@ function get_system_info () {
     os="Solaris"
     os_arch=`uname -p`
   elif [[ "$os" = "Linux" ]] ; then
-    if [[ -f /etc/lsb-release ]] ; then
+    if [[ -f /etc/redhat-release ]]; then
+      os_str=$( cat `ls /etc/*release | grep "redhat\|SuSE"` | head -1 | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } print $i; } }' | tr '[:upper:]' '[:lower:]' )
+      os_version=$( cat `ls /etc/*release | grep "redhat\|SuSE"` | head -1 | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } } }' | tr '[:upper:]' '[:lower:]')
+      if [[ $os_str =~ centos ]]; then
+        os="centos"
+      elif [[ $os_str =~ redhat ]]; then
+        os="redhat"
+      else
+        print_error "OS: $os_str is not yet supported, contanct support@cloudwicklabs.com"
+        exit 1
+      fi
+    elif [[ -f /etc/lsb-release ]] ; then
       os_str=$( lsb_release -sd | tr '[:upper:]' '[:lower:]' | tr '"' ' ' | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } print $i; } }' )
       os_version=$( lsb_release -sd | tr '[:upper:]' '[:lower:]' | tr '"' ' ' | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } } }')
       if [[ $os_str =~ ubuntu ]]; then
@@ -124,16 +135,8 @@ function get_system_info () {
         exit 1
       fi
     else
-      os_str=$( cat `ls /etc/*release | grep "redhat\|SuSE"` | head -1 | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } print $i; } }' | tr '[:upper:]' '[:lower:]' )
-      os_version=$( cat `ls /etc/*release | grep "redhat\|SuSE"` | head -1 | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } } }' | tr '[:upper:]' '[:lower:]')
-      if [[ $os_str =~ centos ]]; then
-        os="centos"
-      elif [[ $os_str =~ redhat ]]; then
-        os="redhat"
-      else
-        print_error "OS: $os_str is not yet supported, contanct support@cloudwicklabs.com"
-        exit 1
-      fi
+      print_error "OS: $os_str is not yet supported, contanct support@cloudwicklabs.com"
+      exit 1
     fi
     os=$( echo $os | sed -e "s/ *//g")
     os_arch=`uname -m`
@@ -292,31 +295,37 @@ function download_modules () {
     print_info "Puppet modules directory not found, creating"
     mkdir -p ${puppet_modules_path}
   fi
-  cd /etc/puppet
-  print_info "Downloading deployment modules ..."
-  with_backoff wget --no-check-certificate --quiet -O modules.tar.gz ${puppet_modules_download}
-  if [ $? -eq 0 ]; then
-    print_info "Sucessfully downloaded puppet modules from git"
-    print_info "Extracting modules ..."
-    execute "tar xzf modules.tar.gz"
-    if [ $? -eq 0 ]; then
-      mv ankus-modules*/* ${puppet_modules_path}
-      rm -f modules.tar.gz
-      rm -rf ankus-modules*
-    fi
+  execute "cd /etc/puppet"
+  if [[ $(ls -A /etc/puppet/modules/) ]]; then
+    print_info "Modules already exist, skipping downloading & extracting"
   else
-    print_error "Failed to download puppet modules from git, aborting!!!"
-    exit 2
+    print_info "Downloading deployment modules ..."
+    with_backoff wget --no-check-certificate --quiet -O modules.tar.gz ${puppet_modules_download}
+    if [ $? -eq 0 ]; then
+      print_info "Sucessfully downloaded puppet modules from git"
+      print_info "Extracting modules ..."
+      execute "tar xzf modules.tar.gz"
+      if [ $? -eq 0 ]; then
+        mv ankus-modules*/* ${puppet_modules_path}
+        rm -f modules.tar.gz
+        rm -rf ankus-modules*
+      fi
+    else
+      print_error "Failed to download puppet modules from git, aborting!!!"
+      exit 2
+    fi
   fi
 }
 
 function install_puppet_apt_module () {
   print_info "Installing puppetlabs apt module ..."
-  execute "puppet module install puppetlabs/apt"
-  if [[ $? -eq 0 ]]; then
-    print_info "Sucessfully installed puppetlabs apt module"
-  else
-    print_error "Failed to install puppetlabs apt module"
+  if [[ ! -d /etc/puppet/modules/apt ]]; then
+    execute "puppet module install puppetlabs/apt"
+    if [[ $? -eq 0 ]]; then
+      print_info "Sucessfully installed puppetlabs apt module"
+    else
+      print_error "Failed to install puppetlabs apt module"
+    fi
   fi
 }
 
