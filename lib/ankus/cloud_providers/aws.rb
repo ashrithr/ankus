@@ -433,8 +433,8 @@ module Ankus
             block_mappings.each do |bm|
               bm.each do |vol_info|
                 vol = conn.volumes.get(vol_info['volumeId'])
-                @log.info
-                  "Waiting for volume to detach from instance: #{dns_name}"
+                @log.info "Waiting for volume to detach from instance:" \
+                          " #{dns_name}"
                 vol.wait_for { vol.state == 'available' }
                 vol.destroy if vol_info['deleteOnTermination'] != 'true'
               end
