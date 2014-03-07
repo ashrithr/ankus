@@ -228,17 +228,6 @@ module Ankus
           if hadoop_install != 'disabled'
             # Namenode
             roles_hash[pc]['hadoop::namenode'] = nil if namenode.include? pc
-            # Zookeepers
-            if @config[:hadoop_deploy][:ha] == 'enabled' or @config[:hbase_deploy] != 'disabled' or
-                @config[:solr_deploy] != 'disabled' or @config[:kafka_deploy] != 'disabled' or
-                @config[:storm_deploy] != 'disabled'
-              zookeepers = @config[:zookeeper_deploy][:quorum]
-              # Convert zookeepers array into hash with id as zookeeper and value as its id
-              zookeepers_id_hash = Hash[zookeepers.map.each_with_index.to_a]
-              if zookeepers.include? pc
-                roles_hash[pc]['zookeeper::server'] = { 'myid' => zookeepers_id_hash[pc] }
-              end
-            end
             # Journal nodes
             if @config[:hadoop_deploy][:ha] == 'enabled'
               journal_nodes = @config[:hadoop_deploy][:journal_quorum]
@@ -289,6 +278,18 @@ module Ankus
           if @config[:log_aggregation] == 'enabled'
            roles_hash[pc]['utils::lumberjack_general'] = nil
           end
+          # Zookeepers
+          if (@config[:hadoop_deploy] != 'disabled' && @config[:hadoop_deploy][:ha] == 'enabled') or
+              @config[:hbase_deploy] != 'disabled' or
+              @config[:solr_deploy] != 'disabled' or @config[:kafka_deploy] != 'disabled' or
+              @config[:storm_deploy] != 'disabled'
+            zookeepers = @config[:zookeeper_deploy][:quorum]
+            # Convert zookeepers array into hash with id as zookeeper and value as its id
+            zookeepers_id_hash = Hash[zookeepers.map.each_with_index.to_a]
+            if zookeepers.include? pc
+              roles_hash[pc]['zookeeper::server'] = { 'myid' => zookeepers_id_hash[pc] }
+            end
+          end
           #cassandra
           if cassandra_install != 'disabled'
             roles_hash[pc]['cassandra'] = nil if cassandra_nodes.include? pc
@@ -303,6 +304,7 @@ module Ankus
           end
           if kafka_install != 'disabled'
             roles_hash[pc]['kafka::server'] = nil if kafka_brokers.include? pc
+            roles_hash[pc]['jmxtrans::kafka'] = nil if @config[:monitoring] == 'enabled'
           end
           if storm_install != 'disabled'
             roles_hash[pc]['storm::worker'] = nil if storm_supervisors.include? pc

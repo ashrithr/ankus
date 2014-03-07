@@ -891,7 +891,7 @@ module Ankus
             @errors_count += 1
           else
             zookeeper_quorum = zookeeper_deploy[:quorum_count]
-            if zookeeper_quorum.nil? or zookeeper_quorum.empty?
+            if zookeeper_quorum.nil?
               @log.error "Property 'quorum_count' of 'zookeeper_deploy' is required"
               @errors_count += 1
             else
@@ -1164,16 +1164,16 @@ module Ankus
             @log.error "Invalid value found for 'collocate', valid values are yes|no"
             @errors_count += 1
           end
-          if ! collocate
-            number_of_instances = kafka_deploy[:number_of_instances]
-            if number_of_instances.nil?
-              @log.error "'number_of_instances' is a required key for kafka_deploy if collocate is disabled"
-              @errors_count += 1
-            elsif ! number_of_instances.is_a? Numeric
-              @log.error "expecting numeric value for 'number_of_instances' in kafka_deploy hash"
-              @errors_count += 1
-            end
-          end
+          # if ! collocate
+          #   number_of_instances = kafka_deploy[:number_of_instances]
+          #   if number_of_instances.nil?
+          #     @log.error "'number_of_instances' is a required key for kafka_deploy if collocate is disabled"
+          #     @errors_count += 1
+          #   elsif ! number_of_instances.is_a? Numeric
+          #     @log.error "expecting numeric value for 'number_of_instances' in kafka_deploy hash"
+          #     @errors_count += 1
+          #   end
+          # end
           kafka_brokers_count = kafka_deploy[:number_of_brokers]
           if kafka_brokers_count.nil?
             @log.debug "'number_of_brokers' is not provided for kafka_deploy defaulting to 1"

@@ -500,7 +500,7 @@ module Ankus
       if parsed_hash[:hbase_deploy] != 'disabled' or
         parsed_hash[:kafka_deploy] != 'disabled' or
         parsed_hash[:storm_deploy] != 'disabled'
-        unless parsed_hash.has_key? :zookeeper_deploy
+        unless parsed_hash[:zookeeper_deploy].has_key? :quorum
           parsed_hash[:zookeeper_deploy][:quorum] = find_fqdn_for_tag(nodes, 'zookeeper')
         end
       end
@@ -564,7 +564,7 @@ module Ankus
       if parsed_hash[:hbase_deploy] != 'disabled' or
         parsed_hash[:kafka_deploy] != 'disabled' or
         parsed_hash[:storm_deploy] != 'disabled'
-        unless parsed_hash_internal_ips.has_key? :zookeeper_deploy
+        unless parsed_hash_internal_ips[:zookeeper_deploy].has_key? :quorum
           parsed_hash_internal_ips[:zookeeper_deploy][:quorum] = find_internal_ip(nodes, 'zookeeper')
         end
       end

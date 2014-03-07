@@ -1032,7 +1032,7 @@ module Ankus
             " with key:#{private_key}"
           Util::SshUtils.ssh_into_instance(host, username, private_key, 22)
         else
-          @logger.warn "No such role found: #{role}." \
+          @logger.warn "No such role found: #{options[:role]}." \
           " Available roles: #{roles_available}"
         end
       elsif options[:list_roles]

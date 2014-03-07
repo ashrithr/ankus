@@ -523,7 +523,7 @@ module Ankus
         #Kafka
         if kafka_install != 'disabled'
           puppet_parallel_run(
-            @parsed_hash[:kafka_deploy][:kafka_brokers],
+            @parsed_hash[:kafka_deploy][:brokers],
             puppet_run_cmd,
             'kafka_brokers',
             force)
@@ -532,7 +532,7 @@ module Ankus
         #Storm
         if storm_install != 'disabled'
           puppet_parallel_run(
-            @parsed_hash[:storm_deploy][:storm_supervisors],
+            @parsed_hash[:storm_deploy][:supervisors],
             puppet_run_cmd,
             'kafka_worker',
             force)
@@ -601,20 +601,23 @@ module Ankus
       # @param [String] role => role installing on remote client
       # @param [Boolean] force => specifies whether to run puppet even if puppet has run previously with out any errors
       def puppet_single_run(instance, puppet_run_cmd, role, force=false)
+        puppet_run ||= false
         if @mock
           puppet_run_status = @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status]
+          puppet_last_run   = @nodes[find_key_for_fqdn(@nodes, instance)][:last_run]
           if force || !puppet_run_status || puppet_run_status == 'failed'
             @log.info 'Initializing ' + "#{role}".blue + ' on ' + "#{instance} ".blue
             @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status] = 'success'
             @nodes[find_key_for_fqdn(@nodes, instance)][:last_run] = Time.now.to_i
           end
         else
-          @log.info 'Initializing ' + "#{role}".blue + ' on ' + "#{instance} ".blue
           #
           # run puppet only if the previous state it 'not_run(false)' or 'failed'
           #
           puppet_run_status = @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status]
           if force || !puppet_run_status || puppet_run_status == 'failed'
+            puppet_run = true
+            @log.info 'Initializing ' + "#{role}".blue + ' on ' + "#{instance} ".blue
             output = Util::SshUtils.execute_ssh!(
                 puppet_run_cmd,
                 instance,
@@ -637,8 +640,11 @@ module Ankus
               # TODO Rollback lock
               @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status] = 'failed'
             end
+            @log.info 'Completed puppet run on ' + "#{instance} ".blue
+          else
+            @log.info "Puppet run has already initialized on " + "#{role}".blue +
+                      ". To force run puppet use `--force` flag"
           end
-          @log.info 'Completed puppet run on ' + "#{instance} ".blue
         end
         Util::YamlUtils.write_yaml(@nodes, NODES_FILE) # Update nodes files with puppet run info
       end # Puppet.puppet_single_run
@@ -649,6 +655,7 @@ module Ankus
       # @param [String] role => role installing on remote client
       # @param [Boolean] force => specifies whether to run puppet even if puppet has run previosly with out any errors
       def puppet_parallel_run(instances_array, puppet_run_cmd, role, force=false)
+        puppet_run ||= false
         if @mock
           instances_array.each do |instance|
             puppet_run_status = @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status]
@@ -659,7 +666,6 @@ module Ankus
             end
           end
         else
-          @log.info 'Initializing ' + "#{role}".blue + ' on client(s) ' + "#{instances_array.join(',')} ".blue + ' ...'
           # initiate concurrent threads pool - to install puppet clients all agent puppet_clients
           ssh_connections = Util::ThreadPool.new(@parallel_connections)
           output = []
@@ -671,7 +677,10 @@ module Ankus
               ssh_connections.schedule do
                 # run puppet installer only if the previous puppet run 'failed' or ænot_run'
                 puppet_run_status = @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status]
+                puppet_last_run   = @nodes[find_key_for_fqdn(@nodes, instance)][:last_run]
                 if force || !puppet_run_status || puppet_run_status == 'failed'
+                  puppet_run = true
+                  @log.info 'Initializing ' + "#{role}".blue + ' on node ' + "#{instance} ".blue + ' ...'
                   output << Util::SshUtils.execute_ssh!(
                       puppet_run_cmd,
                       instance,
@@ -682,12 +691,15 @@ module Ankus
                       true,
                       true
                   )
+                else
+                  @log.info "Puppet run has already initialized on " + "#{role}".blue +
+                            ". To force run puppet use `--force` flag"
                 end # if
               end # ssh_connections.schedule
             end # each block
             ssh_connections.shutdown
           end
-          @log.debug "Time to run puppet on clients: #{time}" if @debug
+          @log.debug "Time to run puppet on clients: #{time}" if puppet_run
           output.each do |o|
             instance = o.keys[0]
             exit_status = o[instance][2].to_i
@@ -696,7 +708,7 @@ module Ankus
               @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status] = 'success'
               @nodes[find_key_for_fqdn(@nodes, instance)][:last_run] = Time.now.to_i
             else
-              @log.error "Puppet run failed on #{instance}!, " +
+              @log.error "Puppet run failed on #{instance}!, " \
                              "Try checking the log @ '/var/log/ankus/puppet_run.log' on #{instance}"
               @nodes[find_key_for_fqdn(@nodes, instance)][:puppet_run_status] = 'failed'
             end
@@ -711,7 +723,7 @@ module Ankus
               @log.error "Puppet run failed on #{instance}" unless o[instance][2].to_i == 0
             end
           end
-          @log.info 'Initializing ' + "#{role}".blue + ' on client(s) ' + "#{instances_array.join(',')} ".blue + '[DONE]'.cyan
+          @log.info 'Initializing ' + "#{role}".blue + ' on client(s) ' + "#{instances_array.join(',')} ".blue + '[DONE]'.cyan if puppet_run
 
         end
         Util::YamlUtils.write_yaml(@nodes, NODES_FILE)
