@@ -49,7 +49,7 @@ module Ankus
     desc 'parse', 'Parse the config file for errors'
     def parse
       @logger.info "Parsing config file '#{options[:config]}' ... "
-      parse_config options[:mock]
+      parse_config options
       @logger.info 'Parsing config file ... ' + '[OK]'.green
     end
 
@@ -108,6 +108,9 @@ module Ankus
     end
 
     desc 'ssh', 'SSH into instance'
+    long_desc <<-LONGDESC
+      `ssh` will open a ssh session to the instance specified using --role
+    LONGDESC
     method_option :role, :desc => 'role of the instance to ssh into'
     method_option :list_roles,
                   :desc => 'list available roles',
@@ -192,12 +195,12 @@ module Ankus
     # @param [TrueClass] debug whether to print verbose output during parsing
     #                    the configuration file
     # @return [Hash] configuration hash to work with
-    def parse_config(debug = false, mock = false)
+    def parse_config(options)
       @config = ConfigParser.new(
         options[:config],
         @logger,
-        # debug,
-        mock
+        options[:debug],
+        options[:mock]
       ).parse_config
     end
 
@@ -234,13 +237,13 @@ module Ankus
         @logger.info 'MOCKING deployment'.bold
       end
       if options[:run_only]
-        @logger.info 'Orchestrating puppet runs'
+        @logger.info 'Orchestrating puppet runs'.bold
       else
-        @logger.info 'Starting deployment'
+        @logger.info 'Initializing deployment'.bold
       end
       if @config.nil? or @config.empty?
         @logger.info 'Parsing config file ...'
-        parse_config options[:debug], options[:mock]
+        parse_config options
         @logger.info 'Parsing config file ... ' + '[OK]'.green
       end
 
@@ -384,13 +387,14 @@ module Ankus
       # => Crete puppet object used for installing, orchestrating puppet runs
       #    and also generating hiera and enc data.
       #
+      ssh_user, ssh_key = find_ssh_user_and_key(@config)
       puppet = Deploy::Puppet.new(
                 @nodes,                     # puppet nodes hash
-                @config[:ssh_key],          # ssh_key to use
+                ssh_key,                    # ssh_key to use
                 @config,                    # parsed config hash
                 @logger,                    # logger instance
                 options[:thread_pool_size], # number of threads to use
-                @config[:ssh_user],         # ssh_user
+                ssh_user,                   # ssh_user
                 options[:debug],            # enabled debug mode
                 options[:mock],             # enable mocking
                 hosts_file_path             # hostfile path if provided
@@ -476,7 +480,8 @@ module Ankus
 
     # Verify if there is any deployment being managed by ankus
     def check_if_deployment_exists
-      unless File.directory?(DATA_DIR) && Util::YamlUtils.parse_yaml(NODES_FILE).is_a?(Hash)
+      unless File.directory?(DATA_DIR) &&
+        Util::YamlUtils.parse_yaml(NODES_FILE).is_a?(Hash)
         @logger.error 'There is no deployed cluster being manager by ankus'
         abort
       end
@@ -493,7 +498,7 @@ module Ankus
         abort 'No cluster found to refresh'.red
       end
       if @config.nil? or @config.empty?
-        parse_config(options[:debug], options[:mock])
+        parse_config options
       end
       @logger.info 'Reloading Configurations ...'
       if @config[:install_mode] == 'cloud'
@@ -501,13 +506,14 @@ module Ankus
         @config, @config_with_internal_ips =
           cloud.modify_cloud_config(@config, @nodes)
       end
+      ssh_user, ssh_key = find_ssh_user_and_key(@config)
       puppet = Deploy::Puppet.new(
           @nodes,                       # puppet nodes hash
-          @config[:ssh_key],            # ssh_key to use
+          ssh_key,                      # ssh_key to use
           @config,                      # parsed config hash
           @logger,                      # logger instance
           options[:thread_pool_size],   # number of threads to use
-          @config[:ssh_user],           # ssh_user
+          ssh_user,                     # ssh_user
           options[:debug],              # enabled debug mode
           options[:mock],               # enable mocking
       )
