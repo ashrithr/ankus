@@ -29,23 +29,34 @@ module Ankus
       begin
         loaded_file = YAML.load_file(filename)
       rescue ArgumentError, Psych::SyntaxError
-        puts "Failed parsing config file: #{$!}"
+        raise Ankus::Errors::ParseError.new "Failed parsing config file: #{$!}"
       end
-      raise(Ankus::Errors::ParseError.new("\rInvalid Yaml Syntax".red)) if ! loaded_file.is_a? Hash
+      unless loaded_file.is_a? Hash
+        raise Ankus::Errors::ParseError.new "Invalid Yaml Syntax"
+      end
       new_sets = loaded_file.deep_symbolize
-      new_sets = new_sets[options[:env].to_sym] if options[:env] && new_sets[options[:env].to_sym]
+      if options[:env] && new_sets[options[:env].to_sym]
+        new_sets = new_sets[options[:env].to_sym]
+      end
       deep_merge!(@_settings, new_sets)
     end
 
     # Deep merging of hashes
     def deep_merge!(target, data)
-      merger = proc{|_, v1, v2| Hash === v1 && Hash === v2 ? v1.merge(v2, &merger) : v2 }
-      target.merge! data, &merger
+      merger = proc do |_, v1, v2|
+        Hash === v1 && Hash === v2 ? v1.merge(v2, &merger) : v2
+      end
+      target.merge!(data, &merger)
     end
 
-    # Magic happens here
+    # Handle missing keys as methods
     def method_missing(name, *args, &block)
-      @_settings[name.to_sym] || raise(Ankus::Errors::ParseError::NoKey, "unknown configuration key #{name}", caller)
+      @_settings[name.to_sym] ||
+        raise(
+          Ankus::Errors::ParseError::NoKey,
+          "unknown configuration key #{name}",
+          caller
+        )
     end
   end
 end

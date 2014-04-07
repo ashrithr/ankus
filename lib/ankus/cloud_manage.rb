@@ -402,14 +402,25 @@ module Ankus
     def modify_cloud_config(parsed_hash, nodes)
       parsed_hash_internal_ips = Marshal.load(Marshal.dump(parsed_hash))
 
-      parsed_hash[:ssh_key]      =  if @provider == 'aws'
-                                      File.expand_path('~/.ssh') + '/' + @credentials[:aws_key]
-                                    elsif @provider == 'openstack'
-                                      File.expand_path('~/.ssh') + '/' + @credentials[:os_ssh_key]
-                                    elsif @provider == 'rackspace'
-                                      File.split(File.expand_path(@credentials[:rackspace_ssh_key])).first + '/' +
-                                      File.basename(File.expand_path(@credentials[:rackspace_ssh_key]), '.pub')
-                                    end
+      parsed_hash[:ssh_key] =  if @provider == 'aws'
+                                 File.expand_path('~/.ssh') + '/' + @credentials[:aws_key]
+                               elsif @provider == 'openstack'
+                                 File.expand_path('~/.ssh') + '/' + @credentials[:os_ssh_key]
+                               elsif @provider == 'rackspace'
+                                 File.split(File.expand_path(@credentials[:rackspace_ssh_key])).first + '/' +
+                                 File.basename(File.expand_path(@credentials[:rackspace_ssh_key]), '.pub')
+                               end
+      parsed_hash[:ssh_user] = if @provider == 'openstack'
+                                  @credentials[:os_ssh_user]
+                               else
+                                 if parsed_hash[:cloud_os_type].downcase == 'centos'
+                                   'root'
+                                 elsif parsed_hash[:cloud_os_type].downcase == 'ubuntu' && parsed_hash[:cloud_os_type].downcase == 'aws'
+                                   'ubuntu'
+                                 else
+                                   'root'
+                                 end
+                               end
       parsed_hash[:controller] = find_fqdn_for_tag(nodes, 'controller').first
       if parsed_hash[:hadoop_deploy] != 'disabled'
         parsed_hash[:hadoop_deploy][:namenode] = find_fqdn_for_tag(nodes, 'namenode')
@@ -508,15 +519,8 @@ module Ankus
       # If AWS, hash with internal ips should contain private_ip
       # If RackSpace, hash with internal ips should contain fqdn
 
-      parsed_hash_internal_ips[:ssh_key]  =
-          if @provider == 'aws'
-            File.expand_path('~/.ssh') + '/' + @credentials[:aws_key]
-          elsif @provider == 'openstack'
-            File.expand_path('~/.ssh') + '/' + @credentials[:os_ssh_key]
-          elsif @provider == 'rackspace'
-            File.split(File.expand_path(@credentials[:rackspace_ssh_key])).first + '/' +
-            File.basename(File.expand_path(@credentials[:rackspace_ssh_key]), '.pub')
-          end
+      parsed_hash_internal_ips[:ssh_key] = parsed_hash[:ssh_key]
+      parsed_hash_internal_ips[:ssh_user] = parsed_hash[:ssh_user]
       parsed_hash_internal_ips[:controller] = find_internal_ip(nodes, 'controller').first
       if parsed_hash[:hadoop_deploy] != 'disabled'
         parsed_hash_internal_ips[:hadoop_deploy][:namenode] = find_internal_ip(nodes, 'namenode')
@@ -587,7 +591,11 @@ module Ankus
       aws             = create_aws_connection
       conn            = aws.create_connection
       ssh_key         = File.expand_path('~/.ssh') + "/#{key}"
-      ssh_user        = @parsed_hash[:ssh_user]
+      ssh_user        = if @parsed_hash[:cloud_os_type].downcase == 'centos'
+                          'root'
+                        elsif @parsed_hash[:cloud_os_type].downcase == 'ubuntu'
+                          'ubuntu'
+                        end
       server_objects  = {} # hash to store server object to tag mapping { tag => server_obj }
 
       if aws.valid_connection?(conn)
@@ -710,12 +718,19 @@ module Ankus
       machine_type        = credentials[:rackspace_instance_type] || 4
       public_ssh_key_path = credentials[:rackspace_ssh_key] || '~/.ssh/id_rsa.pub'
       ssh_key_path        = File.split(public_ssh_key_path).first + '/' + File.basename(public_ssh_key_path, '.pub')
-      ssh_user            = @parsed_hash[:ssh_user]
+      ssh_user            = @parsed_hash[:ssh_user] || 'root'
       rackspace           = create_rackspace_connection
       conn                = rackspace.create_connection
       server_objects      = {} # hash to store server object to tag mapping { tag => server_obj }
 
-      @log.debug "Using ssh_key #{ssh_key_path}" if @debug
+      if rackspace.valid_connection?(conn)
+        @log.debug 'Successfully authenticated with rackspace' if @debug
+      else
+        @log.error 'Failed connecting to rackspace'
+        abort
+      end
+
+      @log.debug "Using ssh_key #{ssh_key_path}"
       @log.info 'Creating servers with fqdn: ' + "#{nodes.keys.join(',')}".blue + ' ...'
       @log.info 'Completed instantiating servers'
       nodes.each do |tag, info|
@@ -835,11 +850,16 @@ module Ankus
       ssh_user        = @parsed_hash[:ssh_user]
       server_objects  = {} # hash to store server object to tag mapping { tag => server_obj }
 
-      if os.valid_connection?(conn)
-        @log.debug 'Successfully authenticated with openstack' if @debug
-      else
-        @log.error 'Failed connecting to aws'
-        abort
+      begin
+        unless openstack.valid_connection?(openstack.create_connection)
+          @log.error 'Failed establishing connection to openstack, check your credentials'
+        else
+          @log.debug "Sucessfully authnticated with openstack"
+        end
+      rescue Excon::Errors::Timeout
+        @log.error 'Cannot establish connection to openstack. Reason: ' + "#{$!.message} (#{$!.class})"
+        @log.error 'Please check the url is reachable'
+        exit 1
       end
 
       # Create key pairs and security groups

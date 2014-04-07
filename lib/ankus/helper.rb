@@ -56,7 +56,7 @@ module Ankus
     :solr_deploy,
     :kafka_deploy,
     :storm_deploy,
-    :zookeeper_deploy
+    # :zookeeper_deploy # should be a part of other deployments
   ]
 
   ANKUS_CONF_VALID_KEYS = [
@@ -66,6 +66,7 @@ module Ankus
     :aws_access_id,
     :aws_secret_key,
     :aws_machine_type,
+    :aws_sec_groups,
     :aws_region,
     :aws_key,
     :os_auth_url,
@@ -488,7 +489,7 @@ class Hash
     end
   end
 
-  # retunrs value for a key nested deep in the hash
+  # retunrs if a key is present in the nested hash
   def deep_find(key)
     if key?(key)
       true
@@ -496,6 +497,16 @@ class Hash
       self.values.inject(nil) do |memo, v|
         memo ||= v.deep_find(key) if v.respond_to?(:deep_find)
       end
+    end
+  end
+
+  # finds and returns a key in a nested hash
+  def deep_return(key, object=self, found=nil)
+    if object.respond_to?(:key?) && object.key?(key)
+      return object[key]
+    elsif object.is_a? Enumerable
+      object.find { |*a| found = deep_return(key, a.last) }
+      return found
     end
   end
 end

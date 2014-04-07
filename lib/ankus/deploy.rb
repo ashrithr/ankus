@@ -217,7 +217,7 @@ module Ankus
         hiera_hash.merge!(Util::YamlUtils.parse_yaml(HBASE_CONF))     if parsed_hash[:hbase_deploy] != 'disabled'
         hiera_hash.merge!(Util::YamlUtils.parse_yaml(CASSANDRA_CONF)) if parsed_hash[:cassandra_deploy] != 'disabled'
 
-        if parsed_hash[:hadoop_deploy] != 'disabled' or parsed_hash[:hbase_deploy] != 'disabled'
+        if parsed_hash[:hadoop_deploy] != 'disabled' || parsed_hash[:hbase_deploy] != 'disabled'
           #parse zookeeper ensemble
           if parsed_hash[:zookeeper_deploy] && parsed_hash[:zookeeper_deploy] != 'disabled'
             hiera_hash['zookeeper_ensemble'] = parsed_hash[:zookeeper_deploy][:quorum].map { |zk| zk += ":2181" }.join(",")
@@ -570,7 +570,7 @@ module Ankus
               end
             end
           else
-            puppet_single_run(@puppet_master, puppet_run_cmd, 'controller', force)
+            puppet_single_run(@puppet_master, puppet_run_cmd, 'controller', true)
           end
         end
       end # Puppet.run
