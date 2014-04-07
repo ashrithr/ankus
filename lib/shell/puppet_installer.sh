@@ -4,10 +4,10 @@
 # Description:: Script to install puppet server/client
 #               * puppetdb for stored configs
 #               * passenger for scaling puppet server
-#               * postgresql (dependency for puppetdb)
+#               * postgresql (dependency for puppetdb) - managed as puppet module
 #               * autosigning for puppet clients belonging to same domain
 # Supported OS:: CentOS, Redhat, Ubuntu
-# Version: 0.3
+# Version: 0.5
 #
 # Copyright 2013, Cloudwick, Inc.
 #
@@ -28,6 +28,7 @@
 ####
 puppet_modules_path="/etc/puppet/modules"
 puppet_modules_download="https://github.com/cloudwicklabs/ankus-modules/archive/v2.5.tar.gz"
+puppet_modules_root="https://github.com/cloudwicklabs/ankus-modules.git"
 debug="false"
 
 ### !!! DONT CHANGE BEYOND THIS POINT. DOING SO MAY BREAK THE SCRIPT !!!
@@ -300,26 +301,37 @@ function download_modules () {
     print_info "Modules already exist, skipping downloading & extracting"
   else
     print_info "Downloading deployment modules ..."
-    with_backoff wget --no-check-certificate --quiet -O modules.tar.gz ${puppet_modules_download}
-    if [ $? -eq 0 ]; then
-      print_info "Sucessfully downloaded puppet modules from git"
-      print_info "Extracting modules ..."
-      execute "tar xzf modules.tar.gz"
-      if [ $? -eq 0 ]; then
-        mv ankus-modules*/* ${puppet_modules_path}
-        rm -f modules.tar.gz
-        rm -rf ankus-modules*
+    if [[ "$use_git" = "true" ]]; then
+      execute "git clone -b ${git_branch} ${puppet_modules_root} ${puppet_modules_path}"
+      if [[ $? -ne 0 ]]; then
+        print_error "Failed cloning puppet modules, aborting!!!"
+        exit 2
+      else
+        # make sure we have the latest commits
+        execute "(cd ${puppet_modules_path} && git pull)"
       fi
     else
-      print_error "Failed to download puppet modules from git, aborting!!!"
-      exit 2
+      with_backoff wget --no-check-certificate --quiet -O modules.tar.gz ${puppet_modules_download}
+      if [ $? -eq 0 ]; then
+        print_info "Sucessfully downloaded puppet modules from git"
+        print_info "Extracting modules ..."
+        execute "tar xzf modules.tar.gz"
+        if [ $? -eq 0 ]; then
+          execute "mv ankus-modules*/* ${puppet_modules_path}"
+          execute "rm -f modules.tar.gz"
+          execute "rm -rf ankus-modules*"
+        fi
+      else
+        print_error "Failed to download puppet modules from git, aborting!!!"
+        exit 2
+      fi
     fi
   fi
 }
 
 function install_puppet_apt_module () {
-  print_info "Installing puppetlabs apt module ..."
   if [[ ! -d /etc/puppet/modules/apt ]]; then
+    print_info "Installing puppetlabs apt module ..."
     execute "puppet module install puppetlabs/apt"
     if [[ $? -eq 0 ]]; then
       print_info "Sucessfully installed puppetlabs apt module"
@@ -329,170 +341,43 @@ function install_puppet_apt_module () {
   fi
 }
 
+function install_puppet_postgres_module () {
+  if [[ ! -d /etc/puppet/modules/postgresql ]]; then
+    print_info "Installing puppetlabs postgres module ..."
+    execute "puppet module install puppetlabs/postgresql"
+    if [[ $? -eq 0 ]]; then
+      print_info "Sucessfully installed puppetlabs postgresql module"
+    else
+      print_error "Failed to install puppetlabs postgresql module"
+      exit 1
+    fi
+  fi
+}
+
 function create_log_dir () {
   local ankus_log_dir="/var/log/ankus"
-  if [ ! -d ${ankus_log_dir} ]; then
+  if [[ ! -d ${ankus_log_dir} ]]; then
     print_info "Creating ankus log directory structure"
     mkdir -p ${ankus_log_dir}
   fi
 }
 
-function check_if_postgres_is_installed () {
-  print_info "Checking to see if postgres is installed..."
-  case "$os" in
-    centos|redhat)
-      execute "rpm -q postgresql-server"
-      return $?
-      ;;
-    ubuntu)
-      execute "dpkg --list | grep postgresql"
-      return $?
-      ;;
-    *)
-      print_error "$os is not supported yet."
-      exit 1
-      ;;
-  esac
-}
-
-function install_postgres () {
-  check_if_postgres_is_installed
-  if [[ $? -eq 0 ]]; then
-    print_info "Package postgres is already installed. Skipping installation step."
-    return
-  fi
-  print_info "Installing postgres..."
-  case "$os" in
-    centos|redhat)
-      execute "$package_manager install -y postgresql postgresql-server postgresql-devel"
-      if [[ $? -ne 0 ]]; then
-        print_error "Failed installing postgresql-server, stopping."
-        exit 1
-      fi
-      print_info "Initalizing postgresql db..."
-      execute "service postgresql initdb"
-      ;;
-    ubuntu)
-      execute "$package_manager install -y postgresql libpq-dev"
-      if [[ $? -ne 0 ]]; then
-        print_error "Failed installing postgresql, stopping."
-        exit 1
-      fi
-      ;;
-    *)
-    print_error "$os is not yet supported"
-    exit 1
-  esac
-}
-
 function configure_postgres () {
-  local file_change="false"
-  print_info "Configuring postgres..."
-  case "$os" in
-    centos|redhat)
-      local psql_config="/var/lib/pgsql/data/pg_hba.conf"
-      local psql_data_conf="/var/lib/pgsql/data/postgresql.conf"
-      sed -e "s|local *all *postgres .*|local    all         postgres                   trust|g" \
-          -e "s|local *all *all .*|local    all         all                   trust|g" \
-          -e "s|host *all *all *127.0.0.1/32 .*|host    all         all        127.0.0.1/32           trust|g" \
-          -e "s|host *all *all *::1/128 .*|host    all         all        ::1/128           trust|g" \
-          -i $psql_config
-      execute "grep puppetdb $psql_config"
-      if [[ $? -ne 0 ]]; then
-        file_change="true"
-        echo 'host puppetdb puppetdb 0.0.0.0/0 trust' >> $psql_config
-      fi
-      execute "grep hive_metastore $psql_config"
-      if [[ $? -ne 0 ]]; then
-        file_change="true"
-        echo 'host hive_metastore hiveuser 0.0.0.0/0 trust' >> $psql_config
-      fi
-      execute "grep oozie $psql_config"
-      if [[ $? -ne 0 ]]; then
-        file_change="true"
-        echo 'host oozie oozie 0.0.0.0/0 trust' >> $psql_config
-      fi
-      execute "grep hue $psql_config"
-      if [[ $? -ne 0 ]]; then
-        file_change="true"
-        echo 'host hue hue 0.0.0.0/0 trust' >> $psql_config
-      fi
-      execute "grep \"listen_addresses = '0.0.0.0'\" $psql_data_conf"
-      if [[ $? -ne 0 ]]; then
-        file_change="true"
-        echo "listen_addresses = '0.0.0.0'" >> $psql_data_conf
-      fi
-      ;;
-    ubuntu)
-      local psql_config="/etc/postgresql/9.*/main/pg_hba.conf"
-      local psql_data_conf="/etc/postgresql/9.*/main/postgresql.conf"
-      sed -e "s|local *all *postgres .*|local    all         postgres                   trust|g" \
-          -e "s|local *all *all .*|local    all         all                   trust|g" \
-          -e "s|host *all *all *127.0.0.1/32 .*|host    all         all        127.0.0.1/32           trust|g" \
-          -e "s|host *all *all *::1/128 .*|host    all         all        ::1/128           trust|g" \
-          -i $psql_config
-      execute "grep puppetdb $psql_config"
-      if [[ $? -ne 0 ]]; then
-        file_change="true"
-        echo 'host  puppetdb  puppetdb  0.0.0.0/0   trust' >> $psql_config
-      fi
-      execute "grep hive_metastore $psql_config"
-      if [[ $? -ne 0 ]]; then
-        file_change="true"
-        echo 'host hive_metastore hiveuser 0.0.0.0/0 trust' >> $psql_config
-      fi
-      execute "grep oozie $psql_config"
-      if [[ $? -ne 0 ]]; then
-        file_change="true"
-        echo 'host oozie oozie 0.0.0.0/0 trust' >> $psql_config
-      fi
-      execute "grep hue $psql_config"
-      if [[ $? -ne 0 ]]; then
-        file_change="true"
-        echo 'host hue hue 0.0.0.0/0 trust' >> $psql_config
-      fi
-      execute "grep \"listen_addresses = '0.0.0.0'\" $psql_data_conf"
-      if [[ $? -ne 0 ]]; then
-        file_change="true"
-        echo "listen_addresses = '0.0.0.0'" >> $psql_data_conf
-      fi
-      ;;
-    *)
-    print_error "$os is not yet supported"
+  install_puppet_postgres_module
+  if [[ -d /etc/puppet/hieradata ]]; then
+    execute "grep 'postgresql_password:' /etc/puppet/hieradata/common.yaml"
+    if [[ $? -ne 0 ]]; then
+      echo "postgresql_password: ${postgresql_password}" > /etc/puppet/hieradata/common.yaml
+    fi
+  fi
+  execute "puppet apply --execute 'include utils::database' --detailed-exitcodes"
+  ret=$?
+  if [[ $ret -eq 4 ]] || [[ $ret -eq 6 ]]; then
+    print_error "Failed setting up postgres, aborting!"
     exit 1
-  esac
-  if [[ "$file_change" = "true" ]]; then
-    print_info "Restarting postgresql to reload config"
-    execute "service postgresql restart"
-  fi
-}
-
-function start_postgres () {
-  local service="postgresql"
-  local service_count=$(ps -ef | grep -v grep | grep postmaster | wc -l)
-  if [[ $service_count -gt 0 && "$force_restart" = "true" ]]; then
-    print_info "Restarting service $service..."
-    execute "service $service restart"
-  elif [[ $service_count -gt 0 ]]; then
-    print_info "Service $service is already running. Skipping start step."
   else
-    print_info "Starting service $service..."
-    execute "service $service start"
+    print_info "Sucessfully configured postgresql"
   fi
-}
-
-function configure_postgres_users () {
-  sudo -u postgres psql template1 <<END 1>>$stdout_log 2>>$stderr_log
-create user puppetdb with password '$postgresql_password';
-create database puppetdb with owner puppetdb;
-create user hiveuser with password 'hiveuser';
-create database hive_metastore with owner hiveuser;
-alter database hive_metastore SET standard_conforming_strings = off;
-create user oozie with password 'oozie';
-create database oozie with owner oozie;
-create user hue with password 'hue';
-create database hue with owner hue;
-END
 }
 
 function check_if_puppet_server_is_installed () {
@@ -540,6 +425,11 @@ function install_puppet_server () {
     print_error "$os is not yet supported"
     exit 1
   esac
+}
+
+function install_dependency_gems () {
+  execute "gem install json --no-ri --no-rdoc"
+  execute "gem install jsonpath --no-ri --no-rdoc"
 }
 
 function configure_puppet_server () {
@@ -634,6 +524,19 @@ function install_puppet_client () {
     print_error "Failed installing puppet, stopping."
     exit 1
   fi
+  print_info "Installing dependencies to build gems"
+  case "$os" in
+    centos|redhat)
+      execute "$package_manager -y install ruby-devel rubygems gcc-c++ make"
+      ;;
+    ubuntu)
+      execute "$package_manager -y install ruby1.8-dev rubygems build-essential"
+      ;;
+    *)
+      print_error "$os is not supported yet."
+      exit 1
+      ;;
+  esac
 }
 
 function configure_puppet_client () {
@@ -956,8 +859,8 @@ function start_puppetdb () {
 }
 
 function pause_till_puppetdb_starts () {
-  print_info "Waiting till puppetdb service starts up"
-  timeout 60s bash -c '
+  print_info "Pausing till puppetdb service starts up (timeout: 120s)..."
+  timeout 120s bash -c '
 while : ; do
  grep "Started SslSelectChannelConnector@" /var/log/puppetdb/puppetdb.log &>/dev/null && break
  sleep 1
@@ -985,6 +888,8 @@ declare postgresql_password
 declare puppet_server_hostname
 declare setup_puppet_cron_job
 declare wait_for_puppetdb
+declare use_git
+declare git_branch
 
 function usage () {
   script=$0
@@ -998,10 +903,13 @@ Syntax
 -p: install and configure passenger which runs puppet master as a rack application inside apache
 -a: set up auto signing for the same clients belonging to same domain
 -j: set up cron job for running puppet agent every 30 minutes
+-g: use git to deploy modules
 -w: wait till puppetdb starts
+-v: verbose mode
 -J: JVM Heap Size for puppetdb
 -P: postgresql password for puppetdb|postgres user
 -H: puppet server hostname (required for client setup)
+-C: optinally checkout specified git branch of deployments (default: master)
 -h: show help
 
 Examples:
@@ -1037,13 +945,19 @@ function check_variables () {
       postgresql_password="Change3E"
     fi
   fi
+  if [[ "$use_git" = "true" ]]; then
+    if [[ -z $git_branch ]]; then
+      print_warning "Git branch not specified falling back to 'master' branch"
+      git_branch="master"
+    fi
+  fi
 }
 
 function main () {
   trap "kill 0" SIGINT SIGTERM EXIT
 
   # parse command line options
-  while getopts J:P:H:scdpajwh opts
+  while getopts J:P:H:C:scdpajwgvh opts
   do
     case $opts in
       s)
@@ -1061,11 +975,17 @@ function main () {
       a)
         autosigning_enabled="true"
         ;;
+      g)
+        use_git="true"
+        ;;
       j)
         setup_puppet_cron_job="true"
         ;;
       w)
         wait_for_puppetdb="true"
+        ;;
+      v)
+        debug="true"
         ;;
       J)
         puppetdb_jvm_size=$OPTARG
@@ -1075,6 +995,9 @@ function main () {
         ;;
       H)
         puppet_server_hostname=$OPTARG
+        ;;
+      C)
+        git_branch=$OPTARG
         ;;
       h)
         usage
@@ -1099,6 +1022,8 @@ function main () {
       configure_autosign_certificates
     fi
     start_puppet_server
+    configure_hiera
+    download_modules
     if [[ "$passenger_setup" = "true" ]]; then
       stop_puppet_server
       install_passenger
@@ -1106,33 +1031,32 @@ function main () {
       check_passenger_status
     fi
     if [[ "$puppetdb_setup" = "true" ]]; then
-        install_postgres
-        configure_postgres
-        start_postgres
-        configure_postgres_users
-        install_puppetdb
-        configure_puppetdb
-        start_puppetdb
-        if [[ "$wait_for_puppetdb" = "true" ]]; then
-          pause_till_puppetdb_starts
-        fi
+      configure_postgres
+      install_puppetdb
+      configure_puppetdb
+      start_puppetdb
+      if [[ "$wait_for_puppetdb" = "true" ]]; then
+        pause_till_puppetdb_starts
+      fi
+    else
+      install_puppet_apt_module
     fi
     test_puppet_run
-    download_modules
-    install_puppet_apt_module
-    configure_hiera
     configure_enc
     if [[ "$passenger_setup" = "true" ]]; then
+      stop_puppet_server
       restart_apache
     else
       execute "service puppetmaster restart"
     fi
+    install_dependency_gems
   elif [[ "$puppet_client_setup" = "true" ]]; then
     install_puppet_client
     configure_puppet_client
     if [[ "$setup_puppet_cron_job" = "true" ]]; then
       start_puppet_client
     fi
+    install_dependency_gems
   else
     print_error "Invalid script options, should wither pass -s or -c option"
     usage
