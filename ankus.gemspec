@@ -8,10 +8,11 @@ Gem::Specification.new do |spec|
   spec.version       = Ankus::VERSION
   spec.authors       = ['ashrith']
   spec.email         = ['ashrith@cloudwick.com']
-  spec.summary       = %q{Ankus is a deployment & orchestration tool for big-data frameworks in cloud and on premise}
+  spec.summary       = %q{Ankus is a deployment & orchestration tool for
+                          big-data frameworks in cloud and on-premise}
   spec.description   = "#{spec.summary}"
   spec.homepage      = 'https://github.com/ashrithr/ankus'
-  spec.license       = 'MIT'
+  spec.license       = 'Apache 2.0'
 
   spec.files         = `git ls-files`.split($/)
   spec.executables   = spec.files.grep(%r{^bin/}) { |f| File.basename(f) }
@@ -29,6 +30,6 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'highline'
   spec.add_runtime_dependency 'colored'
   spec.add_runtime_dependency 'net-ssh'
-  spec.add_runtime_dependency 'passenger', '3.0.18'
+  # spec.add_runtime_dependency 'passenger', '3.0.18'
   spec.add_runtime_dependency 'google-api-client'
 end
