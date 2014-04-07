@@ -48,4 +48,5 @@ rescue Interrupt
 rescue ArgumentError => ex
   system('stty', stty_save)
   puts "Cannot recognize the argument passed, #{ex.message}"
+  ex.backtrace.each { |line| puts "\t#{line}" }
 end
