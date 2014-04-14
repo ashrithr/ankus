@@ -246,7 +246,7 @@ kafka_deploy: 'disabled'
 # ===============DEPLOYMENT SCENARIO 1==================
 #                   TO DEPLOY STORM
 # ======================================================
-#kafka_deploy:
+#storm_deploy:
 # number_of_supervisors: 5
 # workers_count: 8
 #
