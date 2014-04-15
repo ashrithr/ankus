@@ -61,6 +61,9 @@ module Ankus
 
   ANKUS_CONF_VALID_KEYS = [
     :install_mode,
+    :controller,
+    :ssh_key,
+    :ssh_user,
     :cloud_platform,
     :cloud_credentials,
     :aws_access_id,
@@ -118,6 +121,7 @@ module Ankus
     :collocate,
     :number_of_instances,
     :number_of_seeds,
+    :seeds,
     :kafka_deploy,
     :number_of_brokers,
     :storm_deploy,

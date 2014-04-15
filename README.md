@@ -47,7 +47,7 @@ To install ruby 1.9.3 and other dependencies on supported platforms follow these
   yum -y install git gcc ruby-devel libxml2 libxml2-devel libxslt libxslt-devel make curl
   curl -L get.rvm.io | bash -s stable
   source /etc/profile.d/rvm.sh
-  #source ~/.rvm/scripts/rvm || source /usr/local/rvm/scripts/rvm
+  source ~/.rvm/scripts/rvm || source /usr/local/rvm/scripts/rvm
   rvm requirements --verify-downloads 1
   rvm install 1.9.3
   rvm use 1.9.3 --default
@@ -60,7 +60,7 @@ To install ruby 1.9.3 and other dependencies on supported platforms follow these
 	apt-get install -y build-essential libxml2-dev libxslt1-dev libreadline-dev zlib1g-dev git curl
 	curl -L get.rvm.io | bash -s stable
 	source /etc/profile.d/rvm.sh
-	#source ~/.rvm/scripts/rvm || source /usr/local/rvm/scripts/rvm
+	source ~/.rvm/scripts/rvm || source /usr/local/rvm/scripts/rvm
 	rvm requirements --verify-downloads 1
 	rvm install 1.9.3
 	rvm use 1.9.3 --default

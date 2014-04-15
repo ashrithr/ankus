@@ -165,8 +165,8 @@ module Ankus
       @log.debug 'Initializing local mode validator'
 
       requires :controller, :string
-      requires :ssh_key, :string
-      requires :ssh_user, :string do |k, v|
+      requires :ssh_user, :string
+      requires :ssh_key, :string do |k, v|
         unless File.exists?(File.expand_path(v))
           config_logger "Path specified in property '#{k}': #{v} does not exists"
         end

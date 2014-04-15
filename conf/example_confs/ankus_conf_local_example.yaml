@@ -8,8 +8,8 @@ install_mode: 'local'
 # SSH Configuration
 ########################################################
 # * ssh_key : root users ssh private key to log into machines
-# * ssh_user: username used to log into machines, change this if the user is 
-#             not 'root', ssh_user should have password less sudo privileges 
+# * ssh_user: username used to log into machines, change this if the user is
+#             not 'root', ssh_user should have password less sudo privileges
 #             (you can make a user password-less sudo by adding the user to
 #              /etc/sudoers file like this  `ssh_user  ALL=(ALL) NOPASSWD:ALL`)
 ########################################################
@@ -19,8 +19,8 @@ ssh_user: 'root'                 #<<<<<<<<<<<<<< UPDATE THIS
 ########################################################
 # Controller
 ########################################################
-# * controller: fqdn of the server which will host 
-#               - puppet master 
+# * controller: fqdn of the server which will host
+#               - puppet master
 #               - kerberos server (if security is enabled)
 #               - nagios server (if alerting is enabled)
 #               - ganglia server (if monitoring is enabled)
@@ -44,25 +44,25 @@ controller: 'controller.ops.cw.com'
 #       if hadoop_ha is enabled, pass in two fqdn(s)
 #       if hadoop_ha is disabled, pass in one fqdn
 #   * secondarynamenode:
-#       if hadoop_ha is disabled pass in a fqdn in which secondarynamenode is 
+#       if hadoop_ha is disabled pass in a fqdn in which secondarynamenode is
 #       configured
 #   * journal_quorum:
-#       if hadoop_ha is enabled|auto, pass in odd number of fqdn(s). Journal 
+#       if hadoop_ha is enabled|auto, pass in odd number of fqdn(s). Journal
 #       nodes are used to store metadata in high availability configuration
-#   * mapreduce: mapreduce specific configuration, specifies whether to deploy 
+#   * mapreduce: mapreduce specific configuration, specifies whether to deploy
 #                mapreduce framework or not
 #       * type: specifies mapreduce framework type to deploy (mr1 or mr2)
 #       * master: fqdn of machine on which mapreduce master will be deployed
 #   * ecosystem: list of ecosystem tools to deploy
-#       hive  - installs and configures hive, which is data warehouse system for 
+#       hive  - installs and configures hive, which is data warehouse system for
 #               Hadoop (http://hive.apache.org/)
-#       pig   - installs and configures pig, is a platform for analyzing large 
+#       pig   - installs and configures pig, is a platform for analyzing large
 #               data sets (http://pig.apache.org/)
-#       sqoop - installs and configures sqoop, is a tool designed for 
+#       sqoop - installs and configures sqoop, is a tool designed for
 #               efficiently transferring bulk data between hadoop & rdbms & mpp
 #               (http://sqoop.apache.org/)
 #       oozie - installs and configures oozie, is a workflow scheduler system to
-#               manage Apache Hadoop jobs 
+#               manage Apache Hadoop jobs
 #               (http://oozie.apache.org/)
 #       hue   - installs and configures hue, the open source Apache Hadoop UI
 #               (http://cloudera.github.io/hue/)
@@ -289,11 +289,11 @@ security: 'simple'
 #                       (default: /var/lib/cassandra/commitlog)
 #   saved_caches_dirs : mount points for saved caches directories
 #                       (default: /var/lib/cassandra/saved_caches)
-# (NOTE: cassandra_nodes and hadoop_slave_nodes can co-exist if willing to 
+# (NOTE: cassandra_nodes and hadoop_slave_nodes can co-exist if willing to
 #        sacrifice performance)
 #
 # ===============DEPLOYMENT SCENARIO 1==================
-#                 TO DEPLOY CASSANDRA 
+#                 TO DEPLOY CASSANDRA
 # ======================================================
 # cassandra_deploy:
 #   nodes:
