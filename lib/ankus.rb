@@ -12,6 +12,7 @@ begin
   require 'multi_json'
   require 'fog'
   require 'colored'
+  require 'awesome_print'
   require 'highline/import'
 rescue LoadError
   require 'rubygems'
