@@ -30,6 +30,7 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'highline'
   spec.add_runtime_dependency 'colored'
   spec.add_runtime_dependency 'net-ssh'
+  spec.add_runtime_dependency 'awesome_print'
   # spec.add_runtime_dependency 'passenger', '3.0.18'
   spec.add_runtime_dependency 'google-api-client'
 end

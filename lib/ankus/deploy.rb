@@ -327,7 +327,7 @@ module Ankus
         Util::YamlUtils.write_yaml(hiera_hash, HIERA_DATA_FILE)
         if @mock
           @log.debug 'Hiera data'
-          pp hiera_hash
+          ap hiera_hash
         else
           Util::SshUtils.upload!(HIERA_DATA_FILE, '/tmp', @puppet_master, @ssh_user, @ssh_key, @log, 22)
           Util::SshUtils.execute_ssh!(

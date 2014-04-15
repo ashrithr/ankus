@@ -58,7 +58,7 @@ module Ankus
         @config = @config.deep_symbolize
         # Controller
         if @config[:controller] == 'localhost'
-          add_or_update_node(nodes_hash, `hostname --fqdn`, 'controller')
+          add_or_update_node(nodes_hash, `hostname --fqdn`.strip, 'controller')
         else
           add_or_update_node(nodes_hash, @config[:controller], 'controller')
         end
@@ -181,7 +181,7 @@ module Ankus
         enc_data =create_enc_roles
         if @mock
           @log.debug 'ENC data'
-          pp enc_data
+          ap enc_data
         end
         Util::YamlUtils.write_yaml(enc_data, @roles_file)
       end

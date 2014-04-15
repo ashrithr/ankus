@@ -317,7 +317,7 @@ module Ankus
           Util::YamlUtils.write_yaml(nodes, NODES_FILE)
           if options[:mock] and options[:debug] # mocking
             @logger.debug 'Nodes Hash'.blue
-            pp Util::YamlUtils.parse_yaml(NODES_FILE)
+            ap Util::YamlUtils.parse_yaml(NODES_FILE)
             puts
           end
           #
