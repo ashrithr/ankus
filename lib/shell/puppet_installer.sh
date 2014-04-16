@@ -636,7 +636,8 @@ function configure_passenger () {
   case "$os" in
     centos|redhat)
       passenger_conf="/etc/httpd/conf.d/puppet.conf"
-      ruby_path="/usr/lib/ruby"
+      ruby_path=$(/usr/bin/gem environment gemdir)
+      # ruby_path="/usr/lib/ruby"
       ruby_exec="/usr/bin/ruby"
       ;;
     ubuntu)
@@ -666,8 +667,8 @@ RailsAutoDetect Off
 Listen 8140
 
 <VirtualHost *:8140>
-        LoadModule passenger_module ${ruby_path}/gems/1.8/gems/passenger-3.0.18/ext/apache2/mod_passenger.so
-        PassengerRoot ${ruby_path}/gems/1.8/gems/passenger-3.0.18
+        LoadModule passenger_module ${ruby_path}/gems/passenger-3.0.18/ext/apache2/mod_passenger.so
+        PassengerRoot ${ruby_path}/gems/passenger-3.0.18
         PassengerRuby ${ruby_exec}
         LoadModule ssl_module modules/mod_ssl.so
 
