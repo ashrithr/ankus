@@ -428,8 +428,8 @@ function install_puppet_server () {
 }
 
 function install_dependency_gems () {
-  execute "gem install json --no-ri --no-rdoc"
-  execute "gem install jsonpath --no-ri --no-rdoc"
+  execute "/usr/bin/gem install json --no-ri --no-rdoc"
+  execute "/usr/bin/gem install jsonpath --no-ri --no-rdoc"
 }
 
 function configure_puppet_server () {
@@ -561,7 +561,7 @@ function start_puppet_client () {
 
 function check_if_passenger_is_installed () {
   print_info "Checking if passenger is already installed..."
-  execute "gem list | grep passenger"
+  execute "/usr/bin/gem list | grep passenger"
   return $?
 }
 
@@ -608,8 +608,8 @@ function install_passenger () {
     return
   fi
   install_dependencies_for_passenger
-  execute "gem install --no-rdoc --no-ri rack"
-  execute "gem install --no-rdoc --no-ri passenger --version=3.0.18"
+  execute "/usr/bin/gem install --no-rdoc --no-ri rack"
+  execute "/usr/bin/gem install --no-rdoc --no-ri passenger --version=3.0.18"
   if [[ $? -ne 0 ]]; then
     print_error "Failed installing passenger gem, stopping."
     exit 1

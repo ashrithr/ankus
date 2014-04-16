@@ -119,7 +119,7 @@ module Ankus
             # and install puppet
             if @parsed_hash[:controller] == 'localhost'
               status = Util::ShellUtils.run_cmd_with_log!(
-                  "chmod +x #{PUPPET_INSTALLER} && #{PUPPET_INSTALLER} -s",
+                  "chmod +x #{PUPPET_INSTALLER} && #{PUPPET_INSTALLER} -s -d -p -a -w",
                   "#{REMOTE_LOG_DIR}/install.log"
               )
               unless status.success?
