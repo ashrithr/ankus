@@ -617,10 +617,10 @@ function install_passenger () {
   print_info "Setting up passenger as apache module, this might take a while..."
   case "$os" in
     centos|redhat)
-      execute "/usr/bin/passenger-install-apache2-module -a"
+      execute "passenger-install-apache2-module -a"
       ;;
     ubuntu)
-      execute "/usr/local/bin/passenger-install-apache2-module -a"
+      execute "passenger-install-apache2-module -a"
       ;;
   esac
 }
