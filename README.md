@@ -28,9 +28,19 @@ Ankus is a big-data deployment & orchestration tool. Handles the installation & 
  - Secure Hadoop & HBase cluster deployments (using kerberos)
  - Cassandra, Storm & Kafka deployments
 
+###Ankus Architecture
+
 ---
 
 ![Ankus Architecture](images/ankus_arch.png)
+
+---
+
+###Ankus Internal Components
+
+---
+
+![Ankus Components](images/ankus_components.png)
 
 ---
 
