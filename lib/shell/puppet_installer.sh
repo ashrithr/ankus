@@ -642,7 +642,8 @@ function configure_passenger () {
       ;;
     ubuntu)
       passenger_conf="/etc/apache2/sites-available/puppetmasterd"
-      ruby_path="/var/lib"
+      ruby_path=$(/usr/bin/gem environment gemdir)
+      # ruby_path="/var/lib"
       ruby_exec="/usr/bin/ruby1.8"
       ;;
   esac
