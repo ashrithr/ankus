@@ -7,7 +7,7 @@
 #               * postgresql (dependency for puppetdb) - managed as puppet module
 #               * autosigning for puppet clients belonging to same domain
 # Supported OS:: CentOS, Redhat, Ubuntu
-# Version: 0.5
+# Version: 0.7
 #
 # Copyright 2013, Cloudwick, Inc.
 #
@@ -29,6 +29,7 @@
 puppet_modules_path="/etc/puppet/modules"
 puppet_modules_download="https://github.com/cloudwicklabs/ankus-modules/archive/v2.5.tar.gz"
 puppet_modules_root="https://github.com/cloudwicklabs/ankus-modules.git"
+passenger_version="4.0.42"
 debug="false"
 
 ### !!! DONT CHANGE BEYOND THIS POINT. DOING SO MAY BREAK THE SCRIPT !!!
@@ -102,71 +103,59 @@ function check_for_root () {
 function get_system_info () {
   print_info "Collecting system configuration..."
 
-  os=`uname -s`
-  if [[ "$os" = "SunOS" ]] ; then
-    os="Solaris"
-    os_arch=`uname -p`
-  elif [[ "$os" = "Linux" ]] ; then
-    if [[ -f /etc/redhat-release ]]; then
-      os_str=$( cat `ls /etc/*release | grep "redhat\|SuSE"` | head -1 | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } print $i; } }' | tr '[:upper:]' '[:lower:]' )
-      os_version=$( cat `ls /etc/*release | grep "redhat\|SuSE"` | head -1 | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } } }' | tr '[:upper:]' '[:lower:]')
-      if [[ $os_str =~ centos ]]; then
-        os="centos"
-      elif [[ $os_str =~ redhat ]]; then
-        os="redhat"
-      else
-        print_error "OS: $os_str is not yet supported, contanct support@cloudwicklabs.com"
-        exit 1
-      fi
-    elif [[ -f /etc/lsb-release ]] ; then
-      os_str=$( lsb_release -sd | tr '[:upper:]' '[:lower:]' | tr '"' ' ' | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } print $i; } }' )
-      os_version=$( lsb_release -sd | tr '[:upper:]' '[:lower:]' | tr '"' ' ' | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } } }')
-      if [[ $os_str =~ ubuntu ]]; then
-        os="ubuntu"
-        if grep -q precise /etc/lsb-release; then
-          os_codename="precise"
-        elif grep -q lucid /etc/lsb-release; then
-          os_codename="lucid"
-        else
-          print_error "Sorry, only precise & lucid systems are supported by this script. Exiting."
-          exit 1
-        fi
-      else
-        print_error "OS: $os_str is not yet supported, contanct support@cloudwicklabs.com"
-        exit 1
-      fi
+  execute "test -f /etc/lsb-release && grep -i 'ubuntu' /etc/lsb-release"
+  if [[ $? -eq 0 ]]; then
+    os="ubuntu"
+    os_codename="$(cat /etc/lsb-release | tr = \ | awk '/CODENAME/ { print $2 }')"
+    if [[ -z $os_codename ]]; then
+      print_error "Could not determine $operating_system codename/version. Stopping."
+      exit 2
+    fi
+    os_version="$(cat /etc/lsb-release | tr = \ | awk '/DISTRIB_RELEASE/ { print $2 }')"
+    if [[ -z $os_version ]]; then
+      print_error "Cannot determine the os version."
+    fi
+  elif [[ -f /etc/redhat-release ]]; then
+    if [[ -f /etc/oracle-release ]]; then
+      os="oracle"
+    elif [[ -f /etc/centos-release ]]; then
+      os="centos"
     else
-      print_error "OS: $os_str is not yet supported, contanct support@cloudwicklabs.com"
-      exit 1
+      os="redhat"
     fi
-    os=$( echo $os | sed -e "s/ *//g")
-    os_arch=`uname -m`
-    if [[ "xi686" == "x${os_arch}" || "xi386" == "x${os_arch}" ]]; then
-      os_arch="i386"
+    os_version="$(cat /etc/${os}-release | grep -i "\<[0-9]\.[0-9]" | tr -d [:alpha:],[=\(=],[=\)],[:blank:])"
+    if [[ -z $os_version ]]; then
+      print_error "Could not determine $os version. Stopping."
+      exit 2
     fi
-    if [[ "xx86_64" == "x${os_arch}" || "xamd64" == "x${os_arch}" ]]; then
-      os_arch="x86_64"
-    fi
-  elif [[ "$os" = "Darwin" ]]; then
-    type -p sw_vers &>/dev/null
-    [[ $? -eq 0 ]] && {
-      os="macosx"
-      os_version=`sw_vers | grep 'ProductVersion' | cut -f 2`
-    } || {
-      os="macosx"
-    }
+  elif [[ -f /etc/system-release ]]; then
+    os="amazon"
+  else
+    print_error "Unsupported package manager. Please contact support@cloudwicklabs.com."
+    exit 2
   fi
 
+  # Get system arch
+  os_arch=`uname -m`
+  if [[ "xi686" == "x${os_arch}" || "xi386" == "x${os_arch}" ]]; then
+    os_arch="i386"
+  fi
+  if [[ "xx86_64" == "x${os_arch}" || "xamd64" == "x${os_arch}" ]]; then
+    os_arch="x86_64"
+  fi
+
+  print_info "OS: ${os}, Version: ${os_version}, Arch: ${os_arch}"
+
+  # Decide package manager to use
   if [[ $os =~ centos || $os =~ redhat ]]; then
     package_manager="yum"
   elif [[ $os =~ ubuntu ]]; then
     package_manager="apt-get"
-  elif [[ $os =~ macosx ]]; then
-    package_manager="brew"
   else
     print_error "Unsupported package manager. Please contact support@cloudwicklabs.com."
     exit 1
   fi
+  return 0
 }
 
 ####
@@ -193,12 +182,20 @@ function add_epel_repo () {
   execute "ls -la /etc/yum.repos.d/*epel*"
   if [[ $? -ne 0 ]]; then
     print_info "Adding the EPEL repository to yum configuration..."
-    if [[ $os_version -eq 5 ]]; then
+    if [[ $os_version =~ 5.[0-9] ]]; then
       execute "curl -o epel.rpm -L http://download.fedoraproject.org/pub/epel/5/$os_arch/epel-release-5-4.noarch.rpm"
+      if [[ $? -ne 0 ]]; then
+        print_error "Failed downloading epel repo, make sure you have network connectivity"
+        exit 1
+      fi
       execute "rpm -i epel.rpm"
       execute "rm -f epel.rpm"
-    elif [[ $os_version -eq 6 ]]; then
+    elif [[ $os_version =~ 6.[0-9] ]]; then
       execute "curl -o epel.rpm -L http://download.fedoraproject.org/pub/epel/6/$os_arch/epel-release-6-8.noarch.rpm"
+      if [[ $? -ne 0 ]]; then
+        print_error "Failed downloading epel repo, make sure you have network connectivity"
+        exit 1
+      fi
       execute "rpm -i epel.rpm"
       execute "rm -f epel.rpm"
     fi
@@ -211,9 +208,9 @@ function add_puppetlabs_repo () {
       add_epel_repo
       if [[ ! -f /etc/yum.repos.d/puppetlabs.repo ]]; then
         print_info "Adding puppetlabs repo to yum repositories list..."
-        if [[ $os_version -eq 5 ]]; then
+        if [[ $os_version =~ 5.[0-9] ]]; then
           execute "rpm -i http://yum.puppetlabs.com/el/5/products/$os_arch/puppetlabs-release-5-7.noarch.rpm"
-        elif [[ $os_version -eq 6 ]]; then
+        elif [[ $os_version =~ 6.[0-9] ]]; then
           execute "rpm -i http://yum.puppetlabs.com/el/6/products/$os_arch/puppetlabs-release-6-7.noarch.rpm"
         fi
         sed -i 's/gpgcheck=1/gpgcheck=0/g' /etc/yum.repos.d/puppetlabs.repo
@@ -241,6 +238,7 @@ function stop_iptables () {
     centos|redhat)
       print_info "Stopping ip tables..."
       execute "service iptables stop"
+      execute "chkconfig iptables off"
       ;;
     ubuntu)
       print_info "Disabling ufw..."
@@ -454,7 +452,7 @@ function configure_hiera () {
   cat > /etc/puppet/hiera.yaml <<\HIERADELIM
 ---
 :hierarchy:
- - %{operatingsystem}
+ - "%{operatingsystem}"
  - common
 :backends:
  - yaml
@@ -530,7 +528,7 @@ function install_puppet_client () {
       execute "$package_manager -y install ruby-devel rubygems gcc-c++ make"
       ;;
     ubuntu)
-      execute "$package_manager -y install ruby1.8-dev rubygems build-essential"
+      execute "$package_manager -y install ruby-dev make"
       ;;
     *)
       print_error "$os is not supported yet."
@@ -559,12 +557,6 @@ function start_puppet_client () {
   execute "puppet resource cron puppet-agent ensure=present user=root minute=30 command='/usr/bin/puppet agent --onetime --no-daemonize --splay'"
 }
 
-function check_if_passenger_is_installed () {
-  print_info "Checking if passenger is already installed..."
-  execute "/usr/bin/gem list | grep passenger"
-  return $?
-}
-
 function test_puppet_run () {
   print_info "Executing test puppet run"
   execute "puppet agent --test --noop"
@@ -580,6 +572,10 @@ function install_dependencies_for_passenger () {
   case "$os" in
     centos|redhat)
       execute "$package_manager -y install httpd httpd-devel ruby-devel rubygems mod_ssl.x86_64 curl-devel openssl-devel gcc-c++ zlib-devel make"
+      if [[ $? -ne 0 ]]; then
+        print_error "Failed installing dependencies for passenger. Stopping."
+        exit 2
+      fi
       if [[ -f /etc/httpd/conf.d/ssl.conf ]]; then
         execute "rm -f /etc/httpd/conf.d/ssl.conf"
       fi
@@ -589,7 +585,11 @@ function install_dependencies_for_passenger () {
       execute "chkconfig httpd on"
       ;;
     ubuntu)
-      execute "$package_manager -y install apache2 ruby1.8-dev rubygems libcurl4-openssl-dev libssl-dev zlib1g-dev apache2-prefork-dev libapr1-dev libaprutil1-dev"
+      execute "$package_manager -y install apache2 ruby-dev libcurl4-openssl-dev libssl-dev zlib1g-dev apache2-prefork-dev libapr1-dev libaprutil1-dev"
+      if [[ $? -ne 0 ]]; then
+        print_error "Failed installing dependencies for passenger. Stopping."
+        exit 2
+      fi
       execute "a2enmod ssl"
       execute "a2enmod headers"
       execute "update-rc.d -f puppetmaster remove"
@@ -601,6 +601,12 @@ function install_dependencies_for_passenger () {
   esac
 }
 
+function check_if_passenger_is_installed () {
+  print_info "Checking if passenger is already installed..."
+  execute "/usr/bin/gem list | grep passenger"
+  return $?
+}
+
 function install_passenger () {
   check_if_passenger_is_installed
   if [[ $? -eq 0 ]]; then
@@ -609,7 +615,8 @@ function install_passenger () {
   fi
   install_dependencies_for_passenger
   execute "/usr/bin/gem install --no-rdoc --no-ri rack"
-  execute "/usr/bin/gem install --no-rdoc --no-ri passenger --version=3.0.18"
+  test -z $passenger_version && passenger_version="4.0.42"
+  execute "/usr/bin/gem install --no-rdoc --no-ri passenger --version=${passenger_version}"
   if [[ $? -ne 0 ]]; then
     print_error "Failed installing passenger gem, stopping."
     exit 1
@@ -641,10 +648,10 @@ function configure_passenger () {
       ruby_exec="/usr/bin/ruby"
       ;;
     ubuntu)
-      passenger_conf="/etc/apache2/sites-available/puppetmasterd"
+      passenger_conf="/etc/apache2/sites-available/puppetmasterd.conf"
       ruby_path=$(/usr/bin/gem environment gemdir)
       # ruby_path="/var/lib"
-      ruby_exec="/usr/bin/ruby1.8"
+      ruby_exec=$(readlink -f `which ruby`)
       ;;
   esac
   execute "grep ssl_client_header $puppet_conf"
@@ -657,60 +664,63 @@ DELIM
   fi
   cat > $passenger_conf <<DELIM
 # you probably want to tune these settings
+LoadModule passenger_module ${ruby_path}/gems/passenger-4.0.42/buildout/apache2/mod_passenger.so
+PassengerRoot ${ruby_path}/gems/passenger-${passenger_version}
+PassengerRuby ${ruby_exec}
+LoadModule ssl_module modules/mod_ssl.so
+
 PassengerHighPerformance on
 PassengerMaxPoolSize 12
 PassengerPoolIdleTime 1500
 # PassengerMaxRequests 1000
 PassengerStatThrottleRate 120
-RackAutoDetect Off
-RailsAutoDetect Off
 
 Listen 8140
 
 <VirtualHost *:8140>
-        LoadModule passenger_module ${ruby_path}/gems/passenger-3.0.18/ext/apache2/mod_passenger.so
-        PassengerRoot ${ruby_path}/gems/passenger-3.0.18
-        PassengerRuby ${ruby_exec}
-        LoadModule ssl_module modules/mod_ssl.so
+  SSLEngine on
+  SSLProtocol -ALL +SSLv3 +TLSv1
+  SSLCipherSuite ALL:!ADH:RC4+RSA:+HIGH:+MEDIUM:-LOW:-SSLv2:-EXP
 
-        SSLEngine on
-        SSLProtocol -ALL +SSLv3 +TLSv1
-        SSLCipherSuite ALL:!ADH:RC4+RSA:+HIGH:+MEDIUM:-LOW:-SSLv2:-EXP
+  SSLCertificateFile      /var/lib/puppet/ssl/certs/${puppet_server_fqdn_lowercase}.pem
+  SSLCertificateKeyFile   /var/lib/puppet/ssl/private_keys/${puppet_server_fqdn_lowercase}.pem
+  SSLCertificateChainFile /var/lib/puppet/ssl/ca/ca_crt.pem
+  SSLCACertificateFile    /var/lib/puppet/ssl/ca/ca_crt.pem
+  # If Apache complains about invalid signatures on the CRL, you can try disabling
+  # CRL checking by commenting the next line, but this is not recommended.
+  SSLCARevocationFile     /var/lib/puppet/ssl/ca/ca_crl.pem
+  SSLVerifyClient optional
+  SSLVerifyDepth  1
+  SSLOptions +StdEnvVars
 
-        SSLCertificateFile      /var/lib/puppet/ssl/certs/${puppet_server_fqdn_lowercase}.pem
-        SSLCertificateKeyFile   /var/lib/puppet/ssl/private_keys/${puppet_server_fqdn_lowercase}.pem
-        SSLCertificateChainFile /var/lib/puppet/ssl/ca/ca_crt.pem
-        SSLCACertificateFile    /var/lib/puppet/ssl/ca/ca_crt.pem
-        # If Apache complains about invalid signatures on the CRL, you can try disabling
-        # CRL checking by commenting the next line, but this is not recommended.
-        SSLCARevocationFile     /var/lib/puppet/ssl/ca/ca_crl.pem
-        SSLVerifyClient optional
-        SSLVerifyDepth  1
-        SSLOptions +StdEnvVars
+  # This header needs to be set if using a loadbalancer or proxy
+  RequestHeader unset X-Forwarded-For
 
-        # This header needs to be set if using a loadbalancer or proxy
-        RequestHeader unset X-Forwarded-For
+  RequestHeader set X-SSL-Subject %{SSL_CLIENT_S_DN}e
+  RequestHeader set X-Client-DN %{SSL_CLIENT_S_DN}e
+  RequestHeader set X-Client-Verify %{SSL_CLIENT_VERIFY}e
 
-        RequestHeader set X-SSL-Subject %{SSL_CLIENT_S_DN}e
-        RequestHeader set X-Client-DN %{SSL_CLIENT_S_DN}e
-        RequestHeader set X-Client-Verify %{SSL_CLIENT_VERIFY}e
-
-        DocumentRoot /usr/share/puppet/rack/puppetmasterd/public
-        RackBaseURI /
-        <Directory /usr/share/puppet/rack/puppetmasterd/>
-                Options None
-                AllowOverride None
-                Order allow,deny
-                allow from all
-        </Directory>
+  DocumentRoot /usr/share/puppet/rack/puppetmasterd/public
+  RackBaseURI /
+  <Directory /usr/share/puppet/rack/puppetmasterd/>
+    Options None
+    AllowOverride None
+    Order allow,deny
+    allow from all
+  </Directory>
 </VirtualHost>
 DELIM
   # tell rack how to spawn puppet master processes
   if [[ ! -d /usr/share/puppet/rack/puppetmasterd ]]; then
     execute "mkdir -p /usr/share/puppet/rack/puppetmasterd/{public,tmp}"
-    if [[ ! -f /usr/share/puppet/rack/puppetmasterd/config.ru ]]; then
-      execute "cd /usr/share/puppet/rack/puppetmasterd/ && curl -O https://raw.github.com/puppetlabs/puppet/master/ext/rack/config.ru"
-      execute "chown puppet:puppet /usr/share/puppet/rack/puppetmasterd/config.ru"
+    if [[ -f /usr/share/puppet/ext/rack/config.ru ]]; then
+      cp /usr/share/puppet/ext/rack/config.ru /usr/share/puppet/rack/puppetmasterd
+      chown puppet:puppet /usr/share/puppet/rack/puppetmasterd/config.ru
+    else
+      if [[ ! -f /usr/share/puppet/rack/puppetmasterd/config.ru ]]; then
+        execute "cd /usr/share/puppet/rack/puppetmasterd/ && curl -O https://raw.githubusercontent.com/puppetlabs/puppet/master/ext/rack/config.ru"
+        execute "chown puppet:puppet /usr/share/puppet/rack/puppetmasterd/config.ru"
+      fi
     fi
   fi
   print_info "Restarting apache to reload config..."
@@ -864,8 +874,8 @@ function pause_till_puppetdb_starts () {
   print_info "Pausing till puppetdb service starts up (timeout: 120s)..."
   timeout 120s bash -c '
 while : ; do
- grep "Started SslSelectChannelConnector@" /var/log/puppetdb/puppetdb.log &>/dev/null && break
- sleep 1
+  netstat -plten | grep 8086 &>/dev/null && break
+  sleep 1
 done
 '
   if [ $? -eq 124 ]; then
