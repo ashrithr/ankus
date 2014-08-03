@@ -301,7 +301,7 @@ module Ankus
       @nodes
     end
 
-    # Create instances if the node has no fqdn is assigned
+    # Create instances if the node has no fqdn assigned
     # Used for adding instances to the existing cluster (reload ankus based on config)
     # @param [Hash] nodes => merged nodes info
     def safe_create_instances!(nodes)
@@ -601,7 +601,7 @@ module Ankus
       if aws.valid_connection?(conn)
         @log.debug 'Successfully authenticated with aws' if @debug
       else
-        @log.error 'Failed connecting to aws'
+        @log.error 'Failed connecting to aws with provided credentials'
         abort
       end
 
