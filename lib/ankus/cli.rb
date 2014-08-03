@@ -101,9 +101,6 @@ module Ankus
                   :type => :boolean,
                   :default => false
     def info
-      # if @config.nil? or @config.empty?
-      #   parse_config options[:debug], options[:mock]
-      # end
       deployment_info(Settings.load!(options[:config]))
     end
 
@@ -116,9 +113,6 @@ module Ankus
                   :desc => 'list available roles',
                   :type => :boolean
     def ssh
-      # if @config.nil? or @config.empty?
-      #   parse_config options[:debug], options[:mock]
-      # end
       if options[:role] and options[:list_roles]
         @logger.error 'ankus ssh is called with both [--role, --list-roles]'
         abort
@@ -146,9 +140,6 @@ module Ankus
                   :type => :array,
                   :required => true
     def pssh
-      # if @config.nil? or @config.empty?
-      #   parse_config options[:debug], options[:mock]
-      # end
       if options[:role] and options[:list_roles]
         @logger.error 'ankus pssh is called with both [--role, --list-roles]'
       abort
@@ -164,20 +155,16 @@ module Ankus
                            ' (danger zone)'
     def destroy
       config = Settings.load!(options[:config])
-      # if @config.nil? or @config.empty?
-      #   parse_config options[:debug], options[:mock]
-      # end
       if config['install_mode'] == 'local'
         @logger.fatal 'Only applicable for cloud deployments'
-        exit
-      1
+        exit 1
       end
       destroy_cluster(config, options)
     end
 
     private
+    # Setup global logging
     def global_logger
-      # Setup global logging
       logger = Log4r::Logger.new('Ankus')
       outputter = Log4r::StdoutOutputter.new('stdout')
       outputter.formatter = Log4r::PatternFormatter.new(:pattern => '%d %L %m')
@@ -224,23 +211,14 @@ module Ankus
     # @param [Thor::Options] options method options provided by thor parser
     # @return nil
     def initiate_deployment(options)
-      #size = `stty size 2>/dev/null`
-      #cols =  if $? == 0
-      #          size.split.map { |x| x.to_i }.reverse.first
-      #        else
-      #          80
-      #        end
-      if options[:mock]
-        #puts '*' * cols
-        #puts 'MOCKING'.center(cols, ' ')
-        #puts '*' * cols
-        @logger.info 'MOCKING deployment'.bold
-      end
+      @logger.info 'MOCKING deployment'.bold if options[:mock]
+
       if options[:run_only]
         @logger.info 'Orchestrating puppet runs'.bold
       else
         @logger.info 'Initializing deployment'.bold
       end
+
       if @config.nil? or @config.empty?
         @logger.info 'Parsing config file ...'
         parse_config options
