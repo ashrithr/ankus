@@ -71,7 +71,7 @@ module Ankus
     def valid_connection?(conn)
       conn.servers.length
       true
-    rescue Excon::Errors::Forbidden, Excon::Errors::Unauthorized
+    rescue Excon::Errors::Forbidden, Excon::Errors::Unauthorized, Fog::Compute::AWS::Error
       false
     end
 
