@@ -194,15 +194,15 @@ hadoop_config_mapred_reduce_slowstart_completed_maps: 0.05
 #  automatically configure based on the system's memory (takes into
 #  consideration the number of daemons to colocate such as hbase and hadoop).
 ########################################################
-hadoop_config_yarn_nodemanager_resource_memory_mb: 8048
-hadoop_config_yarn_scheduler_minimum_allocation_mb: 1024
-hadoop_config_yarn_scheduler_maximum_allocation_mb: 10240
-hadoop_config_mapreduce_map_memory_mb: 2048
-hadoop_config_mapreduce_reduce_memory_mb: 4096
-hadoop_config_mapreduce_map_java_opts: 1536
-hadoop_config_mapreduce_reduce_java_opts: 3556
+hadoop_config_yarn_nodemanager_resource_memory_mb: 6144
+hadoop_config_yarn_scheduler_minimum_allocation_mb: 3072
+hadoop_config_yarn_scheduler_maximum_allocation_mb: 6144
+hadoop_config_mapreduce_map_memory_mb: 3072
+hadoop_config_mapreduce_reduce_memory_mb: 6144
+hadoop_config_mapreduce_map_java_opts: 2457
+hadoop_config_mapreduce_reduce_java_opts: 4915
 hadoop_config_yarn_nodemanager_vmem_pmem_ratio: 2.1
-hadoop_config_mapreduce_task_io_sort_mb: 512
+hadoop_config_mapreduce_task_io_sort_mb: 1024
 hadoop_config_mapreduce_task_io_sort_factor: 100
 hadoop_config_mapreduce_reduce_shuffle_parallelcopies: 50
 
