@@ -2,10 +2,10 @@ Ankus
 =====
 Ankus is a big-data deployment & orchestration tool. Handles the installation & management of:
 
- - [hadoop](http://hadoop.apache.org/) (hadoop-2.0.0)
- - hadoop ecosystem tools: [pig](http://pig.apache.org/) (0.11.x), [hive](http://hive.apache.org/) (0.10.x), [sqoop2](http://sqoop.apache.org/), [oozie](http://oozie.apache.org/) (3.3.x), hadoop-search
- - [hbase](http://hbase.apache.org/) (hbase-0.94)
- - [cassandra](http://cassandra.apache.org/) (cassandra-2.0.x)
+ - [hadoop](http://hadoop.apache.org/) (latest)
+ - hadoop ecosystem tools: [pig](http://pig.apache.org/) (latest), [hive](http://hive.apache.org/) (latest), [sqoop2](http://sqoop.apache.org/), [oozie](http://oozie.apache.org/) (latest), hadoop-search
+ - [hbase](http://hbase.apache.org/) (latest)
+ - [cassandra](http://cassandra.apache.org/) (latest)
  - [kafka](http://kafka.apache.org/) (kafka-0.8)
  - [storm](http://storm-project.net/) (storm-0.8.2)
 
@@ -96,7 +96,7 @@ To install ruby 1.9.3 and other dependencies on supported platforms follow these
 	```bash
 	brew install libxml2 libxslt
 	brew link libxml2 libxslt
-  curl -L get.rvm.io | bash -s stable  
+  curl -L get.rvm.io | bash -s stable
   source ~/.rvm/scripts/rvm || source /usr/local/rvm/scripts/rvm
 	rvm requirements --verify-downloads 1
 	rvm install 1.9.3
