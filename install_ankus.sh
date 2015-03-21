@@ -88,9 +88,7 @@ function get_system_info () {
     [[ $? -eq 0 ]] && {
       os="macosx"
       os_version=`sw_vers | grep 'ProductVersion' | cut -f 2`
-      # OS=`sw_vers | grep 'ProductName' | cut -f 2`;
-      # VER=`sw_vers | grep 'ProductVersion' | cut -f 2`;
-      # BUILD=`sw_vers | grep 'BuildVersion' | cut -f 2`;
+      os_arch=`arch`
     } || {
       os="macosx"
     }
@@ -133,13 +131,13 @@ function mac_version_xcode () {
 
 function install_preqs () {
   #Validate OS
-  if [[ $OSSTR =~ centos || $OSSTR =~ redhat ]]; then
+  if [[ $os =~ centos || $os =~ redhat ]]; then
     sudo yum -y install git gcc ruby-devel libxml2 libxml2-devel libxslt \
                    libxslt-devel make curl
-  elif [[ $OSSTR =~ ubuntu ]]; then
+  elif [[ $os =~ ubuntu ]]; then
     sudo apt-get install -y build-essential libxml2-dev libxslt1-dev \
                        libreadline-dev zlib1g-dev git curl
-  elif [[ $OSSTR =~ Darwin ]]; then
+  elif [[ $os =~ macosx ]]; then
     echo "[*] Checking if C compiler is installed or not"
     command -v cc >/dev/null && {
       echo "[*] Found C compiler at `command -v cc`";
@@ -160,9 +158,14 @@ function install_preqs () {
       echo "[*] Installing git";
       brew install git;
     }
-    echo "[*] Installing xml libraries (libxml2 & libxslt)"
-    brew install libxml2 libxslt
-    brew link libxml2 libxslt
+    brew list | grep libxml2 &> /dev/null
+    if [[ $? -eq 0 ]]; then
+      echo "[*] Found libxml2, libxslt installed using brew"
+    else
+      echo "[*] Installing xml libraries (libxml2 & libxslt)"
+      brew install libxml2 libxslt
+      brew link libxml2 libxslt
+    fi
   else
     echo "[Error]: ${OS} is not supported"
     exit 1
@@ -183,11 +186,16 @@ function install_rvm () {
 function install_ruby_193 () {
   echo "[*] Installing Ruby 1.9.3 using rvm"
   # RVM=~/.rvm/bin/rvm
-  source ~/.bashrc
-  rvm requirements --verify-downloads 1
-  rvm install 1.9.3
-  rvm use 1.9.3
-  rvm rubygems current
+  rvm list | grep 1.9.3 &> /dev/null
+  if [[ $? -eq 0 ]]; then
+    echo "[*] Already have ruby 1.9.3 installed using rvm"
+  else
+    source ~/.bashrc
+    rvm requirements --verify-downloads 1
+    rvm install 1.9.3
+    rvm use 1.9.3
+    rvm rubygems current
+  fi
 }
 
 function install_ankus () {
