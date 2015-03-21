@@ -47,6 +47,9 @@ Ankus is a big-data deployment & orchestration tool. Handles the installation & 
 Installation
 ------------
 
+> *Scripted way to install ankus (this is still **experemental**, use at your own risk or use the manual process specified below)*
+> `bash <(curl -sO https://raw.githubusercontent.com/ashrithr/ankus/master/install_ankus.sh)`
+
 ###Dependencies
 
 To install ruby 1.9.3 and other dependencies on supported platforms follow these instructions:

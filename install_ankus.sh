@@ -18,50 +18,97 @@
 # Convenience wrapper to install ankus
 # ---
 
+####
+## Global Variables (script-use only)
+####
+# os specific variables
+declare os
+declare os_str
+declare os_version
+declare os_codename
+declare os_arch
+declare package_manager
+
 OS=`uname -s`
 REV=`uname -r`
 MACH=`uname -m`
 
-GetVersionFromFile()
-{
-  VERSION=`cat $1 | tr "\n" ' ' | sed s/.*VERSION.*=\ // `
-}
+####
+## Utility functions
+####
 
-if [ "${OS}" == "SunOS" ] ; then
-  OS=Solaris
-  ARCH=`uname -p`
-  OSSTR="${OS} ${REV}(${ARCH} `uname -v`)"
-elif [ "${OS}" == "AIX" ] ; then
-  OSSTR="${OS} `oslevel` (`oslevel -r`)"
-elif [ "${OS}" == "Linux" ] ; then
-  KERNEL=`uname -r`
-  if [ -f /usr/bin/lsb_release ] ; then
-    OS=$( lsb_release -sd | tr '[:upper:]' '[:lower:]' | tr '"' ' ' | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } print $i; } }' )
-    VER=`lsb_release -sd | tr '[:upper:]' '[:lower:]' | tr '"' ' ' | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } } }'`
+function get_system_info () {
+  os=`uname -s`
+  if [[ "$os" = "SunOS" ]] ; then
+    os="Solaris"
+    os_arch=`uname -p`
+  elif [[ "$os" = "Linux" ]] ; then
+    if [[ -f /etc/redhat-release ]]; then
+      os_str=$( cat `ls /etc/*release | grep "redhat\|SuSE"` | head -1 | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } print $i; } }' | tr '[:upper:]' '[:lower:]' )
+      os_version=$( cat `ls /etc/*release | grep "redhat\|SuSE"` | head -1 | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } } }' | tr '[:upper:]' '[:lower:]')
+      if [[ $os_str =~ centos ]]; then
+        os="centos"
+      elif [[ $os_str =~ red ]]; then
+        os="redhat"
+      else
+        echo "OS: $os_str is not yet supported, contact support@cloudwicklabs.com"
+        exit 1
+      fi
+    elif [[ -f /etc/lsb-release ]] ; then
+      os_str=$( lsb_release -sd | tr '[:upper:]' '[:lower:]' | tr '"' ' ' | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } print $i; } }' )
+      os_version=$( lsb_release -sd | tr '[:upper:]' '[:lower:]' | tr '"' ' ' | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } } }')
+      if [[ $os_str =~ ubuntu ]]; then
+        os="ubuntu"
+        if grep -q precise /etc/lsb-release; then
+          os_codename="precise"
+        elif grep -q lucid /etc/lsb-release; then
+          os_codename="lucid"
+        else
+          echo "Sorry, only precise & lucid systems are supported by this script. Exiting."
+          exit 1
+        fi
+      else
+        echo "OS: $os_str is not yet supported, contact support@cloudwicklabs.com"
+        exit 1
+      fi
+    else
+      echo "OS: $os_str is not yet supported, contact support@cloudwicklabs.com"
+      exit 1
+    fi
+    os=$( echo $os | sed -e "s/ *//g")
+    os_arch=`uname -m`
+    if [[ "xi686" == "x${os_arch}" || "xi386" == "x${os_arch}" ]]; then
+      os_arch="i386"
+    fi
+    if [[ "xx86_64" == "x${os_arch}" || "xamd64" == "x${os_arch}" ]]; then
+      os_arch="x86_64"
+    fi
+  elif [[ "$os" = "Darwin" ]]; then
+    type -p sw_vers &>/dev/null
+    [[ $? -eq 0 ]] && {
+      os="macosx"
+      os_version=`sw_vers | grep 'ProductVersion' | cut -f 2`
+      # OS=`sw_vers | grep 'ProductName' | cut -f 2`;
+      # VER=`sw_vers | grep 'ProductVersion' | cut -f 2`;
+      # BUILD=`sw_vers | grep 'BuildVersion' | cut -f 2`;
+    } || {
+      os="macosx"
+    }
+  fi
+
+  if [[ $os =~ centos || $os =~ redhat ]]; then
+    package_manager="yum"
+  elif [[ $os =~ ubuntu ]]; then
+    package_manager="apt-get"
+  elif [[ $os =~ macosx ]]; then
+    package_manager="brew"
   else
-    OS=$( cat `ls /etc/*release | grep "redhat\|SuSE"` | head -1 | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } print $i; } }' | tr '[:upper:]' '[:lower:]' )
-    VER=`cat \`ls /etc/*release | grep "redhat\|SuSE"\` | head -1 | awk '{ for(i=1; i<=NF; i++) { if ( $i ~ /[0-9]+/ ) { cnt=split($i, arr, "."); if ( cnt > 1) { print arr[1] } else { print $i; } break; } } }' | tr '[:upper:]' '[:lower:]'`
+    echo "Unsupported package manager. Please contact support@cloudwicklabs.com."
+    exit 1
   fi
-  OS=`echo ${OS} | sed -e "s/ *//g"`
-  ARCH=`uname -m`
-  if [[ "xi686" == "x${ARCH}" || "xi386" == "x${ARCH}" ]]; then
-    ARCH="i386"
-  fi
-  if [[ "xx86_64" == "x${ARCH}" || "xamd64" == "x${ARCH}" ]]; then
-    ARCH="x86_64"
-  fi
-  OSSTR="${OS} ${VER} ${ARCH}"
-elif [ "${OS}" == "Darwin" ]; then
-  command -v sw_vers >/dev/null
-  [ $? -eq 0 ] && {
-    OS=`sw_vers | grep 'ProductName' | cut -f 2`;
-    VER=`sw_vers | grep 'ProductVersion' | cut -f 2`;
-    BUILD=`sw_vers | grep 'BuildVersion' | cut -f 2`;
-    OSSTR="Darwin ${OS} ${VER} ${BUILD}";
-  } || {
-    OSSTR="MacOSX";
-  }
-fi
+
+  echo "Detected OS: ${os}, Ver: ${os_version}, Arch: ${os_arch}"
+}
 
 function float_cond () {
   local cond=0
@@ -75,10 +122,9 @@ function float_cond () {
 }
 
 function mac_version_xcode () {
-  MAC_VERSION=`/usr/bin/sw_vers -productVersion | cut -d. -f1,2`
+  local mac_version=`/usr/bin/sw_vers -productVersion | cut -d. -f1,2`
   echo "Requires XCODE"
-  if echo "${MAC_VERSION}<10.7" | bc -q >/dev/null
-  then
+  if echo "${mac_version}<10.7" | bc -q >/dev/null; then
     echo "Install XCODE from https://developer.apple.com/xcode/"
   else
     echo "Install the 'Command Line Tools for Xcode': http://connect.apple.com"
@@ -88,17 +134,12 @@ function mac_version_xcode () {
 function install_preqs () {
   #Validate OS
   if [[ $OSSTR =~ centos || $OSSTR =~ redhat ]]; then
-    echo "[*]  RedHat based system detected"
-    INSTALL="yum"
-    yum -y install git gcc ruby-devel libxml2 libxml2-devel libxslt \
+    sudo yum -y install git gcc ruby-devel libxml2 libxml2-devel libxslt \
                    libxslt-devel make curl
   elif [[ $OSSTR =~ ubuntu ]]; then
-    echo "[*] Debian based system detected"
-    INSTALL="apt-get"
-    apt-get install -y build-essential libxml2-dev libxslt1-dev \
+    sudo apt-get install -y build-essential libxml2-dev libxslt1-dev \
                        libreadline-dev zlib1g-dev git curl
   elif [[ $OSSTR =~ Darwin ]]; then
-    echo "[*] Mac based system detected"
     echo "[*] Checking if C compiler is installed or not"
     command -v cc >/dev/null && {
       echo "[*] Found C compiler at `command -v cc`";
@@ -107,10 +148,16 @@ function install_preqs () {
       mac_version_xcode;
       exit;
     }
-    echo "[*] Installing HomeBrew"
-    ruby -e "$(curl -fsSL https://raw.github.com/mxcl/homebrew/go)"
-    command -v git >/dev/null || {
-      echo "[*] Installing git"
+    command -v brew > /dev/null && {
+      echo "[*] Found brew installed at `command -v brew`";
+    } || {
+      echo "[*] Installing HomeBrew";
+      ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)";
+    }
+    command -v git >/dev/null && {
+      echo "[*] Found git installed at `command -v git`";
+    } || {
+      echo "[*] Installing git";
       brew install git;
     }
     echo "[*] Installing xml libraries (libxml2 & libxslt)"
@@ -123,14 +170,18 @@ function install_preqs () {
 }
 
 function install_rvm () {
-  echo "[*] Installing RVM (Ruby Version Manager)"
-  curl -L get.rvm.io | bash -s stable
-  [ -f /etc/profile.d/rvm.sh ] && source /etc/profile.d/rvm.sh || source ~/.rvm/scripts/rvm
-  [ -f ~/.bashrc ] && echo 'source ~/.rvm/scripts/rvm' >> ~/.bashrc || echo 'source ~/.rvm/scripts/rvm' > ~/.bashrc
+  command -v rvm > /dev/null && {
+    echo "[*] Found rvm installed at `command -v brew`";
+  } || {
+    echo "[*] Installing RVM (Ruby Version Manager)";
+    curl -sSL https://get.rvm.io | bash -s stable;
+    [ -f /etc/profile.d/rvm.sh ] && source /etc/profile.d/rvm.sh || source ~/.rvm/scripts/rvm;
+    [ -f ~/.bashrc ] && echo 'source ~/.rvm/scripts/rvm' >> ~/.bashrc || echo 'source ~/.rvm/scripts/rvm' > ~/.bashrc;
+  }
 }
 
 function install_ruby_193 () {
-  echo "[*] Installing Ruby 1.9.3"
+  echo "[*] Installing Ruby 1.9.3 using rvm"
   # RVM=~/.rvm/bin/rvm
   source ~/.bashrc
   rvm requirements --verify-downloads 1
@@ -140,16 +191,22 @@ function install_ruby_193 () {
 }
 
 function install_ankus () {
-  echo "[*] Installing Ankus to " ~
+  echo "[*] Installing Ankus to ${HOME}"
   cd ~ && git clone git://github.com/ashrithr/ankus.git
   gem install bundle --no-ri --no-rdoc
   cd ankus && bundle install
 }
 
+####
+## Main
+####
+
+get_system_info
 install_preqs
 install_rvm
 install_ruby_193
 install_ankus
+
 echo "[*] Installing Ankus completed"
 echo 'The following line is added to start-up script "~/.bashrc"
 
