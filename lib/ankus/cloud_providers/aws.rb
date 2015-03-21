@@ -92,10 +92,12 @@ module Ankus
               out_fp, _, _ =
                 Util::ShellUtils.system_quietly(
                   "openssl pkcs8 -in #{key_path} -nocrypt " \
-                  '-topk8 -outform DER | openssl sha1 -c'
+                  "-topk8 -outform DER | openssl sha1 -c | sed 's/^.* //'"
                 )
               remote_fp = conn.key_pairs.get(key).fingerprint
               unless out_fp.chomp == remote_fp
+                @log.debug "Fingerprint of remote key: '#{out_fp.chomp}'"
+                @log.debug "Fingerprint of local key: '#{remote_fp}'"
                 @log.error "Key '#{key}' already exists on local system and" \
                   " it's fingerprint does not match with remote key_pair's" \
                   " fingerprint. Either delete the key in aws and rename the" \
