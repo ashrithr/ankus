@@ -197,6 +197,8 @@ function add_epel_repo () {
         exit 1
       fi
       execute "rpm -i epel.rpm"
+      # TODO: make this more generic, this is the problem with older 'nss' versions: `yum --disablerepo="epel" update nss`
+      execute "sed -i.old 's/https/http/g' /etc/yum.repos.d/epel.repo"
       execute "rm -f epel.rpm"
     fi
   fi
