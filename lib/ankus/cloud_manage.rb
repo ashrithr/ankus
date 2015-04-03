@@ -847,11 +847,11 @@ module Ankus
       os              = create_openstack_connection
       conn            = os.create_connection
       ssh_key         = File.expand_path('~/.ssh') + "/#{key}"
-      ssh_user        = @parsed_hash[:ssh_user]
+      ssh_user        = credentials[:os_ssh_user]
       server_objects  = {} # hash to store server object to tag mapping { tag => server_obj }
 
       begin
-        unless openstack.valid_connection?(openstack.create_connection)
+        unless os.valid_connection?(conn)
           @log.error 'Failed establishing connection to openstack, check your credentials'
         else
           @log.debug "Sucessfully authnticated with openstack"
